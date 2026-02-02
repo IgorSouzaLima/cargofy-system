@@ -16,14 +16,15 @@ import {
   deleteDoc, 
   serverTimestamp, 
   query,
-  where
+  where,
+  getDocs
 } from 'firebase/firestore';
 import { 
   LayoutDashboard, Truck, Users, DollarSign, Plus, Package, MapPin, X, Trash2, 
   Briefcase, LogOut, FileText, Search, Layers, 
   CheckCircle2, AlertCircle, Edit3, Camera, Link as LinkIcon,
   CreditCard, Scale, Box, User as UserIcon, ChevronRight, Calendar, Hash, Filter, Download,
-  Clock, Printer, Weight, Thermometer
+  Clock, Printer, Weight, Thermometer, Eye, EyeOff
 } from 'lucide-react';
 
 // --- CONFIGURAÇÃO FIREBASE ---
@@ -114,6 +115,14 @@ export default function App() {
   const [editingId, setEditingId] = useState(null);
   const [search, setSearch] = useState('');
 
+  // Estados para Filtro do Relatório
+  const [reportFilters, setReportFilters] = useState({
+    dataInicio: '',
+    dataFim: '',
+    numeroNF: '',
+    mostrarFinanceiro: true
+  });
+
   const [formData, setFormData] = useState({
     numeroNF: '', chaveNF: '', cte: '', 
     contratante: '', destinatario: '', 
@@ -173,11 +182,39 @@ export default function App() {
     const colName = (activeTab === 'dashboard' || activeTab === 'viagens') ? 'viagens' : activeTab;
     
     try {
-      const data = { ...formData, userId: user.uid, updatedAt: serverTimestamp() };
+      // Conversão explícita para números para garantir que o financeiro funcione
+      const data = { 
+        ...formData, 
+        valorFrete: Number(formData.valorFrete) || 0,
+        valorPago: Number(formData.valorPago) || 0,
+        valorNF: Number(formData.valorNF) || 0,
+        peso: Number(formData.peso) || 0,
+        userId: user.uid, 
+        updatedAt: serverTimestamp() 
+      };
+      
       let currentId = editingId;
 
       if (editingId) {
         await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', colName, editingId), data);
+        
+        // Atualizar financeiro vinculado se for uma viagem
+        if (colName === 'viagens') {
+          const finQuery = query(
+            collection(db, 'artifacts', appId, 'public', 'data', 'financeiro'),
+            where('viagemId', '==', editingId)
+          );
+          const finSnap = await getDocs(finQuery);
+          if (!finSnap.empty) {
+            const finDoc = finSnap.docs[0];
+            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'financeiro', finDoc.id), {
+              valor: Number(data.valorFrete),
+              valorPago: Number(data.valorPago),
+              pago: Number(data.valorPago) >= Number(data.valorFrete),
+              updatedAt: serverTimestamp()
+            });
+          }
+        }
       } else {
         const docRef = await addDoc(collection(db, 'artifacts', appId, 'public', 'data', colName), { ...data, createdAt: serverTimestamp() });
         currentId = docRef.id;
@@ -190,7 +227,7 @@ export default function App() {
             tipo: 'Receita',
             categoria: 'Frete',
             metodo: formData.metodoPagamento,
-            dataVencimento: formData.metodoPagamento === 'Boleto' ? formData.dataVencimentoBoleto : new Date().toISOString().split('T')[0],
+            dataVencimento: formData.metodoPagamento === 'Boleto' ? formData.dataVencimentoBoleto : (formData.dataSaida || new Date().toISOString().split('T')[0]),
             pago: Number(formData.valorPago) >= Number(formData.valorFrete),
             viagemId: currentId,
             userId: user.uid,
@@ -235,14 +272,36 @@ export default function App() {
     );
   }, [activeTab, search, dashboardFilter, viagens, financeiro, clientes, motoristas, veiculos]);
 
-  const stats = useMemo(() => ({
-    pendente: viagens.filter(v => v.status === 'Pendente').length,
-    emRota: viagens.filter(v => v.status === 'Em rota').length,
-    concluida: viagens.filter(v => v.status === 'Entregue').length,
-    total: viagens.length,
-    financeiroTotal: viagens.reduce((acc, v) => acc + (Number(v.valorFrete) || 0), 0),
-    financeiroRecebido: viagens.reduce((acc, v) => acc + (Number(v.valorPago) || 0), 0)
-  }), [viagens]);
+  // Lógica de Filtro para o Relatório Gerado
+  const reportList = useMemo(() => {
+    let list = [...viagens];
+    
+    if (reportFilters.numeroNF) {
+      list = list.filter(v => v.numeroNF?.toString().includes(reportFilters.numeroNF));
+    }
+    
+    if (reportFilters.dataInicio) {
+      list = list.filter(v => v.dataSaida >= reportFilters.dataInicio);
+    }
+    
+    if (reportFilters.dataFim) {
+      list = list.filter(v => v.dataSaida <= reportFilters.dataFim);
+    }
+    
+    return list;
+  }, [viagens, reportFilters]);
+
+  const stats = useMemo(() => {
+    const list = reportList;
+    return {
+      pendente: list.filter(v => v.status === 'Pendente').length,
+      emRota: list.filter(v => v.status === 'Em rota').length,
+      concluida: list.filter(v => v.status === 'Entregue').length,
+      total: list.length,
+      financeiroTotal: list.reduce((acc, v) => acc + (Number(v.valorFrete) || 0), 0),
+      financeiroRecebido: list.reduce((acc, v) => acc + (Number(v.valorPago) || 0), 0)
+    };
+  }, [reportList]);
 
   const handlePrintReport = () => {
     window.print();
@@ -290,12 +349,12 @@ export default function App() {
         </header>
 
         <div className="p-8 overflow-y-auto space-y-8 print:p-0">
-          {activeTab === 'dashboard' && (
+          {(activeTab === 'dashboard' || activeTab === 'viagens') && (
             <div className="flex gap-6 print:hidden">
-              <StatCard title="Todas" count={stats.total} icon={Layers} color="bg-slate-800" active={dashboardFilter === 'Todos'} onClick={() => setDashboardFilter('Todos')} />
-              <StatCard title="Pendentes" count={stats.pendente} icon={Clock} color="bg-amber-500" active={dashboardFilter === 'Pendente'} onClick={() => setDashboardFilter('Pendente')} />
-              <StatCard title="Em Rota" count={stats.emRota} icon={Truck} color="bg-blue-500" active={dashboardFilter === 'Em rota'} onClick={() => setDashboardFilter('Em rota')} />
-              <StatCard title="Entregues" count={stats.concluida} icon={CheckCircle2} color="bg-emerald-500" active={dashboardFilter === 'Entregue'} onClick={() => setDashboardFilter('Entregue')} />
+              <StatCard title="Todas" count={viagens.length} icon={Layers} color="bg-slate-800" active={dashboardFilter === 'Todos'} onClick={() => setDashboardFilter('Todos')} />
+              <StatCard title="Pendentes" count={viagens.filter(v => v.status === 'Pendente').length} icon={Clock} color="bg-amber-500" active={dashboardFilter === 'Pendente'} onClick={() => setDashboardFilter('Pendente')} />
+              <StatCard title="Em Rota" count={viagens.filter(v => v.status === 'Em rota').length} icon={Truck} color="bg-blue-500" active={dashboardFilter === 'Em rota'} onClick={() => setDashboardFilter('Em rota')} />
+              <StatCard title="Entregues" count={viagens.filter(v => v.status === 'Entregue').length} icon={CheckCircle2} color="bg-emerald-500" active={dashboardFilter === 'Entregue'} onClick={() => setDashboardFilter('Entregue')} />
             </div>
           )}
 
@@ -320,7 +379,7 @@ export default function App() {
                         </div>
                         <div>
                           <p className="font-black text-sm text-slate-800">{item.numeroNF || item.nome || item.descricao || item.placa}</p>
-                          <p className="text-[10px] font-bold text-slate-400 uppercase truncate max-w-[120px]">{item.status || 'Ativo'}</p>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase">{item.status || 'Ativo'}</p>
                         </div>
                       </div>
                     </td>
@@ -338,8 +397,8 @@ export default function App() {
                     </td>
                     <td className="px-8 py-6">
                       <div className="flex flex-col">
-                        <span className="text-xs font-black text-slate-800">Frete: R$ {Number(item.valorFrete || 0).toLocaleString()}</span>
-                        <span className={`text-[10px] font-bold ${Number(item.valorPago) >= Number(item.valorFrete) ? 'text-emerald-500' : 'text-amber-500'}`}>
+                        <span className="text-xs font-black text-slate-800">Frete: R$ {Number(item.valorFrete || item.valor || 0).toLocaleString()}</span>
+                        <span className={`text-[10px] font-bold ${Number(item.valorPago) >= Number(item.valorFrete || item.valor) ? 'text-emerald-500' : 'text-amber-500'}`}>
                           Pago: R$ {Number(item.valorPago || 0).toLocaleString()}
                         </span>
                       </div>
@@ -359,60 +418,100 @@ export default function App() {
         </div>
       </main>
 
-      {/* MODAL DE RELATÓRIO */}
-      <Modal isOpen={reportModalOpen} onClose={() => setReportModalOpen(false)} title="Relatório Logístico & Financeiro">
-        <div className="space-y-8 print:block">
-          <div className="flex justify-between items-start border-b pb-6">
-            <div>
-              <h3 className="text-2xl font-black text-slate-900 uppercase italic">CARGOFY REPORT</h3>
-              <p className="text-xs font-bold text-slate-400 mt-1">Gerado em: {new Date().toLocaleDateString()} às {new Date().toLocaleTimeString()}</p>
+      {/* MODAL DE RELATÓRIO COM FILTROS */}
+      <Modal isOpen={reportModalOpen} onClose={() => setReportModalOpen(false)} title="Configurar Relatório">
+        <div className="space-y-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 print:hidden">
+            <div className="space-y-4">
+              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                <Filter size={14} /> Filtros de Busca
+              </h4>
+              <Input label="Número da Nota Fiscal" value={reportFilters.numeroNF} onChange={v => setReportFilters({...reportFilters, numeroNF: v})} />
+              <div className="flex gap-4">
+                <Input label="Data Início" type="date" value={reportFilters.dataInicio} onChange={v => setReportFilters({...reportFilters, dataInicio: v})} />
+                <Input label="Data Fim" type="date" value={reportFilters.dataFim} onChange={v => setReportFilters({...reportFilters, dataFim: v})} />
+              </div>
             </div>
-            <div className="text-right">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Resumo Operacional</p>
-              <p className="text-lg font-black text-blue-600">{viagens.length} Viagens Registadas</p>
+            <div className="space-y-4">
+              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                <Eye size={14} /> Opções de Exibição
+              </h4>
+              <button 
+                onClick={() => setReportFilters({...reportFilters, mostrarFinanceiro: !reportFilters.mostrarFinanceiro})}
+                className={`w-full p-4 rounded-xl border flex items-center justify-between transition-all ${reportFilters.mostrarFinanceiro ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-slate-50 border-slate-200 text-slate-400'}`}
+              >
+                <div className="flex items-center gap-3">
+                  {reportFilters.mostrarFinanceiro ? <Eye size={18} /> : <EyeOff size={18} />}
+                  <span className="text-xs font-black uppercase">Incluir Financeiro</span>
+                </div>
+                <div className={`w-10 h-6 rounded-full relative transition-colors ${reportFilters.mostrarFinanceiro ? 'bg-emerald-500' : 'bg-slate-300'}`}>
+                  <div className={`absolute top-1 bg-white w-4 h-4 rounded-full transition-all ${reportFilters.mostrarFinanceiro ? 'left-5' : 'left-1'}`} />
+                </div>
+              </button>
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-6">
-            <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 text-center">
-              <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Total de Fretes</p>
-              <p className="text-2xl font-black text-slate-900">R$ {stats.financeiroTotal.toLocaleString()}</p>
+          {/* Área Visual do Relatório (O que será impresso) */}
+          <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm print:shadow-none print:border-none">
+            <div className="flex justify-between items-start border-b pb-6 mb-6">
+              <div>
+                <h3 className="text-2xl font-black text-slate-900 uppercase italic">CARGOFY REPORT</h3>
+                <p className="text-xs font-bold text-slate-400 mt-1">Gerado em: {new Date().toLocaleDateString()} às {new Date().toLocaleTimeString()}</p>
+                {reportFilters.dataInicio && <p className="text-[9px] font-black text-blue-500 uppercase mt-2">Período: {reportFilters.dataInicio} até {reportFilters.dataFim || 'Hoje'}</p>}
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Resumo Selecionado</p>
+                <p className="text-lg font-black text-blue-600">{reportList.length} Viagens Encontradas</p>
+              </div>
             </div>
-            <div className="p-6 bg-emerald-50 rounded-2xl border border-emerald-100 text-center">
-              <p className="text-[10px] font-black text-emerald-600 uppercase mb-2">Total Recebido</p>
-              <p className="text-2xl font-black text-emerald-700">R$ {stats.financeiroRecebido.toLocaleString()}</p>
-            </div>
-            <div className="p-6 bg-amber-50 rounded-2xl border border-amber-100 text-center">
-              <p className="text-[10px] font-black text-amber-600 uppercase mb-2">Pendente</p>
-              <p className="text-2xl font-black text-amber-700">R$ {(stats.financeiroTotal - stats.financeiroRecebido).toLocaleString()}</p>
-            </div>
-          </div>
 
-          <div className="space-y-4">
-            <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
-              <FileText size={16} /> Detalhamento de Viagens
-            </h4>
+            {reportFilters.mostrarFinanceiro && (
+              <div className="grid grid-cols-3 gap-4 mb-8">
+                <div className="p-4 bg-slate-50 rounded-2xl border text-center">
+                  <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Total de Fretes</p>
+                  <p className="text-xl font-black text-slate-900">R$ {stats.financeiroTotal.toLocaleString()}</p>
+                </div>
+                <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100 text-center">
+                  <p className="text-[9px] font-black text-emerald-600 uppercase mb-1">Total Recebido</p>
+                  <p className="text-xl font-black text-emerald-700">R$ {stats.financeiroRecebido.toLocaleString()}</p>
+                </div>
+                <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 text-center">
+                  <p className="text-[9px] font-black text-amber-600 uppercase mb-1">Saldo Pendente</p>
+                  <p className="text-xl font-black text-amber-700">R$ {(stats.financeiroTotal - stats.financeiroRecebido).toLocaleString()}</p>
+                </div>
+              </div>
+            )}
+
             <div className="border rounded-2xl overflow-hidden">
-              <table className="w-full text-[11px]">
+              <table className="w-full text-[10px]">
                 <thead className="bg-slate-50 border-b">
                   <tr>
+                    <th className="px-4 py-3 text-left font-black uppercase">Data</th>
                     <th className="px-4 py-3 text-left font-black uppercase">NF</th>
-                    <th className="px-4 py-3 text-left font-black uppercase">Peso / Valor NF</th>
-                    <th className="px-4 py-3 text-left font-black uppercase">Cliente</th>
-                    <th className="px-4 py-3 text-right font-black uppercase">Frete</th>
-                    <th className="px-4 py-3 text-right font-black uppercase">Pago</th>
+                    <th className="px-4 py-3 text-left font-black uppercase">Carga / Cliente</th>
+                    {reportFilters.mostrarFinanceiro && <th className="px-4 py-3 text-right font-black uppercase">Vlr Frete</th>}
+                    {reportFilters.mostrarFinanceiro && <th className="px-4 py-3 text-right font-black uppercase">Status Fin.</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {viagens.map(v => (
+                  {reportList.length === 0 ? (
+                    <tr><td colSpan={5} className="py-10 text-center text-slate-400 font-bold uppercase italic">Nenhum registro encontrado com esses filtros</td></tr>
+                  ) : reportList.map(v => (
                     <tr key={v.id}>
+                      <td className="px-4 py-3">{v.dataSaida ? new Date(v.dataSaida).toLocaleDateString() : '-'}</td>
                       <td className="px-4 py-3 font-bold">{v.numeroNF}</td>
                       <td className="px-4 py-3">
-                        <span className="font-bold">{v.peso || 0}kg</span> | NF: R$ {Number(v.valorNF || 0).toLocaleString()}
+                        <span className="font-bold text-slate-800">{v.contratante}</span>
+                        <p className="text-[9px] text-slate-400 font-bold uppercase">{v.peso || 0}kg | {v.volume || '-'}</p>
                       </td>
-                      <td className="px-4 py-3">{v.contratante}</td>
-                      <td className="px-4 py-3 text-right font-bold text-slate-900">R$ {Number(v.valorFrete || 0).toLocaleString()}</td>
-                      <td className="px-4 py-3 text-right font-bold text-emerald-600">R$ {Number(v.valorPago || 0).toLocaleString()}</td>
+                      {reportFilters.mostrarFinanceiro && <td className="px-4 py-3 text-right font-bold text-slate-900">R$ {Number(v.valorFrete || 0).toLocaleString()}</td>}
+                      {reportFilters.mostrarFinanceiro && (
+                        <td className="px-4 py-3 text-right">
+                          <span className={`px-2 py-1 rounded-full text-[8px] font-black uppercase ${Number(v.valorPago) >= Number(v.valorFrete) ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                            {Number(v.valorPago) >= Number(v.valorFrete) ? 'Liquidado' : 'Pendente'}
+                          </span>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -423,13 +522,13 @@ export default function App() {
           <div className="flex gap-4 print:hidden">
             <button onClick={() => setReportModalOpen(false)} className="flex-1 py-4 bg-slate-100 text-slate-500 rounded-2xl font-black uppercase text-[10px]">Fechar</button>
             <button onClick={handlePrintReport} className="flex-[2] py-4 bg-blue-600 text-white rounded-2xl font-black uppercase text-[10px] shadow-xl flex items-center justify-center gap-2">
-              <Printer size={16} /> Imprimir Relatório / Salvar PDF
+              <Printer size={16} /> Imprimir Relatório Selecionado
             </button>
           </div>
         </div>
       </Modal>
 
-      {/* MODAL DE CADASTRO/EDIÇÃO */}
+      {/* MODAL DE CADASTRO/EDIÇÃO (Lógica Financeira Corrigida) */}
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={`Lançamento: ${activeTab}`}>
         <form onSubmit={handleSave} className="space-y-8">
           {(activeTab === 'viagens' || activeTab === 'dashboard') && (
@@ -446,7 +545,7 @@ export default function App() {
                 </div>
               </section>
 
-              {/* DADOS SOLICITADOS: Volume, Peso, Valor NF */}
+              {/* Especificações */}
               <div className="flex items-center gap-2 text-blue-600 mb-[-1.5rem] mt-4">
                 <Box size={16} />
                 <span className="text-[10px] font-black uppercase tracking-widest">Especificações da Carga</span>
@@ -457,14 +556,14 @@ export default function App() {
                 <Input label="Valor da NF" type="number" suffix="R$" value={formData.valorNF} onChange={v => setFormData({...formData, valorNF: v})} />
               </section>
 
-              {/* Financeiro */}
+              {/* Financeiro Corrigido */}
               <div className="flex items-center gap-2 text-emerald-600 mb-[-1.5rem] mt-4">
                 <DollarSign size={16} />
-                <span className="text-[10px] font-black uppercase tracking-widest">Financeiro da Viagem</span>
+                <span className="text-[10px] font-black uppercase tracking-widest">Financeiro da Viagem (Atualização Automática)</span>
               </div>
               <section className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-emerald-50/30 p-6 rounded-2xl border border-emerald-100">
                 <Input label="Valor do Frete Combinado" type="number" suffix="R$" value={formData.valorFrete} onChange={v => setFormData({...formData, valorFrete: v})} />
-                <Input label="Valor Já Pago" type="number" suffix="R$" value={formData.valorPago} onChange={v => setFormData({...formData, valorPago: v})} />
+                <Input label="Valor Já Pago (Adiantamento/Saldo)" type="number" suffix="R$" value={formData.valorPago} onChange={v => setFormData({...formData, valorPago: v})} />
               </section>
 
               {/* Rota */}
@@ -475,7 +574,7 @@ export default function App() {
               <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Input label="Contratante" value={formData.contratante} onChange={v => setFormData({...formData, contratante: v})} />
                 <Input label="Destinatário" value={formData.destinatario} onChange={v => setFormData({...formData, destinatario: v})} />
-                <Input label="Cidade Origem" value={formData.cidadeOrigem} onChange={v => setFormData({...formData, cidadeOrigem: v})} />
+                <Input label="Data Saída" type="date" value={formData.dataSaida} onChange={v => setFormData({...formData, dataSaida: v})} />
                 <Input label="Cidade Destino" value={formData.cidadeDestino} onChange={v => setFormData({...formData, cidadeDestino: v})} />
               </section>
 
@@ -499,7 +598,7 @@ export default function App() {
 
               {formData.status === 'Entregue' && (
                 <section className="p-6 bg-emerald-50/30 rounded-2xl border border-emerald-100 space-y-4">
-                  <Input label="Data da Entrega" type="date" value={formData.dataEntrega} onChange={v => setFormData({...formData, dataEntrega: v})} />
+                  <Input label="Data da Entrega Real" type="date" value={formData.dataEntrega} onChange={v => setFormData({...formData, dataEntrega: v})} />
                   <Input 
                     label="Link do Comprovante (Drive/Foto)" 
                     placeholder="https://link-da-foto.com" 
@@ -511,16 +610,23 @@ export default function App() {
             </>
           )}
           
-          {activeTab !== 'viagens' && activeTab !== 'dashboard' && (
+          {(activeTab === 'financeiro' && !editingId) && (
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input label="Descrição" value={formData.descricao} onChange={v => setFormData({...formData, descricao: v})} />
+                <Input label="Valor R$" type="number" value={formData.valorFinanceiro} onChange={v => setFormData({...formData, valorFinanceiro: v})} />
+             </div>
+          )}
+
+          {activeTab === 'clientes' || activeTab === 'motoristas' || activeTab === 'veiculos' ? (
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Input label="Nome/Descrição" value={formData.nome || formData.descricao || formData.placa} onChange={v => setFormData({...formData, nome: v, descricao: v})} />
                 <Input label="Contato/Info" value={formData.telefone || formData.modelo} onChange={v => setFormData({...formData, telefone: v, modelo: v})} />
              </div>
-          )}
+          ) : null}
 
           <div className="pt-4 flex gap-4">
             <button type="button" onClick={() => setModalOpen(false)} className="flex-1 py-4 bg-slate-100 text-slate-500 rounded-2xl font-black uppercase text-[10px]">Cancelar</button>
-            <button type="submit" className="flex-[2] py-4 bg-blue-600 text-white rounded-2xl font-black uppercase text-[10px] shadow-xl">Salvar Lançamento</button>
+            <button type="submit" className="flex-[2] py-4 bg-blue-600 text-white rounded-2xl font-black uppercase text-[10px] shadow-xl">Confirmar Lançamento</button>
           </div>
         </form>
       </Modal>
