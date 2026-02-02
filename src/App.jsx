@@ -24,10 +24,10 @@ import {
   Briefcase, LogOut, FileText, Search, Layers, 
   CheckCircle2, AlertCircle, Edit3, Camera, Link as LinkIcon,
   CreditCard, Scale, Box, User as UserIcon, ChevronRight, Calendar, Hash, Filter, Download,
-  Clock, Printer, Weight, Thermometer, Eye, EyeOff
+  Clock, Printer, Weight, Thermometer, Eye, EyeOff, Receipt, AlertTriangle, Building2, ClipboardList
 } from 'lucide-react';
 
-// --- CONFIGURAÇÃO FIREBASE ---
+// --- FIREBASE CONFIG ---
 const firebaseConfig = { 
   apiKey: "AIzaSyDncBYgIrudOBBwjsNFe9TS7Zr0b2nJLRo", 
   authDomain: "cargofy-b4435.firebaseapp.com", 
@@ -40,7 +40,7 @@ const firebaseConfig = {
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 const auth = getAuth(app);
 const db = getFirestore(app);
-const appId = 'cargofy-pro-v2';
+const appId = 'cargofy-pro-v2-boletos-v2';
 
 // --- UI COMPONENTS ---
 
@@ -81,11 +81,11 @@ const StatCard = ({ title, count, icon: Icon, color, active, onClick }) => (
   </button>
 );
 
-const Modal = ({ isOpen, onClose, title, children }) => {
+const Modal = ({ isOpen, onClose, title, children, size = "max-w-5xl" }) => {
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-      <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+      <div className={`bg-white rounded-[2.5rem] shadow-2xl w-full ${size} max-h-[90vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200`}>
         <div className="px-8 py-6 border-b flex justify-between items-center bg-slate-50/50">
           <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">{title}</h2>
           <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full text-slate-400"><X size={20} /></button>
@@ -111,16 +111,18 @@ export default function App() {
   const [veiculos, setVeiculos] = useState([]);
   
   const [modalOpen, setModalOpen] = useState(false);
+  const [detailsModalOpen, setDetailsModalOpen] = useState(false);
   const [reportModalOpen, setReportModalOpen] = useState(false);
+  
   const [editingId, setEditingId] = useState(null);
+  const [viewingData, setViewingData] = useState(null);
   const [search, setSearch] = useState('');
 
-  // Estados para Filtro do Relatório
   const [reportFilters, setReportFilters] = useState({
     dataInicio: '',
     dataFim: '',
     numeroNF: '',
-    mostrarFinanceiro: true
+    contratante: '',
   });
 
   const [formData, setFormData] = useState({
@@ -130,8 +132,9 @@ export default function App() {
     valorFrete: '', valorPago: '',
     motorista: '', veiculo: '', placa: '',
     dataSaida: '', dataEntrega: '', status: 'Pendente',
-    comprovanteUrl: '',
-    metodoPagamento: 'Pix', dataVencimentoBoleto: '', valorFinanceiro: '',
+    comprovanteUrl: '', cidadeDestino: '',
+    formaPagamento: 'Pix',
+    numeroBoleto: '', dataVencimentoBoleto: '', valorBoleto: '',
     nome: '', cnpjCpf: '', email: '', telefone: '', endereco: '',
     modelo: '', marca: '', ano: '', tipoVeiculo: 'Truck'
   });
@@ -182,13 +185,13 @@ export default function App() {
     const colName = (activeTab === 'dashboard' || activeTab === 'viagens') ? 'viagens' : activeTab;
     
     try {
-      // Conversão explícita para números para garantir que o financeiro funcione
       const data = { 
         ...formData, 
         valorFrete: Number(formData.valorFrete) || 0,
         valorPago: Number(formData.valorPago) || 0,
         valorNF: Number(formData.valorNF) || 0,
         peso: Number(formData.peso) || 0,
+        valorBoleto: formData.formaPagamento === 'Boleto' ? Number(formData.valorBoleto) || 0 : 0,
         userId: user.uid, 
         updatedAt: serverTimestamp() 
       };
@@ -198,7 +201,6 @@ export default function App() {
       if (editingId) {
         await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', colName, editingId), data);
         
-        // Atualizar financeiro vinculado se for uma viagem
         if (colName === 'viagens') {
           const finQuery = query(
             collection(db, 'artifacts', appId, 'public', 'data', 'financeiro'),
@@ -210,6 +212,9 @@ export default function App() {
             await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'financeiro', finDoc.id), {
               valor: Number(data.valorFrete),
               valorPago: Number(data.valorPago),
+              metodo: data.formaPagamento,
+              numeroBoleto: data.numeroBoleto || '',
+              vencimento: data.dataVencimentoBoleto || '',
               pago: Number(data.valorPago) >= Number(data.valorFrete),
               updatedAt: serverTimestamp()
             });
@@ -226,8 +231,9 @@ export default function App() {
             valorPago: Number(formData.valorPago) || 0,
             tipo: 'Receita',
             categoria: 'Frete',
-            metodo: formData.metodoPagamento,
-            dataVencimento: formData.metodoPagamento === 'Boleto' ? formData.dataVencimentoBoleto : (formData.dataSaida || new Date().toISOString().split('T')[0]),
+            metodo: formData.formaPagamento,
+            numeroBoleto: formData.numeroBoleto || '',
+            vencimento: formData.dataVencimentoBoleto || '',
             pago: Number(formData.valorPago) >= Number(formData.valorFrete),
             viagemId: currentId,
             userId: user.uid,
@@ -247,9 +253,24 @@ export default function App() {
     setFormData({
       numeroNF: '', chaveNF: '', cte: '', contratante: '', destinatario: '', volume: '', peso: '', valorNF: '', 
       valorFrete: '', valorPago: '', motorista: '', veiculo: '', placa: '', dataSaida: '', dataEntrega: '', 
-      status: 'Pendente', comprovanteUrl: '', metodoPagamento: 'Pix', dataVencimentoBoleto: '', valorFinanceiro: '',
+      status: 'Pendente', comprovanteUrl: '', formaPagamento: 'Pix', cidadeDestino: '',
+      numeroBoleto: '', dataVencimentoBoleto: '', valorBoleto: '',
       nome: '', cnpjCpf: '', email: '', telefone: '', endereco: '', modelo: '', marca: '', ano: '', tipoVeiculo: 'Truck'
     });
+  };
+
+  const getBoletoStatus = (vencimento, pago) => {
+    if (pago) return { label: 'Pago', color: 'bg-emerald-100 text-emerald-700' };
+    if (!vencimento) return { label: 'Aguardando', color: 'bg-slate-100 text-slate-500' };
+    
+    const hoje = new Date();
+    hoje.setHours(0,0,0,0);
+    const dataVenc = new Date(vencimento);
+    dataVenc.setHours(0,0,0,0);
+
+    if (dataVenc < hoje) return { label: 'Atrasado', color: 'bg-red-100 text-red-700' };
+    if (dataVenc.getTime() === hoje.getTime()) return { label: 'Vence Hoje', color: 'bg-amber-100 text-amber-700' };
+    return { label: 'No Prazo', color: 'bg-blue-100 text-blue-700' };
   };
 
   const filteredData = useMemo(() => {
@@ -272,42 +293,25 @@ export default function App() {
     );
   }, [activeTab, search, dashboardFilter, viagens, financeiro, clientes, motoristas, veiculos]);
 
-  // Lógica de Filtro para o Relatório Gerado
-  const reportList = useMemo(() => {
-    let list = [...viagens];
-    
-    if (reportFilters.numeroNF) {
-      list = list.filter(v => v.numeroNF?.toString().includes(reportFilters.numeroNF));
-    }
-    
-    if (reportFilters.dataInicio) {
-      list = list.filter(v => v.dataSaida >= reportFilters.dataInicio);
-    }
-    
-    if (reportFilters.dataFim) {
-      list = list.filter(v => v.dataSaida <= reportFilters.dataFim);
-    }
-    
-    return list;
+  // Filtro de Relatório
+  const reportResults = useMemo(() => {
+    return viagens.filter(v => {
+        const matchesNF = reportFilters.numeroNF ? v.numeroNF?.includes(reportFilters.numeroNF) : true;
+        const matchesEmpresa = reportFilters.contratante ? v.contratante?.toLowerCase().includes(reportFilters.contratante.toLowerCase()) : true;
+        const matchesInicio = reportFilters.dataInicio ? new Date(v.dataSaida) >= new Date(reportFilters.dataInicio) : true;
+        const matchesFim = reportFilters.dataFim ? new Date(v.dataSaida) <= new Date(reportFilters.dataFim) : true;
+        return matchesNF && matchesEmpresa && matchesInicio && matchesFim;
+    });
   }, [viagens, reportFilters]);
 
-  const stats = useMemo(() => {
-    const list = reportList;
-    return {
-      pendente: list.filter(v => v.status === 'Pendente').length,
-      emRota: list.filter(v => v.status === 'Em rota').length,
-      concluida: list.filter(v => v.status === 'Entregue').length,
-      total: list.length,
-      financeiroTotal: list.reduce((acc, v) => acc + (Number(v.valorFrete) || 0), 0),
-      financeiroRecebido: list.reduce((acc, v) => acc + (Number(v.valorPago) || 0), 0)
-    };
-  }, [reportList]);
+  const boletosAtivos = useMemo(() => {
+    return viagens.filter(v => v.formaPagamento === 'Boleto');
+  }, [viagens]);
 
-  const handlePrintReport = () => {
-    window.print();
+  const handleViewDetails = (item) => {
+    setViewingData(item);
+    setDetailsModalOpen(true);
   };
-
-  if (loading) return <div className="h-screen flex items-center justify-center bg-[#0f172a] text-white font-black italic tracking-widest animate-pulse">CARGOFY...</div>;
 
   return (
     <div className="flex h-screen bg-[#f8fafc] overflow-hidden font-sans print:bg-white">
@@ -327,7 +331,7 @@ export default function App() {
           <NavItem icon={Layers} label="Frota" active={activeTab === 'veiculos'} onClick={() => setActiveTab('veiculos')} />
         </nav>
         <button onClick={() => setReportModalOpen(true)} className="mt-4 flex items-center gap-3 px-5 py-4 rounded-2xl bg-white/5 text-blue-400 hover:bg-white/10 transition-all text-[10px] font-black uppercase tracking-widest">
-          <Download size={18} /> Gerar Relatórios
+          <Download size={18} /> Relatórios
         </button>
       </aside>
 
@@ -337,298 +341,365 @@ export default function App() {
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
             <input 
               type="text" 
-              placeholder={`Pesquisar...`} 
+              placeholder={`Pesquisar em ${activeTab}...`} 
               className="w-full pl-12 pr-4 py-3 bg-slate-50 rounded-xl text-xs font-bold outline-none border border-transparent focus:border-blue-200"
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
           </div>
-          <button onClick={() => { resetForm(); setEditingId(null); setModalOpen(true); }} className="bg-blue-600 text-white px-8 py-3 rounded-xl text-[10px] font-black uppercase shadow-lg shadow-blue-500/30 hover:bg-blue-700 transition-all flex items-center gap-2">
-            <Plus size={16} /> Adicionar {activeTab === 'dashboard' ? 'Viagem' : activeTab.slice(0, -1)}
-          </button>
+          <div className="flex gap-4">
+            <button onClick={() => { resetForm(); setEditingId(null); setModalOpen(true); }} className="bg-blue-600 text-white px-8 py-3 rounded-xl text-[10px] font-black uppercase shadow-lg shadow-blue-500/30 hover:bg-blue-700 transition-all flex items-center gap-2">
+                <Plus size={16} /> Novo Lançamento
+            </button>
+          </div>
         </header>
 
         <div className="p-8 overflow-y-auto space-y-8 print:p-0">
-          {(activeTab === 'dashboard' || activeTab === 'viagens') && (
-            <div className="flex gap-6 print:hidden">
-              <StatCard title="Todas" count={viagens.length} icon={Layers} color="bg-slate-800" active={dashboardFilter === 'Todos'} onClick={() => setDashboardFilter('Todos')} />
-              <StatCard title="Pendentes" count={viagens.filter(v => v.status === 'Pendente').length} icon={Clock} color="bg-amber-500" active={dashboardFilter === 'Pendente'} onClick={() => setDashboardFilter('Pendente')} />
-              <StatCard title="Em Rota" count={viagens.filter(v => v.status === 'Em rota').length} icon={Truck} color="bg-blue-500" active={dashboardFilter === 'Em rota'} onClick={() => setDashboardFilter('Em rota')} />
-              <StatCard title="Entregues" count={viagens.filter(v => v.status === 'Entregue').length} icon={CheckCircle2} color="bg-emerald-500" active={dashboardFilter === 'Entregue'} onClick={() => setDashboardFilter('Entregue')} />
+          {/* Dashboard Stats */}
+          {activeTab === 'dashboard' && (
+            <div className="space-y-8">
+              <div className="flex gap-6">
+                <StatCard title="Total Viagens" count={viagens.length} icon={Layers} color="bg-slate-800" active={dashboardFilter === 'Todos'} onClick={() => setDashboardFilter('Todos')} />
+                <StatCard title="Em Rota" count={viagens.filter(v => v.status === 'Em rota').length} icon={Truck} color="bg-blue-500" active={dashboardFilter === 'Em rota'} onClick={() => setDashboardFilter('Em rota')} />
+                <StatCard title="Boletos Pendentes" count={boletosAtivos.filter(v => Number(v.valorPago) < Number(v.valorFrete)).length} icon={Receipt} color="bg-amber-500" active={false} onClick={() => {}} />
+                <StatCard title="Boletos Atrasados" count={boletosAtivos.filter(v => getBoletoStatus(v.dataVencimentoBoleto, Number(v.valorPago) >= Number(v.valorFrete)).label === 'Atrasado').length} icon={AlertTriangle} color="bg-red-500" active={false} onClick={() => {}} />
+              </div>
+
+              {/* Monitor de Boletos */}
+              <div className="bg-white rounded-[2rem] p-8 border border-slate-100 shadow-sm">
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-xs font-black uppercase text-slate-400 tracking-widest flex items-center gap-2">
+                        <Receipt size={16} className="text-blue-500" /> Monitor de Boletos Bancários
+                    </h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {boletosAtivos.length === 0 ? (
+                        <div className="col-span-full py-10 text-center text-slate-300 font-bold italic">Nenhum boleto registrado</div>
+                    ) : boletosAtivos.map(bol => {
+                        const status = getBoletoStatus(bol.dataVencimentoBoleto, Number(bol.valorPago) >= Number(bol.valorFrete));
+                        return (
+                            <div key={bol.id} onClick={() => handleViewDetails(bol)} className="p-5 rounded-2xl border border-slate-50 bg-slate-50/30 hover:bg-white hover:shadow-xl transition-all cursor-pointer group relative">
+                                <div className="flex justify-between items-start mb-3">
+                                    <span className={`px-2 py-1 rounded-lg text-[8px] font-black uppercase ${status.color}`}>
+                                        {status.label}
+                                    </span>
+                                    <div className="flex gap-1">
+                                        <button onClick={(e) => { e.stopPropagation(); setFormData(bol); setEditingId(bol.id); setModalOpen(true); }} className="p-1.5 hover:bg-blue-50 rounded-lg text-slate-400 hover:text-blue-500">
+                                            <Edit3 size={12} />
+                                        </button>
+                                    </div>
+                                </div>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Boleto Nº {bol.numeroBoleto || 'Pendente'}</p>
+                                <p className="text-sm font-black text-slate-800 truncate mb-1">{bol.contratante}</p>
+                                <div className="flex justify-between items-end mt-4">
+                                    <div>
+                                        <p className="text-[9px] font-bold text-slate-400 uppercase">Vencimento</p>
+                                        <p className="text-xs font-black text-slate-700">{bol.dataVencimentoBoleto ? new Date(bol.dataVencimentoBoleto).toLocaleDateString() : 'Não definido'}</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-[9px] font-bold text-slate-400 uppercase">Valor</p>
+                                        <p className="text-sm font-black text-blue-600">R$ {Number(bol.valorFrete).toLocaleString()}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+              </div>
             </div>
           )}
 
+          {/* Tabela Principal */}
           <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden print:border-none print:shadow-none">
             <table className="w-full text-left">
               <thead className="bg-slate-50/50 border-b border-slate-100">
                 <tr>
                   <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Identificação</th>
-                  <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Carga</th>
-                  <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Rota / Cliente</th>
-                  <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Financeiro</th>
+                  <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Pagamento</th>
+                  <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status / Prazo</th>
                   <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right print:hidden">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {filteredData.map(item => (
-                  <tr key={item.id} className="hover:bg-slate-50/30 transition-colors group">
-                    <td className="px-8 py-6">
-                      <div className="flex items-center gap-3">
-                        <div className={`p-2.5 rounded-lg ${item.status === 'Entregue' ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600'} print:hidden`}>
-                          {activeTab === 'viagens' || activeTab === 'dashboard' ? <Package size={18}/> : <UserIcon size={18}/>}
-                        </div>
-                        <div>
-                          <p className="font-black text-sm text-slate-800">{item.numeroNF || item.nome || item.descricao || item.placa}</p>
-                          <p className="text-[10px] font-bold text-slate-400 uppercase">{item.status || 'Ativo'}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-8 py-6">
-                      {item.peso || item.valorNF ? (
-                        <div className="space-y-1">
-                          <p className="text-xs font-black text-slate-700">{Number(item.peso || 0).toLocaleString()} kg | {item.volume || '0'} vol</p>
-                          <p className="text-[10px] text-slate-400 font-bold uppercase">NF: R$ {Number(item.valorNF || 0).toLocaleString()}</p>
-                        </div>
-                      ) : <span className="text-slate-300">-</span>}
-                    </td>
-                    <td className="px-8 py-6">
-                      <p className="text-xs font-black text-blue-600 uppercase tracking-tight">{item.contratante || item.email || '-'}</p>
-                      <p className="text-[10px] text-slate-400 font-bold uppercase mt-0.5">{item.cidadeOrigem ? `${item.cidadeOrigem} → ${item.cidadeDestino}` : (item.telefone || '-')}</p>
-                    </td>
-                    <td className="px-8 py-6">
-                      <div className="flex flex-col">
-                        <span className="text-xs font-black text-slate-800">Frete: R$ {Number(item.valorFrete || item.valor || 0).toLocaleString()}</span>
-                        <span className={`text-[10px] font-bold ${Number(item.valorPago) >= Number(item.valorFrete || item.valor) ? 'text-emerald-500' : 'text-amber-500'}`}>
-                          Pago: R$ {Number(item.valorPago || 0).toLocaleString()}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-8 py-6 text-right print:hidden">
-                      <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        {item.comprovanteUrl && <a href={item.comprovanteUrl} target="_blank" className="p-2 hover:bg-emerald-100 rounded-lg text-emerald-600"><LinkIcon size={14}/></a>}
-                        <button onClick={() => { setFormData(item); setEditingId(item.id); setModalOpen(true); }} className="p-2 hover:bg-blue-100 rounded-lg text-blue-600"><Edit3 size={14}/></button>
-                        <button onClick={() => deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', (activeTab === 'dashboard' ? 'viagens' : activeTab), item.id))} className="p-2 hover:bg-red-100 rounded-lg text-red-500"><Trash2 size={14}/></button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {filteredData.map(item => {
+                  const statusFin = getBoletoStatus(item.dataVencimentoBoleto || item.vencimento, Number(item.valorPago) >= Number(item.valorFrete || item.valor));
+                  return (
+                    <tr key={item.id} className="hover:bg-slate-50/30 transition-colors group cursor-pointer" onClick={() => handleViewDetails(item)}>
+                        <td className="px-8 py-6">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2.5 rounded-lg bg-blue-50 text-blue-600">
+                                    {item.formaPagamento === 'Boleto' ? <Receipt size={18}/> : <DollarSign size={18}/>}
+                                </div>
+                                <div>
+                                    <p className="font-black text-sm text-slate-800">{item.numeroNF ? `NF ${item.numeroNF}` : (item.nome || item.descricao)}</p>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase">{item.contratante || item.categoria || 'Geral'}</p>
+                                </div>
+                            </div>
+                        </td>
+                        <td className="px-8 py-6">
+                            <div className="space-y-1">
+                                <p className="text-xs font-black text-slate-700">R$ {Number(item.valorFrete || item.valor).toLocaleString()}</p>
+                                <p className="text-[10px] font-bold text-blue-500 uppercase flex items-center gap-1">
+                                    <CreditCard size={10} /> {item.formaPagamento || item.metodo || 'Pix'}
+                                </p>
+                            </div>
+                        </td>
+                        <td className="px-8 py-6">
+                            <div className="flex items-center gap-3">
+                                <span className={`px-3 py-1.5 rounded-full text-[9px] font-black uppercase ${statusFin.color}`}>
+                                    {statusFin.label}
+                                </span>
+                                {item.dataVencimentoBoleto && (
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase">
+                                        Vence: {new Date(item.dataVencimentoBoleto).toLocaleDateString()}
+                                    </span>
+                                )}
+                            </div>
+                        </td>
+                        <td className="px-8 py-6 text-right print:hidden">
+                            <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button onClick={(e) => { e.stopPropagation(); setFormData(item); setEditingId(item.id); setModalOpen(true); }} className="p-2 hover:bg-blue-100 rounded-lg text-blue-600"><Edit3 size={14}/></button>
+                                <button onClick={(e) => { e.stopPropagation(); deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', (activeTab === 'dashboard' ? 'viagens' : activeTab), item.id))}} className="p-2 hover:bg-red-100 rounded-lg text-red-500"><Trash2 size={14}/></button>
+                            </div>
+                        </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
         </div>
       </main>
 
-      {/* MODAL DE RELATÓRIO COM FILTROS */}
-      <Modal isOpen={reportModalOpen} onClose={() => setReportModalOpen(false)} title="Configurar Relatório">
-        <div className="space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 print:hidden">
-            <div className="space-y-4">
-              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                <Filter size={14} /> Filtros de Busca
-              </h4>
-              <Input label="Número da Nota Fiscal" value={reportFilters.numeroNF} onChange={v => setReportFilters({...reportFilters, numeroNF: v})} />
-              <div className="flex gap-4">
-                <Input label="Data Início" type="date" value={reportFilters.dataInicio} onChange={v => setReportFilters({...reportFilters, dataInicio: v})} />
-                <Input label="Data Fim" type="date" value={reportFilters.dataFim} onChange={v => setReportFilters({...reportFilters, dataFim: v})} />
-              </div>
-            </div>
-            <div className="space-y-4">
-              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                <Eye size={14} /> Opções de Exibição
-              </h4>
-              <button 
-                onClick={() => setReportFilters({...reportFilters, mostrarFinanceiro: !reportFilters.mostrarFinanceiro})}
-                className={`w-full p-4 rounded-xl border flex items-center justify-between transition-all ${reportFilters.mostrarFinanceiro ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-slate-50 border-slate-200 text-slate-400'}`}
-              >
-                <div className="flex items-center gap-3">
-                  {reportFilters.mostrarFinanceiro ? <Eye size={18} /> : <EyeOff size={18} />}
-                  <span className="text-xs font-black uppercase">Incluir Financeiro</span>
+      {/* MODAL DE DETALHES DA CARGA */}
+      <Modal isOpen={detailsModalOpen} onClose={() => setDetailsModalOpen(false)} title="Detalhes da Carga" size="max-w-4xl">
+        {viewingData && (
+            <div className="space-y-8 pb-4">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <div className="p-4 bg-blue-600 text-white rounded-3xl">
+                            <Package size={32} />
+                        </div>
+                        <div>
+                            <h3 className="text-2xl font-black text-slate-900 uppercase">NF {viewingData.numeroNF || 'S/ Nº'}</h3>
+                            <p className="text-xs font-black text-blue-500 uppercase tracking-widest">{viewingData.contratante}</p>
+                        </div>
+                    </div>
+                    <div className="text-right">
+                        <span className={`px-4 py-2 rounded-xl text-xs font-black uppercase ${getBoletoStatus(viewingData.dataVencimentoBoleto, Number(viewingData.valorPago) >= Number(viewingData.valorFrete)).color}`}>
+                            {getBoletoStatus(viewingData.dataVencimentoBoleto, Number(viewingData.valorPago) >= Number(viewingData.valorFrete)).label}
+                        </span>
+                    </div>
                 </div>
-                <div className={`w-10 h-6 rounded-full relative transition-colors ${reportFilters.mostrarFinanceiro ? 'bg-emerald-500' : 'bg-slate-300'}`}>
-                  <div className={`absolute top-1 bg-white w-4 h-4 rounded-full transition-all ${reportFilters.mostrarFinanceiro ? 'left-5' : 'left-1'}`} />
-                </div>
-              </button>
-            </div>
-          </div>
 
-          {/* Área Visual do Relatório (O que será impresso) */}
-          <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm print:shadow-none print:border-none">
-            <div className="flex justify-between items-start border-b pb-6 mb-6">
-              <div>
-                <h3 className="text-2xl font-black text-slate-900 uppercase italic">CARGOFY REPORT</h3>
-                <p className="text-xs font-bold text-slate-400 mt-1">Gerado em: {new Date().toLocaleDateString()} às {new Date().toLocaleTimeString()}</p>
-                {reportFilters.dataInicio && <p className="text-[9px] font-black text-blue-500 uppercase mt-2">Período: {reportFilters.dataInicio} até {reportFilters.dataFim || 'Hoje'}</p>}
-              </div>
-              <div className="text-right">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Resumo Selecionado</p>
-                <p className="text-lg font-black text-blue-600">{reportList.length} Viagens Encontradas</p>
-              </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Logística */}
+                    <div className="p-6 bg-slate-50 rounded-3xl space-y-4">
+                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                            <Truck size={14} /> Dados Logísticos
+                        </h4>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <p className="text-[9px] font-bold text-slate-400 uppercase">Motorista</p>
+                                <p className="text-sm font-black text-slate-700">{viewingData.motorista || 'Não informado'}</p>
+                            </div>
+                            <div>
+                                <p className="text-[9px] font-bold text-slate-400 uppercase">Veículo / Placa</p>
+                                <p className="text-sm font-black text-slate-700">{viewingData.placa || '---'}</p>
+                            </div>
+                            <div>
+                                <p className="text-[9px] font-bold text-slate-400 uppercase">Origem/Saída</p>
+                                <p className="text-sm font-black text-slate-700">{viewingData.dataSaida ? new Date(viewingData.dataSaida).toLocaleDateString() : '---'}</p>
+                            </div>
+                            <div>
+                                <p className="text-[9px] font-bold text-slate-400 uppercase">Destino</p>
+                                <p className="text-sm font-black text-slate-700">{viewingData.cidadeDestino || '---'}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Financeiro */}
+                    <div className="p-6 bg-blue-50/50 rounded-3xl space-y-4">
+                        <h4 className="text-[10px] font-black text-blue-600 uppercase tracking-widest flex items-center gap-2">
+                            <DollarSign size={14} /> Dados Financeiros
+                        </h4>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <p className="text-[9px] font-bold text-slate-400 uppercase">Valor do Frete</p>
+                                <p className="text-lg font-black text-slate-900">R$ {Number(viewingData.valorFrete).toLocaleString()}</p>
+                            </div>
+                            <div>
+                                <p className="text-[9px] font-bold text-slate-400 uppercase">Forma Pagto</p>
+                                <p className="text-sm font-black text-blue-600 uppercase">{viewingData.formaPagamento}</p>
+                            </div>
+                            <div className="col-span-2 pt-2 border-t border-blue-100">
+                                <p className="text-[9px] font-bold text-slate-400 uppercase">Status do Pagamento</p>
+                                <div className="flex items-center gap-2 mt-1">
+                                    <div className="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden">
+                                        <div className="h-full bg-blue-500 transition-all" style={{width: `${Math.min(100, (Number(viewingData.valorPago) / Number(viewingData.valorFrete)) * 100)}%`}}></div>
+                                    </div>
+                                    <span className="text-xs font-black text-slate-700">{Math.round((Number(viewingData.valorPago) / Number(viewingData.valorFrete)) * 100)}%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Bloco de Boleto se houver */}
+                    {viewingData.formaPagamento === 'Boleto' && (
+                        <div className="md:col-span-2 p-6 border-2 border-dashed border-slate-200 rounded-3xl flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                                <Receipt size={24} className="text-slate-400" />
+                                <div>
+                                    <p className="text-[9px] font-black text-slate-400 uppercase">Linha Digitável / Boleto</p>
+                                    <p className="text-sm font-mono font-bold text-slate-600">{viewingData.numeroBoleto || 'Número não registrado'}</p>
+                                </div>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-[9px] font-black text-slate-400 uppercase">Vencimento</p>
+                                <p className="text-sm font-black text-slate-700">{viewingData.dataVencimentoBoleto ? new Date(viewingData.dataVencimentoBoleto).toLocaleDateString() : 'Não informado'}</p>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                <div className="flex gap-4 pt-4">
+                    <button onClick={() => { setDetailsModalOpen(false); setFormData(viewingData); setEditingId(viewingData.id); setModalOpen(true); }} className="flex-1 bg-slate-900 text-white py-4 rounded-2xl text-[10px] font-black uppercase flex items-center justify-center gap-2">
+                        <Edit3 size={16}/> Editar Informações
+                    </button>
+                    <button onClick={() => window.print()} className="flex-1 bg-white border-2 border-slate-100 text-slate-600 py-4 rounded-2xl text-[10px] font-black uppercase flex items-center justify-center gap-2">
+                        <Printer size={16}/> Imprimir Recibo
+                    </button>
+                </div>
             </div>
-
-            {reportFilters.mostrarFinanceiro && (
-              <div className="grid grid-cols-3 gap-4 mb-8">
-                <div className="p-4 bg-slate-50 rounded-2xl border text-center">
-                  <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Total de Fretes</p>
-                  <p className="text-xl font-black text-slate-900">R$ {stats.financeiroTotal.toLocaleString()}</p>
-                </div>
-                <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100 text-center">
-                  <p className="text-[9px] font-black text-emerald-600 uppercase mb-1">Total Recebido</p>
-                  <p className="text-xl font-black text-emerald-700">R$ {stats.financeiroRecebido.toLocaleString()}</p>
-                </div>
-                <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 text-center">
-                  <p className="text-[9px] font-black text-amber-600 uppercase mb-1">Saldo Pendente</p>
-                  <p className="text-xl font-black text-amber-700">R$ {(stats.financeiroTotal - stats.financeiroRecebido).toLocaleString()}</p>
-                </div>
-              </div>
-            )}
-
-            <div className="border rounded-2xl overflow-hidden">
-              <table className="w-full text-[10px]">
-                <thead className="bg-slate-50 border-b">
-                  <tr>
-                    <th className="px-4 py-3 text-left font-black uppercase">Data</th>
-                    <th className="px-4 py-3 text-left font-black uppercase">NF</th>
-                    <th className="px-4 py-3 text-left font-black uppercase">Carga / Cliente</th>
-                    {reportFilters.mostrarFinanceiro && <th className="px-4 py-3 text-right font-black uppercase">Vlr Frete</th>}
-                    {reportFilters.mostrarFinanceiro && <th className="px-4 py-3 text-right font-black uppercase">Status Fin.</th>}
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {reportList.length === 0 ? (
-                    <tr><td colSpan={5} className="py-10 text-center text-slate-400 font-bold uppercase italic">Nenhum registro encontrado com esses filtros</td></tr>
-                  ) : reportList.map(v => (
-                    <tr key={v.id}>
-                      <td className="px-4 py-3">{v.dataSaida ? new Date(v.dataSaida).toLocaleDateString() : '-'}</td>
-                      <td className="px-4 py-3 font-bold">{v.numeroNF}</td>
-                      <td className="px-4 py-3">
-                        <span className="font-bold text-slate-800">{v.contratante}</span>
-                        <p className="text-[9px] text-slate-400 font-bold uppercase">{v.peso || 0}kg | {v.volume || '-'}</p>
-                      </td>
-                      {reportFilters.mostrarFinanceiro && <td className="px-4 py-3 text-right font-bold text-slate-900">R$ {Number(v.valorFrete || 0).toLocaleString()}</td>}
-                      {reportFilters.mostrarFinanceiro && (
-                        <td className="px-4 py-3 text-right">
-                          <span className={`px-2 py-1 rounded-full text-[8px] font-black uppercase ${Number(v.valorPago) >= Number(v.valorFrete) ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                            {Number(v.valorPago) >= Number(v.valorFrete) ? 'Liquidado' : 'Pendente'}
-                          </span>
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div className="flex gap-4 print:hidden">
-            <button onClick={() => setReportModalOpen(false)} className="flex-1 py-4 bg-slate-100 text-slate-500 rounded-2xl font-black uppercase text-[10px]">Fechar</button>
-            <button onClick={handlePrintReport} className="flex-[2] py-4 bg-blue-600 text-white rounded-2xl font-black uppercase text-[10px] shadow-xl flex items-center justify-center gap-2">
-              <Printer size={16} /> Imprimir Relatório Selecionado
-            </button>
-          </div>
-        </div>
+        )}
       </Modal>
 
-      {/* MODAL DE CADASTRO/EDIÇÃO (Lógica Financeira Corrigida) */}
-      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={`Lançamento: ${activeTab}`}>
-        <form onSubmit={handleSave} className="space-y-8">
-          {(activeTab === 'viagens' || activeTab === 'dashboard') && (
-            <>
-              {/* Documentação */}
-              <div className="flex items-center gap-2 text-blue-600 mb-[-1.5rem]">
-                <FileText size={16} />
-                <span className="text-[10px] font-black uppercase tracking-widest">Documentação da Carga</span>
-              </div>
-              <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Input label="Número da NF" value={formData.numeroNF} onChange={v => setFormData({...formData, numeroNF: v})} />
-                <div className="col-span-2">
-                  <Input label="Chave de Acesso (44 dígitos)" maxLength={44} value={formData.chaveNF} onChange={v => setFormData({...formData, chaveNF: v})} />
+      {/* MODAL DE LANÇAMENTO */}
+      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Lançamento de Viagem e Pagamento">
+        <form onSubmit={handleSave} className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="md:col-span-2 space-y-6">
+                <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100 space-y-4">
+                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 mb-2">
+                        <FileText size={14} className="text-blue-500"/> Dados da Carga
+                    </h4>
+                    <div className="grid grid-cols-2 gap-4">
+                        <Input label="Número da NF" value={formData.numeroNF} onChange={v => setFormData({...formData, numeroNF: v})} />
+                        <Input label="Contratante (Empresa)" value={formData.contratante} onChange={v => setFormData({...formData, contratante: v})} />
+                    </div>
+                    <div className="grid grid-cols-3 gap-4">
+                        <Input label="Peso (KG)" type="number" value={formData.peso} onChange={v => setFormData({...formData, peso: v})} />
+                        <Input label="Valor do Frete" type="number" suffix="R$" value={formData.valorFrete} onChange={v => setFormData({...formData, valorFrete: v})} />
+                        <Input label="Valor Já Pago" type="number" suffix="R$" value={formData.valorPago} onChange={v => setFormData({...formData, valorPago: v})} />
+                    </div>
                 </div>
-              </section>
 
-              {/* Especificações */}
-              <div className="flex items-center gap-2 text-blue-600 mb-[-1.5rem] mt-4">
-                <Box size={16} />
-                <span className="text-[10px] font-black uppercase tracking-widest">Especificações da Carga</span>
-              </div>
-              <section className="grid grid-cols-1 md:grid-cols-3 gap-4 p-6 bg-slate-50 rounded-2xl border border-slate-100">
-                <Input label="Volume" placeholder="Ex: 10 pallets" value={formData.volume} onChange={v => setFormData({...formData, volume: v})} />
-                <Input label="Peso Total" type="number" suffix="KG" value={formData.peso} onChange={v => setFormData({...formData, peso: v})} />
-                <Input label="Valor da NF" type="number" suffix="R$" value={formData.valorNF} onChange={v => setFormData({...formData, valorNF: v})} />
-              </section>
-
-              {/* Financeiro Corrigido */}
-              <div className="flex items-center gap-2 text-emerald-600 mb-[-1.5rem] mt-4">
-                <DollarSign size={16} />
-                <span className="text-[10px] font-black uppercase tracking-widest">Financeiro da Viagem (Atualização Automática)</span>
-              </div>
-              <section className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-emerald-50/30 p-6 rounded-2xl border border-emerald-100">
-                <Input label="Valor do Frete Combinado" type="number" suffix="R$" value={formData.valorFrete} onChange={v => setFormData({...formData, valorFrete: v})} />
-                <Input label="Valor Já Pago (Adiantamento/Saldo)" type="number" suffix="R$" value={formData.valorPago} onChange={v => setFormData({...formData, valorPago: v})} />
-              </section>
-
-              {/* Rota */}
-              <div className="flex items-center gap-2 text-slate-500 mb-[-1.5rem] mt-4">
-                <MapPin size={16} />
-                <span className="text-[10px] font-black uppercase tracking-widest">Informações de Rota</span>
-              </div>
-              <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Input label="Contratante" value={formData.contratante} onChange={v => setFormData({...formData, contratante: v})} />
-                <Input label="Destinatário" value={formData.destinatario} onChange={v => setFormData({...formData, destinatario: v})} />
-                <Input label="Data Saída" type="date" value={formData.dataSaida} onChange={v => setFormData({...formData, dataSaida: v})} />
-                <Input label="Cidade Destino" value={formData.cidadeDestino} onChange={v => setFormData({...formData, cidadeDestino: v})} />
-              </section>
-
-              {/* Operacional */}
-              <div className="flex items-center gap-2 text-slate-500 mb-[-1.5rem] mt-4">
-                <Truck size={16} />
-                <span className="text-[10px] font-black uppercase tracking-widest">Dados Operacionais</span>
-              </div>
-              <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Input label="Motorista" value={formData.motorista} onChange={v => setFormData({...formData, motorista: v})} />
-                <Input label="Placa" value={formData.placa} onChange={v => setFormData({...formData, placa: v})} />
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Status</label>
-                  <select className="w-full p-4 bg-slate-50 rounded-xl text-xs font-bold" value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})}>
-                    <option value="Pendente">Pendente</option>
-                    <option value="Em rota">Em rota</option>
-                    <option value="Entregue">Entregue</option>
-                  </select>
+                <div className="p-6 bg-blue-50/30 rounded-3xl border border-blue-100 space-y-4">
+                    <h4 className="text-[10px] font-black text-blue-600 uppercase tracking-widest flex items-center gap-2 mb-2">
+                        <CreditCard size={14}/> Condições de Pagamento
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Forma de Pagamento</label>
+                            <select 
+                                className="w-full p-4 bg-white rounded-xl text-xs font-bold border border-blue-100 outline-none focus:border-blue-400 transition-all"
+                                value={formData.formaPagamento}
+                                onChange={e => setFormData({...formData, formaPagamento: e.target.value})}
+                            >
+                                <option value="Pix">Pix / Transferência</option>
+                                <option value="Boleto">Boleto Bancário</option>
+                                <option value="Cartão">Cartão de Crédito</option>
+                                <option value="Dinheiro">Dinheiro Espécie</option>
+                            </select>
+                        </div>
+                        {formData.formaPagamento === 'Boleto' && (
+                            <Input label="Vencimento do Boleto" type="date" value={formData.dataVencimentoBoleto} onChange={v => setFormData({...formData, dataVencimentoBoleto: v})} />
+                        )}
+                    </div>
+                    
+                    {formData.formaPagamento === 'Boleto' && (
+                        <div className="grid grid-cols-2 gap-4 animate-in slide-in-from-top-2 duration-300">
+                            <Input label="Número do Boleto" placeholder="Linha digitável ou Nº" value={formData.numeroBoleto} onChange={v => setFormData({...formData, numeroBoleto: v})} />
+                            <Input label="Valor do Boleto" type="number" suffix="R$" value={formData.valorBoleto} onChange={v => setFormData({...formData, valorBoleto: v})} />
+                        </div>
+                    )}
                 </div>
-              </section>
+            </div>
 
-              {formData.status === 'Entregue' && (
-                <section className="p-6 bg-emerald-50/30 rounded-2xl border border-emerald-100 space-y-4">
-                  <Input label="Data da Entrega Real" type="date" value={formData.dataEntrega} onChange={v => setFormData({...formData, dataEntrega: v})} />
-                  <Input 
-                    label="Link do Comprovante (Drive/Foto)" 
-                    placeholder="https://link-da-foto.com" 
-                    value={formData.comprovanteUrl} 
-                    onChange={v => setFormData({...formData, comprovanteUrl: v})} 
-                  />
-                </section>
-              )}
-            </>
-          )}
-          
-          {(activeTab === 'financeiro' && !editingId) && (
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Input label="Descrição" value={formData.descricao} onChange={v => setFormData({...formData, descricao: v})} />
-                <Input label="Valor R$" type="number" value={formData.valorFinanceiro} onChange={v => setFormData({...formData, valorFinanceiro: v})} />
-             </div>
-          )}
-
-          {activeTab === 'clientes' || activeTab === 'motoristas' || activeTab === 'veiculos' ? (
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Input label="Nome/Descrição" value={formData.nome || formData.descricao || formData.placa} onChange={v => setFormData({...formData, nome: v, descricao: v})} />
-                <Input label="Contato/Info" value={formData.telefone || formData.modelo} onChange={v => setFormData({...formData, telefone: v, modelo: v})} />
-             </div>
-          ) : null}
+            <div className="space-y-6">
+                <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100 space-y-4 h-full">
+                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 mb-2">
+                        <Truck size={14} className="text-blue-500"/> Logística
+                    </h4>
+                    <Input label="Placa do Veículo" value={formData.placa} onChange={v => setFormData({...formData, placa: v})} />
+                    <Input label="Motorista" value={formData.motorista} onChange={v => setFormData({...formData, motorista: v})} />
+                    <Input label="Cidade Destino" value={formData.cidadeDestino} onChange={v => setFormData({...formData, cidadeDestino: v})} />
+                    <Input label="Data de Saída" type="date" value={formData.dataSaida} onChange={v => setFormData({...formData, dataSaida: v})} />
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Status da Viagem</label>
+                        <select 
+                            className="w-full p-4 bg-white rounded-xl text-xs font-bold border border-slate-100 outline-none focus:border-blue-400"
+                            value={formData.status}
+                            onChange={e => setFormData({...formData, status: e.target.value})}
+                        >
+                            <option value="Pendente">Pendente</option>
+                            <option value="Em rota">Em rota</option>
+                            <option value="Entregue">Entregue</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+          </div>
 
           <div className="pt-4 flex gap-4">
             <button type="button" onClick={() => setModalOpen(false)} className="flex-1 py-4 bg-slate-100 text-slate-500 rounded-2xl font-black uppercase text-[10px]">Cancelar</button>
-            <button type="submit" className="flex-[2] py-4 bg-blue-600 text-white rounded-2xl font-black uppercase text-[10px] shadow-xl">Confirmar Lançamento</button>
+            <button type="submit" className="flex-[2] py-4 bg-blue-600 text-white rounded-2xl font-black uppercase text-[10px] shadow-xl hover:bg-blue-700 transition-all">Salvar Registro</button>
           </div>
         </form>
+      </Modal>
+
+      {/* MODAL DE RELATÓRIOS COM FILTRO DE CONTRATANTE */}
+      <Modal isOpen={reportModalOpen} onClose={() => setReportModalOpen(false)} title="Relatórios e Filtros Avançados">
+         <div className="space-y-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-6 bg-slate-50 rounded-3xl">
+                <div className="lg:col-span-2">
+                    <Input label="Empresa Contratante" placeholder="Pesquisar por nome..." value={reportFilters.contratante} onChange={v => setReportFilters({...reportFilters, contratante: v})} />
+                </div>
+                <Input label="Nº NF" value={reportFilters.numeroNF} onChange={v => setReportFilters({...reportFilters, numeroNF: v})} />
+                <div className="flex items-end">
+                    <button onClick={() => window.print()} className="w-full bg-blue-600 text-white p-4 rounded-xl text-[10px] font-black uppercase flex items-center justify-center gap-2">
+                        <Download size={16} /> Exportar PDF
+                    </button>
+                </div>
+                <Input label="Data Início" type="date" value={reportFilters.dataInicio} onChange={v => setReportFilters({...reportFilters, dataInicio: v})} />
+                <Input label="Data Fim" type="date" value={reportFilters.dataFim} onChange={v => setReportFilters({...reportFilters, dataFim: v})} />
+            </div>
+
+            <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden">
+                <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 border-b">
+                        <tr>
+                            <th className="p-4 font-black uppercase">NF</th>
+                            <th className="p-4 font-black uppercase">Contratante</th>
+                            <th className="p-4 font-black uppercase">Data</th>
+                            <th className="p-4 font-black uppercase text-right">Valor Frete</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                        {reportResults.length === 0 ? (
+                            <tr><td colSpan="4" className="p-8 text-center text-slate-400 italic font-bold">Nenhum resultado para os filtros aplicados</td></tr>
+                        ) : reportResults.map(r => (
+                            <tr key={r.id} className="hover:bg-slate-50">
+                                <td className="p-4 font-bold">{r.numeroNF}</td>
+                                <td className="p-4">{r.contratante}</td>
+                                <td className="p-4">{r.dataSaida ? new Date(r.dataSaida).toLocaleDateString() : '---'}</td>
+                                <td className="p-4 text-right font-black">R$ {Number(r.valorFrete).toLocaleString()}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+         </div>
       </Modal>
     </div>
   );
