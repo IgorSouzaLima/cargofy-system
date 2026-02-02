@@ -5,7 +5,7 @@ import { getFirestore, collection, doc, addDoc, onSnapshot, updateDoc, deleteDoc
 import { 
   LayoutDashboard, Truck, Users, DollarSign, Plus, Package, MapPin, X, Trash2, 
   Briefcase, LogOut, Lock, Mail, Clock, FileText, Search, Calendar, Layers, 
-  CheckCircle2, AlertCircle, Edit3, Download, SteeringWheel, ArrowRight, Camera, Paperclip, ExternalLink
+  CheckCircle2, AlertCircle, Edit3, Download, SteeringWheel, ArrowRight, Camera, Paperclip, ExternalLink, Building2
 } from 'lucide-react';
 
 // --- CONFIGURAÇÃO ---
@@ -44,7 +44,7 @@ const Modal = ({ isOpen, onClose, title, children }) => {
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
         <div className="px-8 py-5 border-b flex justify-between items-center bg-slate-50">
           <h2 className="text-lg font-black text-slate-800 uppercase tracking-tight">{title}</h2>
           <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors"><X size={20} /></button>
@@ -71,11 +71,30 @@ function App() {
   const [searchNF, setSearchNF] = useState('');
 
   const [formData, setFormData] = useState({
-    numeroNF: '', dataNF: '', dataSaida: '', cliente: '', destinatario: '', cidade: '', 
-    volume: '', peso: '', valorNF: '', chaveID: '', status: 'Pendente', 
-    valorFrete: '', motorista: '', veiculo: '', placa: '', urlComprovante: '', vencimento: '', 
-    statusFinanceiro: 'Pendente', nome: '', email: '', telefone: '', 
-    modelo: '', tipo: ''
+    numeroNF: '', 
+    dataNF: '', 
+    dataSaida: '', 
+    dataEntrega: '', // Novo campo
+    contratante: '', // Novo campo
+    destinatario: '', // Novo campo
+    cidade: '', 
+    volume: '', // Novo campo
+    peso: '', // Novo campo
+    valorNF: '', // Novo campo
+    chaveID: '', 
+    status: 'Pendente', 
+    valorFrete: '', 
+    motorista: '', 
+    veiculo: '', 
+    placa: '', 
+    urlComprovante: '', 
+    vencimento: '', 
+    statusFinanceiro: 'Pendente', 
+    nome: '', 
+    email: '', 
+    telefone: '', 
+    modelo: '', 
+    tipo: ''
   });
 
   useEffect(() => {
@@ -126,6 +145,7 @@ function App() {
     const term = searchNF.toLowerCase();
     return list.filter(item => 
       (item.numeroNF?.toLowerCase().includes(term)) ||
+      (item.contratante?.toLowerCase().includes(term)) ||
       (item.nome?.toLowerCase().includes(term)) ||
       (item.placa?.toLowerCase().includes(term)) ||
       (item.cidade?.toLowerCase().includes(term)) ||
@@ -158,7 +178,8 @@ function App() {
 
   const resetForm = () => {
     setFormData({ 
-      numeroNF: '', dataNF: '', dataSaida: '', cliente: '', destinatario: '', cidade: '', 
+      numeroNF: '', dataNF: '', dataSaida: '', dataEntrega: '', 
+      contratante: '', destinatario: '', cidade: '', 
       volume: '', peso: '', valorNF: '', chaveID: '', status: 'Pendente', 
       valorFrete: '', motorista: '', veiculo: '', placa: '', urlComprovante: '', vencimento: '', 
       statusFinanceiro: 'Pendente', nome: '', email: '', telefone: '', 
@@ -194,7 +215,7 @@ function App() {
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
               <input 
                 type="text" 
-                placeholder="Pesquisar..." 
+                placeholder="Pesquisar por NF, Contratante ou Cidade..." 
                 value={searchNF}
                 onChange={(e) => setSearchNF(e.target.value)}
                 className="w-full pl-12 pr-4 py-2.5 bg-slate-100 rounded-xl outline-none focus:ring-2 ring-blue-500/20 text-sm font-medium transition-all"
@@ -229,8 +250,8 @@ function App() {
             <table className="w-full text-left border-collapse">
               <thead className="bg-slate-50 border-b border-slate-100">
                 <tr>
-                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">NF / Identificação</th>
-                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Transporte</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">NF / Contratante</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Destino / Motorista</th>
                   <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Status / Financeiro</th>
                   <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase text-right">Ações</th>
                 </tr>
@@ -239,19 +260,34 @@ function App() {
                 {filteredData.map(item => (
                   <tr key={item.id} className="hover:bg-slate-50/50 group transition-colors">
                     <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <p className="font-bold text-slate-800">{item.numeroNF || item.nome || item.modelo || "---"}</p>
-                        {item.urlComprovante && (
-                          <a href={item.urlComprovante} target="_blank" rel="noreferrer" title="Ver Comprovante" className="text-blue-500 hover:scale-110 transition-transform">
-                            <Paperclip size={14} />
-                          </a>
-                        )}
+                      <div className="flex flex-col">
+                        <div className="flex items-center gap-2">
+                          <p className="font-bold text-slate-800">{item.numeroNF || item.nome || item.modelo || "---"}</p>
+                          {item.urlComprovante && (
+                            <a href={item.urlComprovante} target="_blank" rel="noreferrer" title="Ver Comprovante" className="text-emerald-500 hover:scale-110 transition-transform">
+                              <Paperclip size={14} />
+                            </a>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <Building2 size={10} className="text-slate-400" />
+                          <p className="text-[10px] font-black text-blue-600 uppercase tracking-tight">
+                            {item.contratante || "Contratante não informado"}
+                          </p>
+                        </div>
+                        <p className="text-[10px] text-slate-400 font-mono mt-1">{item.chaveID || item.email || item.placa}</p>
                       </div>
-                      <p className="text-[10px] text-slate-400 font-mono">{item.chaveID || item.email || item.placa}</p>
                     </td>
                     <td className="px-6 py-4">
-                      <p className="text-sm font-bold text-slate-700">{item.motorista || item.telefone || item.tipo || '---'}</p>
-                      <p className="text-[10px] text-slate-400 font-black uppercase">{item.veiculo} {item.placa}</p>
+                      <p className="text-sm font-bold text-slate-700">{item.cidade || item.tipo || '---'}</p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <p className="text-[10px] text-slate-400 font-black uppercase">{item.motorista || item.telefone || 'Sem Motorista'}</p>
+                        {item.status === 'Entregue' && item.dataEntrega && (
+                          <span className="text-[9px] font-bold text-emerald-500 flex items-center gap-1">
+                            <Clock size={10} /> Entregue em {new Date(item.dataEntrega + 'T12:00:00').toLocaleDateString('pt-BR')}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-col gap-1">
@@ -270,7 +306,7 @@ function App() {
                       <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button onClick={() => handleOpenEdit(item)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg"><Edit3 size={16}/></button>
                         <button onClick={async () => { 
-                          if(confirm('Excluir registro?')) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', (activeTab === 'dashboard' || activeTab === 'viagens' ? 'viagens' : activeTab), item.id));
+                          if(confirm('Deseja realmente excluir este registro?')) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', (activeTab === 'dashboard' || activeTab === 'viagens' ? 'viagens' : activeTab), item.id));
                         }} className="p-2 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 size={16}/></button>
                       </div>
                     </td>
@@ -285,87 +321,123 @@ function App() {
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? "Editar Registro" : "Novo Cadastro"}>
         <form onSubmit={handleSave} className="space-y-6">
           {(activeTab === 'dashboard' || activeTab === 'viagens') && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Input label="Número NF" value={formData.numeroNF} onChange={v => setFormData({...formData, numeroNF: v})} />
-                <Input label="Data de Saída" type="date" value={formData.dataSaida} onChange={v => setFormData({...formData, dataSaida: v})} />
-                
-                <div className="space-y-1">
-                  <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Motorista</label>
-                  <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold outline-none" value={formData.motorista} onChange={e => setFormData({...formData, motorista: e.target.value})}>
-                    <option value="">Selecionar...</option>
-                    {motoristas.map(m => <option key={m.id} value={m.nome}>{m.nome}</option>)}
-                  </select>
+            <div className="space-y-8">
+              {/* Seção 1: Identificação */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 border-l-4 border-blue-500 pl-3">
+                  <h4 className="text-[11px] font-black text-slate-800 uppercase tracking-widest">Documentação e Contrato</h4>
                 </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Input label="Número Nota Fiscal" value={formData.numeroNF} onChange={v => setFormData({...formData, numeroNF: v})} />
+                  <Input label="Empresa Contratante" placeholder="Ex: LogiExpress S.A." value={formData.contratante} onChange={v => setFormData({...formData, contratante: v})} />
+                  <Input label="Valor da NF (R$)" type="number" value={formData.valorNF} onChange={v => setFormData({...formData, valorNF: v})} />
+                </div>
+                <Input label="Chave de Acesso (NF-e)" placeholder="44 dígitos da nota fiscal" value={formData.chaveID} onChange={v => setFormData({...formData, chaveID: v})} />
+              </div>
 
-                <div className="space-y-1">
-                  <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Status da Carga</label>
-                  <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold uppercase outline-none ring-2 ring-blue-500/10" value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})}>
-                    <option value="Pendente">Pendente</option>
-                    <option value="Em rota">Em rota</option>
-                    <option value="Entregue">Entregue</option>
-                  </select>
+              {/* Seção 2: Logística */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 border-l-4 border-slate-300 pl-3">
+                  <h4 className="text-[11px] font-black text-slate-800 uppercase tracking-widest">Detalhes da Carga e Destino</h4>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Input label="Empresa Destinatária" value={formData.destinatario} onChange={v => setFormData({...formData, destinatario: v})} />
+                  <Input label="Cidade de Destino" value={formData.cidade} onChange={v => setFormData({...formData, cidade: v})} />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <Input label="Volume (Qtd)" type="number" value={formData.volume} onChange={v => setFormData({...formData, volume: v})} />
+                  <Input label="Peso (Kg)" type="number" value={formData.peso} onChange={v => setFormData({...formData, peso: v})} />
+                  <Input label="Valor Frete (R$)" type="number" value={formData.valorFrete} onChange={v => setFormData({...formData, valorFrete: v})} />
+                  <Input label="Data Saída" type="date" value={formData.dataSaida} onChange={v => setFormData({...formData, dataSaida: v})} />
                 </div>
               </div>
 
-              {/* CAMPO DO COMPROVANTE: APARECE APENAS QUANDO ENTREGUE */}
-              {formData.status === 'Entregue' && (
-                <div className="p-5 bg-emerald-50 border border-emerald-100 rounded-2xl space-y-3 animate-in fade-in slide-in-from-top-2">
-                  <div className="flex items-center gap-2 text-emerald-700">
-                    <Camera size={18} />
-                    <h4 className="text-xs font-black uppercase tracking-wider">Comprovante de Entrega</h4>
+              {/* Seção 3: Transporte e Status */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 border-l-4 border-indigo-500 pl-3">
+                  <h4 className="text-[11px] font-black text-slate-800 uppercase tracking-widest">Operação e Status</h4>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Motorista Responsável</label>
+                    <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold outline-none border border-transparent focus:border-indigo-200" value={formData.motorista} onChange={e => setFormData({...formData, motorista: e.target.value})}>
+                      <option value="">Selecionar Motorista...</option>
+                      {motoristas.map(m => <option key={m.id} value={m.nome}>{m.nome}</option>)}
+                    </select>
                   </div>
-                  <p className="text-[10px] text-emerald-600 font-medium">Insira o link da foto ou documento para comprovação:</p>
-                  <div className="flex gap-2">
-                    <input 
-                      type="text" 
-                      placeholder="https://link-da-foto-ou-arquivo.com/foto.jpg"
-                      value={formData.urlComprovante || ''}
-                      onChange={e => setFormData({...formData, urlComprovante: e.target.value})}
-                      className="flex-1 px-4 py-2.5 bg-white border border-emerald-200 rounded-xl text-xs font-semibold outline-none focus:ring-2 ring-emerald-500/20"
-                    />
-                    {formData.urlComprovante && (
-                      <a href={formData.urlComprovante} target="_blank" rel="noreferrer" className="p-2.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700">
-                        <ExternalLink size={18} />
-                      </a>
-                    )}
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Status da Viagem</label>
+                    <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold uppercase outline-none border border-transparent focus:border-blue-400" value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})}>
+                      <option value="Pendente">Pendente (Aguardando)</option>
+                      <option value="Em rota">Em rota (Transportando)</option>
+                      <option value="Entregue">Entregue (Concluído)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Seção 4: Conclusão da Entrega */}
+              {formData.status === 'Entregue' && (
+                <div className="p-6 bg-emerald-50 border border-emerald-100 rounded-3xl space-y-4 animate-in fade-in slide-in-from-top-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-emerald-700">
+                      <CheckCircle2 size={18} />
+                      <h4 className="text-xs font-black uppercase tracking-wider">Dados de Conclusão da Entrega</h4>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Input label="Data da Entrega Realizada" type="date" value={formData.dataEntrega} onChange={v => setFormData({...formData, dataEntrega: v})} />
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Link do Comprovante (Foto)</label>
+                      <div className="flex gap-2">
+                        <input 
+                          type="text" 
+                          placeholder="Link da imagem/arquivo..."
+                          value={formData.urlComprovante || ''}
+                          onChange={e => setFormData({...formData, urlComprovante: e.target.value})}
+                          className="flex-1 px-4 py-2.5 bg-white border border-emerald-200 rounded-xl text-xs font-semibold outline-none focus:ring-2 ring-emerald-500/20"
+                        />
+                        {formData.urlComprovante && (
+                          <a href={formData.urlComprovante} target="_blank" rel="noreferrer" className="p-2.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors">
+                            <ExternalLink size={18} />
+                          </a>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Input label="Cidade Destino" value={formData.cidade} onChange={v => setFormData({...formData, cidade: v})} />
-                <Input label="Valor Frete (R$)" type="number" value={formData.valorFrete} onChange={v => setFormData({...formData, valorFrete: v})} />
-                <Input label="Chave ID (NF-e)" value={formData.chaveID} onChange={v => setFormData({...formData, chaveID: v})} />
-              </div>
             </div>
           )}
 
           {activeTab === 'clientes' && (
             <div className="space-y-4">
               <Input label="Nome / Razão Social" value={formData.nome} onChange={v => setFormData({...formData, nome: v})} />
-              <Input label="E-mail" value={formData.email} onChange={v => setFormData({...formData, email: v})} />
-              <Input label="Telefone" value={formData.telefone} onChange={v => setFormData({...formData, telefone: v})} />
+              <Input label="E-mail Corporativo" value={formData.email} onChange={v => setFormData({...formData, email: v})} />
+              <Input label="Telefone de Contato" value={formData.telefone} onChange={v => setFormData({...formData, telefone: v})} />
             </div>
           )}
 
           {activeTab === 'motoristas' && (
             <div className="space-y-4">
-              <Input label="Nome Completo" value={formData.nome} onChange={v => setFormData({...formData, nome: v})} />
-              <Input label="Telefone / Contato" value={formData.telefone} onChange={v => setFormData({...formData, telefone: v})} />
+              <Input label="Nome Completo do Motorista" value={formData.nome} onChange={v => setFormData({...formData, nome: v})} />
+              <Input label="WhatsApp / Telefone" value={formData.telefone} onChange={v => setFormData({...formData, telefone: v})} />
             </div>
           )}
 
           {activeTab === 'veiculos' && (
             <div className="grid grid-cols-2 gap-4">
-              <Input label="Modelo" value={formData.modelo} onChange={v => setFormData({...formData, modelo: v})} />
-              <Input label="Placa" value={formData.placa} onChange={v => setFormData({...formData, placa: v})} />
+              <Input label="Modelo do Veículo" value={formData.modelo} onChange={v => setFormData({...formData, modelo: v})} />
+              <Input label="Placa" placeholder="ABC-1234" value={formData.placa} onChange={v => setFormData({...formData, placa: v})} />
+              <Input label="Tipo (Truck, Bitrem, etc)" value={formData.tipo} onChange={v => setFormData({...formData, tipo: v})} />
             </div>
           )}
 
-          <div className="flex gap-3 pt-6 border-t">
-            <button type="button" onClick={() => setModalOpen(false)} className="flex-1 py-3 text-xs font-black uppercase text-slate-400">Cancelar</button>
-            <button type="submit" className="flex-[2] py-3 bg-blue-600 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-blue-500/20">Salvar Registro</button>
+          <div className="flex gap-3 pt-8 border-t">
+            <button type="button" onClick={() => setModalOpen(false)} className="flex-1 py-4 text-xs font-black uppercase text-slate-400 hover:text-slate-600 transition-colors">Descartar</button>
+            <button type="submit" className="flex-[2] py-4 bg-blue-600 text-white rounded-2xl text-xs font-black uppercase shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all">
+              {editingId ? "Atualizar Registro" : "Confirmar Cadastro"}
+            </button>
           </div>
         </form>
       </Modal>
@@ -381,11 +453,17 @@ function NavItem({ icon: Icon, label, active, onClick }) {
   );
 }
 
-function Input({ label, type = "text", value, onChange }) {
+function Input({ label, type = "text", value, onChange, placeholder = "" }) {
   return (
     <div className="space-y-1">
       <label className="text-[9px] font-black text-slate-400 uppercase ml-1">{label}</label>
-      <input type={type} value={value || ''} onChange={e => onChange(e.target.value)} className="w-full px-4 py-2.5 bg-slate-100 rounded-xl outline-none focus:ring-2 ring-blue-500/20 text-sm font-semibold transition-all" />
+      <input 
+        type={type} 
+        placeholder={placeholder}
+        value={value || ''} 
+        onChange={e => onChange(e.target.value)} 
+        className="w-full px-4 py-2.5 bg-slate-100 rounded-xl outline-none border border-transparent focus:border-blue-400 focus:bg-white text-sm font-semibold transition-all" 
+      />
     </div>
   );
 }
@@ -397,7 +475,7 @@ function Login() {
   const handle = async (e) => {
     e.preventDefault();
     try { isReg ? await createUserWithEmailAndPassword(auth, email, pass) : await signInWithEmailAndPassword(auth, email, pass); } 
-    catch(err) { alert('Erro na autenticação: ' + err.message); }
+    catch(err) { alert('Falha na autenticação. Verifique os dados.'); }
   };
   return (
     <div className="h-screen bg-[#0f172a] flex items-center justify-center p-6 font-sans">
@@ -405,13 +483,13 @@ function Login() {
         <div className="text-center mb-8">
           <Truck className="mx-auto text-blue-600 mb-4" size={48} />
           <h2 className="text-2xl font-black uppercase tracking-tighter">CargoFy</h2>
-          <p className="text-slate-400 text-xs font-bold uppercase mt-2 tracking-widest">Logística inteligente</p>
+          <p className="text-slate-400 text-xs font-bold uppercase mt-2 tracking-widest">Painel Administrativo</p>
         </div>
         <form onSubmit={handle} className="space-y-4">
           <Input label="E-mail" value={email} onChange={setEmail} />
           <Input label="Senha" type="password" value={pass} onChange={setPass} />
           <button className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-blue-500/20 mt-4">{isReg ? 'Criar Conta' : 'Entrar'}</button>
-          <button type="button" onClick={() => setIsReg(!isReg)} className="w-full text-center text-xs font-bold text-slate-400 uppercase mt-4 underline decoration-slate-200 underline-offset-4">{isReg ? 'Já tenho conta' : 'Criar nova conta'}</button>
+          <button type="button" onClick={() => setIsReg(!isReg)} className="w-full text-center text-xs font-bold text-slate-400 uppercase mt-4 underline decoration-slate-200 underline-offset-4">{isReg ? 'Já possui conta? Login' : 'Novo por aqui? Criar conta'}</button>
         </form>
       </div>
     </div>
