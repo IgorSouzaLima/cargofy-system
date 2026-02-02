@@ -32,7 +32,10 @@ import {
   LogOut, 
   Lock, 
   Mail, 
-  Clock
+  Clock,
+  FileText,
+  Upload,
+  Download
 } from 'lucide-react';
 
 // --- CONFIGURAÇÃO DO FIREBASE ---
@@ -151,14 +154,14 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [viagens, setViagens] = useState([]);
+  const [financeiro, setFinanceiro] = useState([]);
+  const [clientes, setClientes] = useState([]);
+  const [motoristas, setMotoristas] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
   
-  // Estado do formulário
+  // Estados dos formulários
   const [formData, setFormData] = useState({
-    numeroNF: '',
-    status: 'Pendente',
-    valorFechado: '',
-    valorPago: ''
+    numeroNF: '', status: 'Pendente', valorFechado: '', valorPago: '', motorista: '', cliente: '', comprovante: null
   });
 
   useEffect(() => {
@@ -169,14 +172,23 @@ function App() {
     return () => unsubscribe();
   }, []);
 
-  // Escuta de dados em tempo real
+  // Escuta de dados em tempo real para múltiplas coleções
   useEffect(() => {
     if (!user) return;
-    const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'viagens'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setViagens(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    }, (error) => console.error("Erro ao carregar dados:", error));
-    return () => unsubscribe();
+    
+    const collections = ['viagens', 'financeiro', 'clientes', 'motoristas'];
+    const unsubscribes = collections.map(colName => {
+      const q = query(collection(db, 'artifacts', appId, 'public', 'data', colName));
+      return onSnapshot(q, (snapshot) => {
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        if (colName === 'viagens') setViagens(data);
+        if (colName === 'financeiro') setFinanceiro(data);
+        if (colName === 'clientes') setClientes(data);
+        if (colName === 'motoristas') setMotoristas(data);
+      });
+    });
+
+    return () => unsubscribes.forEach(unsub => unsub());
   }, [user]);
 
   const stats = useMemo(() => {
@@ -190,33 +202,58 @@ function App() {
     };
   }, [viagens]);
 
-  // FUNÇÃO PARA ADICIONAR DADOS
-  const handleSaveViagem = async (e) => {
+  // FUNÇÃO PARA ADICIONAR DADOS DINAMICAMENTE
+  const handleSaveData = async (e) => {
     e.preventDefault();
     if (!user) return;
+    
+    let colName = activeTab === 'dashboard' ? 'viagens' : activeTab;
+    
     try {
-      await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'viagens'), {
+      await addDoc(collection(db, 'artifacts', appId, 'public', 'data', colName), {
         ...formData,
         userId: user.uid,
         createdAt: serverTimestamp()
       });
       setModalOpen(false);
-      setFormData({ numeroNF: '', status: 'Pendente', valorFechado: '', valorPago: '' });
+      resetForm();
     } catch (err) {
       console.error("Erro ao guardar registo:", err);
     }
   };
 
-  const handleDelete = async (id) => {
+  const resetForm = () => {
+    setFormData({ 
+      numeroNF: '', status: 'Pendente', valorFechado: '', valorPago: '', 
+      nome: '', email: '', telefone: '', veiculo: '', matricula: '',
+      comprovante: null 
+    });
+  };
+
+  const handleDelete = async (col, id) => {
     if (window.confirm("Deseja apagar este registo permanentemente?")) {
-      await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'viagens', id));
+      await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', col, id));
     }
+  };
+
+  const handleExportReport = () => {
+    const reportData = {
+      geradoEm: new Date().toLocaleString(),
+      estatisticas: stats,
+      viagens: viagens
+    };
+    const blob = new Blob([JSON.stringify(reportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `relatorio_cargofy_${new Date().getTime()}.json`;
+    a.click();
   };
 
   if (loading) return (
     <div className="h-screen flex flex-col items-center justify-center bg-slate-50 gap-4 text-slate-400">
       <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-      <span className="text-xs font-black uppercase tracking-widest">Sincronizando...</span>
+      <span className="text-xs font-black uppercase tracking-widest">Sincronizando Sistema...</span>
     </div>
   );
 
@@ -249,12 +286,19 @@ function App() {
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <header className="h-24 bg-white border-b flex items-center justify-between px-10 shrink-0">
           <div>
-            <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest">Painel Logístico</h2>
-            <p className="text-xl font-bold text-slate-800 capitalize">{activeTab}</p>
+            <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest">Gestão de {activeTab}</h2>
+            <p className="text-xl font-bold text-slate-800 capitalize">{activeTab === 'dashboard' ? 'Visão Geral' : activeTab}</p>
           </div>
-          <button onClick={() => setModalOpen(true)} className="bg-blue-600 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest flex items-center gap-2 hover:bg-blue-700 shadow-xl shadow-blue-500/20 active:scale-95 transition-all">
-            <Plus size={18} /> Registar Viagem
-          </button>
+          <div className="flex gap-4">
+            {activeTab === 'dashboard' && (
+              <button onClick={handleExportReport} className="bg-slate-100 text-slate-600 px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest flex items-center gap-2 hover:bg-slate-200 transition-all">
+                <Download size={18} /> Relatório
+              </button>
+            )}
+            <button onClick={() => { resetForm(); setModalOpen(true); }} className="bg-blue-600 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest flex items-center gap-2 hover:bg-blue-700 shadow-xl shadow-blue-500/20 active:scale-95 transition-all">
+              <Plus size={18} /> {activeTab === 'dashboard' ? 'Nova Viagem' : `Adicionar ${activeTab.slice(0, -1)}`}
+            </button>
+          </div>
         </header>
 
         <div className="flex-1 overflow-y-auto p-10">
@@ -266,7 +310,11 @@ function App() {
                 <Card title="Faturamento" value={`€ ${stats.faturamento.toLocaleString()}`} icon={Briefcase} color="bg-indigo-600" />
                 <Card title="Viagens Totais" value={stats.total} icon={Package} color="bg-slate-800" />
               </div>
+              
               <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden">
+                <div className="px-8 py-6 border-b border-slate-50 flex justify-between items-center">
+                   <h3 className="font-black text-slate-800 text-sm uppercase tracking-widest">Últimas Atividades</h3>
+                </div>
                 <table className="w-full text-left">
                   <thead className="bg-slate-50/50">
                     <tr>
@@ -287,63 +335,131 @@ function App() {
                         </td>
                         <td className="px-8 py-5 font-black text-slate-900 text-right">{Number(v.valorFechado).toLocaleString()}</td>
                         <td className="px-8 py-5">
-                          <button onClick={() => handleDelete(v.id)} className="p-2 text-slate-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => handleDelete('viagens', v.id)} className="p-2 text-slate-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity">
                             <Trash2 size={16} />
                           </button>
                         </td>
                       </tr>
                     ))}
-                    {viagens.length === 0 && (
-                      <tr>
-                        <td colSpan="4" className="px-8 py-10 text-center text-slate-400 text-sm font-medium">Nenhum registo encontrado.</td>
-                      </tr>
-                    )}
                   </tbody>
                 </table>
               </div>
             </div>
           )}
-          {activeTab !== 'dashboard' && (
-            <div className="h-64 flex flex-col items-center justify-center text-slate-300 border-2 border-dashed border-slate-200 rounded-[2rem]">
-              <Clock size={48} className="mb-4 opacity-20" />
-              <p className="font-black uppercase tracking-widest text-xs">Módulo {activeTab} em configuração</p>
-            </div>
-          )}
+
+          {activeTab === 'viagens' && <TableView data={viagens} columns={['numeroNF', 'status', 'valorFechado']} onDel={(id) => handleDelete('viagens', id)} />}
+          {activeTab === 'financeiro' && <TableView data={financeiro} columns={['numeroNF', 'valorPago', 'status']} onDel={(id) => handleDelete('financeiro', id)} />}
+          {activeTab === 'clientes' && <TableView data={clientes} columns={['nome', 'email', 'telefone']} onDel={(id) => handleDelete('clientes', id)} />}
+          {activeTab === 'motoristas' && <TableView data={motoristas} columns={['nome', 'veiculo', 'matricula']} onDel={(id) => handleDelete('motoristas', id)} />}
         </div>
       </main>
 
-      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Novo Registo de Viagem">
-        <form onSubmit={handleSaveViagem} className="space-y-8">
-          <div className="grid grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nº da Fatura / NF</label>
-              <input type="text" required value={formData.numeroNF} onChange={e => setFormData({...formData, numeroNF: e.target.value})} className="w-full px-5 py-4 bg-slate-50 border-2 border-transparent rounded-2xl focus:border-blue-500 focus:bg-white outline-none transition-all font-semibold" placeholder="Ex: 10293" />
-            </div>
-            <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Estado Operacional</label>
-              <select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})} className="w-full px-5 py-4 bg-slate-50 border-2 border-transparent rounded-2xl focus:border-blue-500 focus:bg-white outline-none transition-all font-semibold appearance-none">
-                <option value="Pendente">Pendente</option>
-                <option value="Em rota">Em rota</option>
-                <option value="Concluído">Concluído</option>
-              </select>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Receita Prevista (€)</label>
-              <input type="number" required value={formData.valorFechado} onChange={e => setFormData({...formData, valorFechado: e.target.value})} className="w-full px-5 py-4 bg-slate-50 border-2 border-transparent rounded-2xl focus:border-blue-500 focus:bg-white outline-none transition-all font-semibold" placeholder="0.00" />
-            </div>
-            <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Custos Estimados (€)</label>
-              <input type="number" required value={formData.valorPago} onChange={e => setFormData({...formData, valorPago: e.target.value})} className="w-full px-5 py-4 bg-slate-50 border-2 border-transparent rounded-2xl focus:border-blue-500 focus:bg-white outline-none transition-all font-semibold" placeholder="0.00" />
-            </div>
-          </div>
+      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={`Adicionar Novo(a) ${activeTab}`}>
+        <form onSubmit={handleSaveData} className="space-y-6">
+          {(activeTab === 'viagens' || activeTab === 'dashboard' || activeTab === 'financeiro') && (
+            <>
+              <div className="grid grid-cols-2 gap-4">
+                <InputField label="Nº Fatura / NF" value={formData.numeroNF} onChange={val => setFormData({...formData, numeroNF: val})} />
+                <SelectField label="Estado" value={formData.status} options={['Pendente', 'Em rota', 'Concluído']} onChange={val => setFormData({...formData, status: val})} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <InputField label="Valor Receita (€)" type="number" value={formData.valorFechado} onChange={val => setFormData({...formData, valorFechado: val})} />
+                <InputField label="Custo / Pago (€)" type="number" value={formData.valorPago} onChange={val => setFormData({...formData, valorPago: val})} />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
+                  <Upload size={12} /> Comprovante / Documento
+                </label>
+                <div className="border-2 border-dashed border-slate-200 rounded-2xl p-6 text-center hover:border-blue-400 transition-colors cursor-pointer bg-slate-50">
+                  <input type="file" className="hidden" id="file-upload" onChange={(e) => setFormData({...formData, comprovante: e.target.files[0]?.name})} />
+                  <label htmlFor="file-upload" className="cursor-pointer">
+                    <p className="text-xs font-bold text-slate-500">{formData.comprovante || "Clique para anexar comprovante (PDF/IMG)"}</p>
+                  </label>
+                </div>
+              </div>
+            </>
+          )}
+
+          {activeTab === 'clientes' && (
+            <>
+              <InputField label="Nome do Cliente / Empresa" value={formData.nome} onChange={val => setFormData({...formData, nome: val})} />
+              <div className="grid grid-cols-2 gap-4">
+                <InputField label="Email" type="email" value={formData.email} onChange={val => setFormData({...formData, email: val})} />
+                <InputField label="Telefone" value={formData.telefone} onChange={val => setFormData({...formData, telefone: val})} />
+              </div>
+            </>
+          )}
+
+          {activeTab === 'motoristas' && (
+            <>
+              <InputField label="Nome Completo" value={formData.nome} onChange={val => setFormData({...formData, nome: val})} />
+              <div className="grid grid-cols-2 gap-4">
+                <InputField label="Veículo" value={formData.veiculo} onChange={val => setFormData({...formData, veiculo: val})} />
+                <InputField label="Matrícula" value={formData.matricula} onChange={val => setFormData({...formData, matricula: val})} />
+              </div>
+            </>
+          )}
+
           <div className="pt-6 flex gap-4">
             <button type="button" onClick={() => setModalOpen(false)} className="flex-1 px-8 py-4 rounded-2xl text-xs font-black uppercase text-slate-400 hover:bg-slate-100">Cancelar</button>
-            <button type="submit" className="flex-[2] bg-blue-600 text-white px-8 py-4 rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl shadow-blue-500/20 hover:bg-blue-700">Guardar Operação</button>
+            <button type="submit" className="flex-[2] bg-blue-600 text-white px-8 py-4 rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl shadow-blue-500/20 hover:bg-blue-700">Guardar Registo</button>
           </div>
         </form>
       </Modal>
+    </div>
+  );
+}
+
+// --- COMPONENTES DE INTERFACE ---
+
+function TableView({ data, columns, onDel }) {
+  return (
+    <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden">
+      <table className="w-full text-left">
+        <thead className="bg-slate-50/50">
+          <tr>
+            {columns.map(col => (
+              <th key={col} className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">{col.replace(/([A-Z])/g, ' $1')}</th>
+            ))}
+            <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Ações</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-50">
+          {data.map(item => (
+            <tr key={item.id} className="hover:bg-slate-50/50 transition-colors group">
+              {columns.map(col => (
+                <td key={col} className="px-8 py-5 font-bold text-slate-700">{item[col] || '-'}</td>
+              ))}
+              <td className="px-8 py-5">
+                <button onClick={() => onDel(item.id)} className="p-2 text-slate-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Trash2 size={16} />
+                </button>
+              </td>
+            </tr>
+          ))}
+          {data.length === 0 && <tr><td colSpan={columns.length + 1} className="px-8 py-10 text-center text-slate-400 text-xs font-bold uppercase">Sem dados registados</td></tr>}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function InputField({ label, type = "text", value, onChange }) {
+  return (
+    <div className="space-y-2">
+      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{label}</label>
+      <input type={type} required value={value || ''} onChange={e => onChange(e.target.value)} className="w-full px-5 py-4 bg-slate-50 border-2 border-transparent rounded-2xl focus:border-blue-500 focus:bg-white outline-none transition-all font-semibold" />
+    </div>
+  );
+}
+
+function SelectField({ label, value, options, onChange }) {
+  return (
+    <div className="space-y-2">
+      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{label}</label>
+      <select value={value} onChange={e => onChange(e.target.value)} className="w-full px-5 py-4 bg-slate-50 border-2 border-transparent rounded-2xl focus:border-blue-500 focus:bg-white outline-none transition-all font-semibold">
+        {options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+      </select>
     </div>
   );
 }
