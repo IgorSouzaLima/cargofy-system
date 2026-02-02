@@ -23,7 +23,7 @@ import {
   Briefcase, LogOut, FileText, Search, Layers, 
   CheckCircle2, AlertCircle, Edit3, Camera, Link as LinkIcon,
   CreditCard, Scale, Box, User as UserIcon, ChevronRight, Calendar, Hash, Filter, Download,
-  Clock, Printer
+  Clock, Printer, Weight, Thermometer
 } from 'lucide-react';
 
 // --- CONFIGURAÇÃO FIREBASE ---
@@ -252,7 +252,7 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-[#f8fafc] overflow-hidden font-sans print:bg-white">
-      {/* Sidebar - Oculta na impressão */}
+      {/* Sidebar */}
       <aside className="w-64 bg-[#0f172a] text-white flex flex-col p-6 shrink-0 print:hidden">
         <div className="flex items-center gap-3 mb-10 px-2">
           <Truck className="text-blue-500" size={28} />
@@ -304,9 +304,9 @@ export default function App() {
               <thead className="bg-slate-50/50 border-b border-slate-100">
                 <tr>
                   <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Identificação</th>
-                  <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Contratante / Rota</th>
+                  <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Carga</th>
+                  <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Rota / Cliente</th>
                   <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Financeiro</th>
-                  <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
                   <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right print:hidden">Ações</th>
                 </tr>
               </thead>
@@ -320,9 +320,17 @@ export default function App() {
                         </div>
                         <div>
                           <p className="font-black text-sm text-slate-800">{item.numeroNF || item.nome || item.descricao || item.placa}</p>
-                          <p className="text-[10px] font-bold text-slate-400 uppercase truncate max-w-[120px]">{item.chaveNF || item.cnpjCpf || item.tipo}</p>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase truncate max-w-[120px]">{item.status || 'Ativo'}</p>
                         </div>
                       </div>
+                    </td>
+                    <td className="px-8 py-6">
+                      {item.peso || item.valorNF ? (
+                        <div className="space-y-1">
+                          <p className="text-xs font-black text-slate-700">{Number(item.peso || 0).toLocaleString()} kg | {item.volume || '0'} vol</p>
+                          <p className="text-[10px] text-slate-400 font-bold uppercase">NF: R$ {Number(item.valorNF || 0).toLocaleString()}</p>
+                        </div>
+                      ) : <span className="text-slate-300">-</span>}
                     </td>
                     <td className="px-8 py-6">
                       <p className="text-xs font-black text-blue-600 uppercase tracking-tight">{item.contratante || item.email || '-'}</p>
@@ -335,11 +343,6 @@ export default function App() {
                           Pago: R$ {Number(item.valorPago || 0).toLocaleString()}
                         </span>
                       </div>
-                    </td>
-                    <td className="px-8 py-6">
-                      <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase ${item.status === 'Entregue' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
-                        {item.status || 'Ativo'}
-                      </span>
                     </td>
                     <td className="px-8 py-6 text-right print:hidden">
                       <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -356,7 +359,7 @@ export default function App() {
         </div>
       </main>
 
-      {/* MODAL DE RELATÓRIO (O MOTOR DE RELATÓRIOS) */}
+      {/* MODAL DE RELATÓRIO */}
       <Modal isOpen={reportModalOpen} onClose={() => setReportModalOpen(false)} title="Relatório Logístico & Financeiro">
         <div className="space-y-8 print:block">
           <div className="flex justify-between items-start border-b pb-6">
@@ -394,8 +397,8 @@ export default function App() {
                 <thead className="bg-slate-50 border-b">
                   <tr>
                     <th className="px-4 py-3 text-left font-black uppercase">NF</th>
+                    <th className="px-4 py-3 text-left font-black uppercase">Peso / Valor NF</th>
                     <th className="px-4 py-3 text-left font-black uppercase">Cliente</th>
-                    <th className="px-4 py-3 text-left font-black uppercase">Data</th>
                     <th className="px-4 py-3 text-right font-black uppercase">Frete</th>
                     <th className="px-4 py-3 text-right font-black uppercase">Pago</th>
                   </tr>
@@ -404,8 +407,10 @@ export default function App() {
                   {viagens.map(v => (
                     <tr key={v.id}>
                       <td className="px-4 py-3 font-bold">{v.numeroNF}</td>
+                      <td className="px-4 py-3">
+                        <span className="font-bold">{v.peso || 0}kg</span> | NF: R$ {Number(v.valorNF || 0).toLocaleString()}
+                      </td>
                       <td className="px-4 py-3">{v.contratante}</td>
-                      <td className="px-4 py-3 font-medium text-slate-400">{v.dataSaida || '---'}</td>
                       <td className="px-4 py-3 text-right font-bold text-slate-900">R$ {Number(v.valorFrete || 0).toLocaleString()}</td>
                       <td className="px-4 py-3 text-right font-bold text-emerald-600">R$ {Number(v.valorPago || 0).toLocaleString()}</td>
                     </tr>
@@ -429,6 +434,11 @@ export default function App() {
         <form onSubmit={handleSave} className="space-y-8">
           {(activeTab === 'viagens' || activeTab === 'dashboard') && (
             <>
+              {/* Documentação */}
+              <div className="flex items-center gap-2 text-blue-600 mb-[-1.5rem]">
+                <FileText size={16} />
+                <span className="text-[10px] font-black uppercase tracking-widest">Documentação da Carga</span>
+              </div>
               <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Input label="Número da NF" value={formData.numeroNF} onChange={v => setFormData({...formData, numeroNF: v})} />
                 <div className="col-span-2">
@@ -436,11 +446,32 @@ export default function App() {
                 </div>
               </section>
 
-              <section className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-blue-50/50 p-6 rounded-2xl border border-blue-100">
+              {/* DADOS SOLICITADOS: Volume, Peso, Valor NF */}
+              <div className="flex items-center gap-2 text-blue-600 mb-[-1.5rem] mt-4">
+                <Box size={16} />
+                <span className="text-[10px] font-black uppercase tracking-widest">Especificações da Carga</span>
+              </div>
+              <section className="grid grid-cols-1 md:grid-cols-3 gap-4 p-6 bg-slate-50 rounded-2xl border border-slate-100">
+                <Input label="Volume" placeholder="Ex: 10 pallets" value={formData.volume} onChange={v => setFormData({...formData, volume: v})} />
+                <Input label="Peso Total" type="number" suffix="KG" value={formData.peso} onChange={v => setFormData({...formData, peso: v})} />
+                <Input label="Valor da NF" type="number" suffix="R$" value={formData.valorNF} onChange={v => setFormData({...formData, valorNF: v})} />
+              </section>
+
+              {/* Financeiro */}
+              <div className="flex items-center gap-2 text-emerald-600 mb-[-1.5rem] mt-4">
+                <DollarSign size={16} />
+                <span className="text-[10px] font-black uppercase tracking-widest">Financeiro da Viagem</span>
+              </div>
+              <section className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-emerald-50/30 p-6 rounded-2xl border border-emerald-100">
                 <Input label="Valor do Frete Combinado" type="number" suffix="R$" value={formData.valorFrete} onChange={v => setFormData({...formData, valorFrete: v})} />
                 <Input label="Valor Já Pago" type="number" suffix="R$" value={formData.valorPago} onChange={v => setFormData({...formData, valorPago: v})} />
               </section>
 
+              {/* Rota */}
+              <div className="flex items-center gap-2 text-slate-500 mb-[-1.5rem] mt-4">
+                <MapPin size={16} />
+                <span className="text-[10px] font-black uppercase tracking-widest">Informações de Rota</span>
+              </div>
               <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Input label="Contratante" value={formData.contratante} onChange={v => setFormData({...formData, contratante: v})} />
                 <Input label="Destinatário" value={formData.destinatario} onChange={v => setFormData({...formData, destinatario: v})} />
@@ -448,6 +479,11 @@ export default function App() {
                 <Input label="Cidade Destino" value={formData.cidadeDestino} onChange={v => setFormData({...formData, cidadeDestino: v})} />
               </section>
 
+              {/* Operacional */}
+              <div className="flex items-center gap-2 text-slate-500 mb-[-1.5rem] mt-4">
+                <Truck size={16} />
+                <span className="text-[10px] font-black uppercase tracking-widest">Dados Operacionais</span>
+              </div>
               <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Input label="Motorista" value={formData.motorista} onChange={v => setFormData({...formData, motorista: v})} />
                 <Input label="Placa" value={formData.placa} onChange={v => setFormData({...formData, placa: v})} />
@@ -465,12 +501,11 @@ export default function App() {
                 <section className="p-6 bg-emerald-50/30 rounded-2xl border border-emerald-100 space-y-4">
                   <Input label="Data da Entrega" type="date" value={formData.dataEntrega} onChange={v => setFormData({...formData, dataEntrega: v})} />
                   <Input 
-                    label="Link do Comprovante (Nuvem/Drive/WhatsApp)" 
-                    placeholder="https://link-da-sua-foto.com/comprovante.jpg" 
+                    label="Link do Comprovante (Drive/Foto)" 
+                    placeholder="https://link-da-foto.com" 
                     value={formData.comprovanteUrl} 
                     onChange={v => setFormData({...formData, comprovanteUrl: v})} 
                   />
-                  <p className="text-[9px] text-emerald-600 font-bold italic">* Cole aqui o link da imagem salva no Google Drive, Dropbox ou servidor de imagens.</p>
                 </section>
               )}
             </>
