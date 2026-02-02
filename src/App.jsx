@@ -5,7 +5,7 @@ import { getFirestore, collection, doc, addDoc, onSnapshot, updateDoc, deleteDoc
 import { 
   LayoutDashboard, Truck, Users, DollarSign, Plus, Package, MapPin, X, Trash2, 
   Briefcase, LogOut, Lock, Mail, Clock, FileText, Search, Calendar, Layers, 
-  CheckCircle2, AlertCircle, Edit3, Download, SteeringWheel, ArrowRight
+  CheckCircle2, AlertCircle, Edit3, Download, SteeringWheel, ArrowRight, Camera, Paperclip, ExternalLink
 } from 'lucide-react';
 
 // --- CONFIGURAÇÃO ---
@@ -60,7 +60,7 @@ const Modal = ({ isOpen, onClose, title, children }) => {
 function App() {
   const [user, setUser] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [statusFilter, setStatusFilter] = useState('Todos'); // Novo estado para filtro de status no dashboard
+  const [statusFilter, setStatusFilter] = useState('Todos');
   const [viagens, setViagens] = useState([]);
   const [financeiro, setFinanceiro] = useState([]);
   const [clientes, setClientes] = useState([]);
@@ -73,7 +73,7 @@ function App() {
   const [formData, setFormData] = useState({
     numeroNF: '', dataNF: '', dataSaida: '', cliente: '', destinatario: '', cidade: '', 
     volume: '', peso: '', valorNF: '', chaveID: '', status: 'Pendente', 
-    valorFrete: '', motorista: '', veiculo: '', placa: '', comprovante: '', vencimento: '', 
+    valorFrete: '', motorista: '', veiculo: '', placa: '', urlComprovante: '', vencimento: '', 
     statusFinanceiro: 'Pendente', nome: '', email: '', telefone: '', 
     modelo: '', tipo: ''
   });
@@ -160,28 +160,10 @@ function App() {
     setFormData({ 
       numeroNF: '', dataNF: '', dataSaida: '', cliente: '', destinatario: '', cidade: '', 
       volume: '', peso: '', valorNF: '', chaveID: '', status: 'Pendente', 
-      valorFrete: '', motorista: '', veiculo: '', placa: '', comprovante: '', vencimento: '', 
+      valorFrete: '', motorista: '', veiculo: '', placa: '', urlComprovante: '', vencimento: '', 
       statusFinanceiro: 'Pendente', nome: '', email: '', telefone: '', 
       modelo: '', tipo: ''
     });
-  };
-
-  const generatePDF = () => {
-    const header = "RELATÓRIO DE GESTÃO - CARGOFY\n" + "=".repeat(40) + "\n\n";
-    const body = filteredData.map(v => {
-      const id = v.numeroNF || v.placa || v.nome || "N/A";
-      const info = v.cidade || v.telefone || "";
-      const extra = v.motorista ? ` | Mot: ${v.motorista}` : "";
-      const val = v.valorFrete ? ` | R$ ${v.valorFrete}` : "";
-      return `ID: ${id} | Ref: ${info}${extra}${val} | Status: ${v.status || v.statusFinanceiro || 'Ativo'}`;
-    }).join('\n');
-    
-    const blob = new Blob([header + body], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `relatorio_${activeTab}_${new Date().toLocaleDateString()}.txt`;
-    link.click();
   };
 
   if (!user) return <Login />;
@@ -212,109 +194,64 @@ function App() {
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
               <input 
                 type="text" 
-                placeholder="Pesquisar NF, Placa ou Motorista..." 
+                placeholder="Pesquisar..." 
                 value={searchNF}
                 onChange={(e) => setSearchNF(e.target.value)}
                 className="w-full pl-12 pr-4 py-2.5 bg-slate-100 rounded-xl outline-none focus:ring-2 ring-blue-500/20 text-sm font-medium transition-all"
               />
             </div>
             {statusFilter !== 'Todos' && (
-              <button 
-                onClick={() => setStatusFilter('Todos')}
-                className="bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase flex items-center gap-2"
-              >
+              <button onClick={() => setStatusFilter('Todos')} className="bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase flex items-center gap-2">
                 Filtro: {statusFilter} <X size={12}/>
               </button>
             )}
           </div>
-          <div className="flex gap-3">
-            <button onClick={generatePDF} className="flex items-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-black uppercase transition-all">
-              <Download size={16} /> Exportar
-            </button>
-            <button onClick={() => { resetForm(); setEditingId(null); setModalOpen(true); }} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-blue-500/20 transition-all">
-              <Plus size={16} /> Novo Registro
-            </button>
-          </div>
+          <button onClick={() => { resetForm(); setEditingId(null); setModalOpen(true); }} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-blue-500/20 transition-all">
+            <Plus size={16} /> Novo Registro
+          </button>
         </header>
 
         <div className="p-8 overflow-y-auto">
           {activeTab === 'dashboard' && (
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-              <Card 
-                title="Cargas Pendentes" 
-                value={stats.pendentes} 
-                icon={Clock} 
-                color="bg-amber-500" 
-                active={statusFilter === 'Pendente'}
-                onClick={() => setStatusFilter('Pendente')} 
-              />
-              <Card 
-                title="Cargas em Rota" 
-                value={stats.emRota} 
-                icon={MapPin} 
-                color="bg-blue-600" 
-                active={statusFilter === 'Em rota'}
-                onClick={() => setStatusFilter('Em rota')} 
-              />
-              <Card 
-                title="Concluídas" 
-                value={stats.entregues} 
-                icon={CheckCircle2} 
-                color="bg-emerald-500" 
-                active={statusFilter === 'Entregue'}
-                onClick={() => setStatusFilter('Entregue')} 
-              />
-              <Card 
-                title="Faturamento" 
-                value={`R$ ${stats.faturamento.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} 
-                icon={DollarSign} 
-                color="bg-indigo-600" 
-              />
+              <Card title="Cargas Pendentes" value={stats.pendentes} icon={Clock} color="bg-amber-500" active={statusFilter === 'Pendente'} onClick={() => setStatusFilter('Pendente')} />
+              <Card title="Cargas em Rota" value={stats.emRota} icon={MapPin} color="bg-blue-600" active={statusFilter === 'Em rota'} onClick={() => setStatusFilter('Em rota')} />
+              <Card title="Concluídas" value={stats.entregues} icon={CheckCircle2} color="bg-emerald-500" active={statusFilter === 'Entregue'} onClick={() => setStatusFilter('Entregue')} />
+              <Card title="Faturamento" value={`R$ ${stats.faturamento.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={DollarSign} color="bg-indigo-600" />
             </div>
           )}
 
           <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white">
-              <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">
-                {activeTab === 'dashboard' ? `Viagens (${statusFilter})` : activeTab}
-              </h3>
-              <span className="text-[10px] font-bold text-slate-400">{filteredData.length} registros encontrados</span>
+              <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">{activeTab}</h3>
+              <span className="text-[10px] font-bold text-slate-400">{filteredData.length} registros</span>
             </div>
             <table className="w-full text-left border-collapse">
               <thead className="bg-slate-50 border-b border-slate-100">
                 <tr>
-                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Identificação</th>
-                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Motorista / Veículo</th>
-                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Destino / Valor</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">NF / Identificação</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Transporte</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Status / Financeiro</th>
                   <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase text-right">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {filteredData.length === 0 ? (
-                  <tr>
-                    <td colSpan="4" className="px-6 py-20 text-center text-slate-400">
-                      <div className="flex flex-col items-center gap-2">
-                        <AlertCircle size={32} className="text-slate-200" />
-                        <p className="text-sm font-bold uppercase tracking-widest">Nenhum registro encontrado</p>
-                      </div>
-                    </td>
-                  </tr>
-                ) : filteredData.map(item => (
+                {filteredData.map(item => (
                   <tr key={item.id} className="hover:bg-slate-50/50 group transition-colors">
                     <td className="px-6 py-4">
-                      <p className="font-bold text-slate-800">{item.numeroNF || item.nome || item.modelo || "Sem nome"}</p>
-                      <p className="text-[10px] text-slate-400 font-mono truncate w-32">{item.chaveID || item.email || item.placa}</p>
-                      {item.dataSaida && <p className="text-[9px] text-slate-500 font-bold mt-1">Saída: {new Date(item.dataSaida).toLocaleDateString()}</p>}
+                      <div className="flex items-center gap-2">
+                        <p className="font-bold text-slate-800">{item.numeroNF || item.nome || item.modelo || "---"}</p>
+                        {item.urlComprovante && (
+                          <a href={item.urlComprovante} target="_blank" rel="noreferrer" title="Ver Comprovante" className="text-blue-500 hover:scale-110 transition-transform">
+                            <Paperclip size={14} />
+                          </a>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-slate-400 font-mono">{item.chaveID || item.email || item.placa}</p>
                     </td>
                     <td className="px-6 py-4">
-                      {activeTab === 'viagens' || activeTab === 'dashboard' ? (
-                        <>
-                          <p className="text-sm font-bold text-slate-700">{item.motorista || 'Não atribuído'}</p>
-                          <p className="text-[10px] text-slate-400 font-black uppercase">{item.veiculo} - {item.placa}</p>
-                        </>
-                      ) : (
-                        <p className="text-sm font-semibold text-slate-600">{item.telefone || item.tipo}</p>
-                      )}
+                      <p className="text-sm font-bold text-slate-700">{item.motorista || item.telefone || item.tipo || '---'}</p>
+                      <p className="text-[10px] text-slate-400 font-black uppercase">{item.veiculo} {item.placa}</p>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-col gap-1">
@@ -326,23 +263,15 @@ function App() {
                         }`}>
                           {item.status || item.statusFinanceiro || 'Ativo'}
                         </span>
-                        <p className="text-[10px] text-slate-500 font-bold">{item.cidade || '---'}</p>
-                        {(item.valorFrete || item.valorNF) && (
-                          <p className="font-black text-slate-900 text-sm">
-                            R$ {parseFloat(item.valorFrete || item.valorNF).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                          </p>
-                        )}
+                        {item.valorFrete && <p className="font-black text-slate-900 text-sm">R$ {parseFloat(item.valorFrete).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>}
                       </div>
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => handleOpenEdit(item)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"><Edit3 size={16}/></button>
+                        <button onClick={() => handleOpenEdit(item)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg"><Edit3 size={16}/></button>
                         <button onClick={async () => { 
-                          if(confirm('Deseja excluir este registro?')) {
-                            const col = (activeTab === 'dashboard' || activeTab === 'viagens') ? 'viagens' : activeTab;
-                            await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', col, item.id));
-                          }
-                        }} className="p-2 text-red-400 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={16}/></button>
+                          if(confirm('Excluir registro?')) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', (activeTab === 'dashboard' || activeTab === 'viagens' ? 'viagens' : activeTab), item.id));
+                        }} className="p-2 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 size={16}/></button>
                       </div>
                     </td>
                   </tr>
@@ -353,60 +282,61 @@ function App() {
         </div>
       </main>
 
-      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? `Editar ${activeTab}` : `Novo Cadastro: ${activeTab}`}>
+      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? "Editar Registro" : "Novo Cadastro"}>
         <form onSubmit={handleSave} className="space-y-6">
           {(activeTab === 'dashboard' || activeTab === 'viagens') && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input label="Número NF" value={formData.numeroNF} onChange={v => setFormData({...formData, numeroNF: v})} />
-              <Input label="Data de Saída" type="date" value={formData.dataSaida} onChange={v => setFormData({...formData, dataSaida: v})} />
-              
-              <div className="space-y-1">
-                <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Motorista Responsável</label>
-                <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold outline-none focus:ring-2 ring-blue-500/20 transition-all" value={formData.motorista} onChange={e => setFormData({...formData, motorista: e.target.value})}>
-                  <option value="">Selecionar Motorista...</option>
-                  {motoristas.map(m => <option key={m.id} value={m.nome}>{m.nome}</option>)}
-                </select>
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input label="Número NF" value={formData.numeroNF} onChange={v => setFormData({...formData, numeroNF: v})} />
+                <Input label="Data de Saída" type="date" value={formData.dataSaida} onChange={v => setFormData({...formData, dataSaida: v})} />
+                
+                <div className="space-y-1">
+                  <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Motorista</label>
+                  <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold outline-none" value={formData.motorista} onChange={e => setFormData({...formData, motorista: e.target.value})}>
+                    <option value="">Selecionar...</option>
+                    {motoristas.map(m => <option key={m.id} value={m.nome}>{m.nome}</option>)}
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Status da Carga</label>
+                  <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold uppercase outline-none ring-2 ring-blue-500/10" value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})}>
+                    <option value="Pendente">Pendente</option>
+                    <option value="Em rota">Em rota</option>
+                    <option value="Entregue">Entregue</option>
+                  </select>
+                </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Veículo / Placa</label>
-                <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold outline-none focus:ring-2 ring-blue-500/20 transition-all" value={formData.placa} onChange={e => {
-                  const v = veiculos.find(vec => vec.placa === e.target.value);
-                  setFormData({...formData, placa: e.target.value, veiculo: v?.modelo || ''});
-                }}>
-                  <option value="">Selecionar Veículo...</option>
-                  {veiculos.map(v => <option key={v.id} value={v.placa}>{v.modelo} ({v.placa})</option>)}
-                </select>
-              </div>
+              {/* CAMPO DO COMPROVANTE: APARECE APENAS QUANDO ENTREGUE */}
+              {formData.status === 'Entregue' && (
+                <div className="p-5 bg-emerald-50 border border-emerald-100 rounded-2xl space-y-3 animate-in fade-in slide-in-from-top-2">
+                  <div className="flex items-center gap-2 text-emerald-700">
+                    <Camera size={18} />
+                    <h4 className="text-xs font-black uppercase tracking-wider">Comprovante de Entrega</h4>
+                  </div>
+                  <p className="text-[10px] text-emerald-600 font-medium">Insira o link da foto ou documento para comprovação:</p>
+                  <div className="flex gap-2">
+                    <input 
+                      type="text" 
+                      placeholder="https://link-da-foto-ou-arquivo.com/foto.jpg"
+                      value={formData.urlComprovante || ''}
+                      onChange={e => setFormData({...formData, urlComprovante: e.target.value})}
+                      className="flex-1 px-4 py-2.5 bg-white border border-emerald-200 rounded-xl text-xs font-semibold outline-none focus:ring-2 ring-emerald-500/20"
+                    />
+                    {formData.urlComprovante && (
+                      <a href={formData.urlComprovante} target="_blank" rel="noreferrer" className="p-2.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700">
+                        <ExternalLink size={18} />
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
 
-              <Input label="Cliente Contratante" value={formData.cliente} onChange={v => setFormData({...formData, cliente: v})} />
-              <Input label="Destinatário" value={formData.destinatario} onChange={v => setFormData({...formData, destinatario: v})} />
-              <Input label="Cidade Destino" value={formData.cidade} onChange={v => setFormData({...formData, cidade: v})} />
-              <Input label="Valor Frete (R$)" type="number" value={formData.valorFrete} onChange={v => setFormData({...formData, valorFrete: v})} />
-              
-              <div className="space-y-1">
-                <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Status da Viagem</label>
-                <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold uppercase outline-none focus:ring-2 ring-blue-500/20" value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})}>
-                  <option value="Pendente">Pendente</option>
-                  <option value="Em rota">Em rota</option>
-                  <option value="Entregue">Entregue</option>
-                </select>
-              </div>
-              <Input label="Chave ID (44 Dig)" value={formData.chaveID} onChange={v => setFormData({...formData, chaveID: v})} />
-            </div>
-          )}
-
-          {activeTab === 'financeiro' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input label="Referência / NF" value={formData.numeroNF} onChange={v => setFormData({...formData, numeroNF: v})} />
-              <Input label="Vencimento" type="date" value={formData.vencimento} onChange={v => setFormData({...formData, vencimento: v})} />
-              <Input label="Valor (R$)" type="number" value={formData.valorFrete} onChange={v => setFormData({...formData, valorFrete: v})} />
-              <div className="space-y-1">
-                <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Status Pagamento</label>
-                <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold uppercase" value={formData.statusFinanceiro} onChange={e => setFormData({...formData, statusFinanceiro: e.target.value})}>
-                  <option value="Pendente">Pendente</option>
-                  <option value="Pago">Pago</option>
-                </select>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input label="Cidade Destino" value={formData.cidade} onChange={v => setFormData({...formData, cidade: v})} />
+                <Input label="Valor Frete (R$)" type="number" value={formData.valorFrete} onChange={v => setFormData({...formData, valorFrete: v})} />
+                <Input label="Chave ID (NF-e)" value={formData.chaveID} onChange={v => setFormData({...formData, chaveID: v})} />
               </div>
             </div>
           )}
@@ -430,13 +360,12 @@ function App() {
             <div className="grid grid-cols-2 gap-4">
               <Input label="Modelo" value={formData.modelo} onChange={v => setFormData({...formData, modelo: v})} />
               <Input label="Placa" value={formData.placa} onChange={v => setFormData({...formData, placa: v})} />
-              <Input label="Tipo (Truck, VUC...)" value={formData.tipo} onChange={v => setFormData({...formData, tipo: v})} />
             </div>
           )}
 
           <div className="flex gap-3 pt-6 border-t">
             <button type="button" onClick={() => setModalOpen(false)} className="flex-1 py-3 text-xs font-black uppercase text-slate-400">Cancelar</button>
-            <button type="submit" className="flex-[2] py-3 bg-blue-600 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-blue-500/20">Salvar Alterações</button>
+            <button type="submit" className="flex-[2] py-3 bg-blue-600 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-blue-500/20">Salvar Registro</button>
           </div>
         </form>
       </Modal>
@@ -467,24 +396,22 @@ function Login() {
   const [isReg, setIsReg] = useState(false);
   const handle = async (e) => {
     e.preventDefault();
-    try { 
-      isReg ? await createUserWithEmailAndPassword(auth, email, pass) : await signInWithEmailAndPassword(auth, email, pass); 
-    } catch(err) { 
-      alert('Erro na autenticação: ' + err.message); 
-    }
+    try { isReg ? await createUserWithEmailAndPassword(auth, email, pass) : await signInWithEmailAndPassword(auth, email, pass); } 
+    catch(err) { alert('Erro na autenticação: ' + err.message); }
   };
   return (
-    <div className="h-screen bg-[#0f172a] flex items-center justify-center p-6">
+    <div className="h-screen bg-[#0f172a] flex items-center justify-center p-6 font-sans">
       <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-md shadow-2xl">
         <div className="text-center mb-8">
           <Truck className="mx-auto text-blue-600 mb-4" size={48} />
           <h2 className="text-2xl font-black uppercase tracking-tighter">CargoFy</h2>
+          <p className="text-slate-400 text-xs font-bold uppercase mt-2 tracking-widest">Logística inteligente</p>
         </div>
         <form onSubmit={handle} className="space-y-4">
           <Input label="E-mail" value={email} onChange={setEmail} />
           <Input label="Senha" type="password" value={pass} onChange={setPass} />
           <button className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-blue-500/20 mt-4">{isReg ? 'Criar Conta' : 'Entrar'}</button>
-          <button type="button" onClick={() => setIsReg(!isReg)} className="w-full text-center text-xs font-bold text-slate-400 uppercase mt-4">{isReg ? 'Já tenho conta' : 'Criar nova conta'}</button>
+          <button type="button" onClick={() => setIsReg(!isReg)} className="w-full text-center text-xs font-bold text-slate-400 uppercase mt-4 underline decoration-slate-200 underline-offset-4">{isReg ? 'Já tenho conta' : 'Criar nova conta'}</button>
         </form>
       </div>
     </div>
