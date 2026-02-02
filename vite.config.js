@@ -5,11 +5,11 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   build: {
-    // Ajusta o limite de aviso de tamanho de chunk para 1000kb
-    chunkSizeWarningLimit: 1000,
+    // Aumentamos o limite para 2000kb para acomodar as bibliotecas de ícones e Firebase
+    chunkSizeWarningLimit: 2000,
     rollupOptions: {
       output: {
-        // Organiza as bibliotecas externas em chunks separados para melhor performance
+        // Estratégia de divisão de código para otimizar o carregamento
         manualChunks(id) {
           if (id.includes('node_modules')) {
             return 'vendor';
