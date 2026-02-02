@@ -1,57 +1,20 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { initializeApp } from 'firebase/app';
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
+import { getFirestore, collection, doc, addDoc, onSnapshot, updateDoc, deleteDoc, serverTimestamp, query } from 'firebase/firestore';
 import { 
-  getAuth, 
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signOut
-} from 'firebase/auth';
-import { 
-  getFirestore, 
-  collection, 
-  doc, 
-  addDoc, 
-  onSnapshot, 
-  updateDoc, 
-  deleteDoc,
-  serverTimestamp,
-  query
-} from 'firebase/firestore';
-import { 
-  LayoutDashboard, 
-  Truck, 
-  Users, 
-  DollarSign, 
-  Plus, 
-  Package, 
-  MapPin, 
-  X, 
-  Trash2, 
-  Briefcase, 
-  LogOut, 
-  Lock, 
-  Mail, 
-  Clock,
-  FileText,
-  Upload,
-  Download,
-  Search,
-  Calendar,
-  Layers,
-  CheckCircle2,
-  AlertCircle
+  LayoutDashboard, Truck, Users, DollarSign, Plus, Package, MapPin, X, Trash2, 
+  Briefcase, LogOut, Lock, Mail, Clock, FileText, Search, Calendar, Layers, 
+  CheckCircle2, AlertCircle, Edit3, Download, SteeringWheel
 } from 'lucide-react';
 
-// --- CONFIGURAÇÃO DO FIREBASE ---
+// --- CONFIGURAÇÃO ---
 const firebaseConfig = { 
   apiKey: "AIzaSyDncBYgIrudOBBwjsNFe9TS7Zr0b2nJLRo", 
   authDomain: "cargofy-b4435.firebaseapp.com", 
   projectId: "cargofy-b4435", 
   storageBucket: "cargofy-b4435.firebasestorage.app", 
-  messagingSenderId: "827918943476", 
-  appId: "1:827918943476:web:a1a33a1e6dd84e4e8c8aa1", 
-  measurementId: "G-RPBGSK3YGV" 
+  appId: "1:827918943476:web:a1a33a1e6dd84e4e8c8aa1" 
 };
 
 const app = initializeApp(firebaseConfig);
@@ -59,16 +22,16 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = 'cargofy-b4435-prod';
 
-// --- COMPONENTES AUXILIARES ---
+// --- COMPONENTES DE UI ---
 
 const Card = ({ title, value, icon: Icon, color }) => (
-  <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-start justify-between hover:shadow-md transition-shadow">
+  <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-start justify-between transition-all hover:shadow-md">
     <div>
-      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{title}</p>
-      <h3 className="text-2xl font-black text-slate-800 mt-1">{value}</h3>
+      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{title}</p>
+      <h3 className="text-xl font-black text-slate-800 mt-1">{value}</h3>
     </div>
-    <div className={`p-3 rounded-xl ${color} shadow-lg shadow-current/10`}>
-      <Icon size={24} className="text-white" />
+    <div className={`p-3 rounded-xl ${color} text-white shadow-lg`}>
+      <Icon size={20} />
     </div>
   </div>
 );
@@ -76,11 +39,11 @@ const Card = ({ title, value, icon: Icon, color }) => (
 const Modal = ({ isOpen, onClose, title, children }) => {
   if (!isOpen) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[95vh] overflow-hidden flex flex-col border border-white/20">
-        <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-          <h2 className="text-xl font-extrabold text-slate-800 tracking-tight">{title}</h2>
-          <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-400 hover:text-slate-600"><X size={20} /></button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="px-8 py-5 border-b flex justify-between items-center bg-slate-50">
+          <h2 className="text-lg font-black text-slate-800 uppercase tracking-tight">{title}</h2>
+          <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors"><X size={20} /></button>
         </div>
         <div className="p-8 overflow-y-auto">{children}</div>
       </div>
@@ -88,75 +51,10 @@ const Modal = ({ isOpen, onClose, title, children }) => {
   );
 };
 
-// --- ECRÃ DE AUTENTICAÇÃO ---
-
-function LoginPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [isRegistering, setIsRegistering] = useState(false);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    try {
-      if (isRegistering) {
-        await createUserWithEmailAndPassword(auth, email, password);
-      } else {
-        await signInWithEmailAndPassword(auth, email, password);
-      }
-    } catch (err) {
-      setError('Credenciais inválidas ou erro de conexão.');
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-[#0f172a] flex items-center justify-center p-6 relative overflow-hidden">
-      <div className="absolute top-[-10%] left-[-10%] w-1/2 h-1/2 bg-blue-600/10 rounded-full blur-[120px]" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-1/2 h-1/2 bg-indigo-600/10 rounded-full blur-[120px]" />
-      <div className="bg-white w-full max-w-[440px] rounded-[2.5rem] shadow-2xl overflow-hidden relative z-10 border border-slate-100">
-        <div className="p-10 bg-gradient-to-br from-blue-600 to-indigo-700 text-white text-center">
-          <div className="bg-white/20 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6 backdrop-blur-sm shadow-inner">
-            <Truck size={32} className="text-white" />
-          </div>
-          <h1 className="text-3xl font-black tracking-tight">CargoFy</h1>
-          <p className="text-blue-100/80 text-sm mt-2 font-medium italic">Gestão Logística Completa</p>
-        </div>
-        <form onSubmit={handleSubmit} className="p-10 space-y-6">
-          {error && <div className="bg-red-50 text-red-600 p-4 rounded-2xl text-xs font-bold border border-red-100">{error}</div>}
-          <div className="space-y-2">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">E-mail</label>
-            <div className="relative group">
-              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={18} />
-              <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-transparent rounded-2xl focus:border-blue-500 focus:bg-white outline-none transition-all text-sm font-semibold" placeholder="usuario@exemplo.com" />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Senha</label>
-            <div className="relative group">
-              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={18} />
-              <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-transparent rounded-2xl focus:border-blue-500 focus:bg-white outline-none transition-all text-sm font-semibold" placeholder="••••••••" />
-            </div>
-          </div>
-          <button type="submit" className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black text-sm hover:bg-blue-700 transition-all shadow-xl shadow-blue-500/20 active:scale-[0.98]">
-            {isRegistering ? 'Criar Conta' : 'Acessar Sistema'}
-          </button>
-          <div className="text-center">
-            <button type="button" onClick={() => setIsRegistering(!isRegistering)} className="text-slate-400 text-xs font-bold hover:text-blue-600 transition-colors uppercase tracking-widest">
-              {isRegistering ? 'Já possuo login' : 'Solicitar acesso'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-// --- DASHBOARD PRINCIPAL ---
+// --- APP PRINCIPAL ---
 
 function App() {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [viagens, setViagens] = useState([]);
   const [financeiro, setFinanceiro] = useState([]);
@@ -164,28 +62,24 @@ function App() {
   const [motoristas, setMotoristas] = useState([]);
   const [veiculos, setVeiculos] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [searchNF, setSearchNF] = useState('');
-  
-  // Estados dos formulários
+
   const [formData, setFormData] = useState({
-    numeroNF: '', dataNF: '', cliente: '', destinatario: '', cidade: '', 
+    numeroNF: '', dataNF: '', dataSaida: '', cliente: '', destinatario: '', cidade: '', 
     volume: '', peso: '', valorNF: '', chaveID: '', status: 'Pendente', 
-    valorFrete: '', motorista: '', comprovante: null, vencimento: '', 
+    valorFrete: '', motorista: '', veiculo: '', placa: '', comprovante: '', vencimento: '', 
     statusFinanceiro: 'Pendente', nome: '', email: '', telefone: '', 
-    modelo: '', placa: '', tipo: ''
+    modelo: '', tipo: ''
   });
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
-      setUser(u);
-      setLoading(false);
-    });
+    const unsubscribe = onAuthStateChanged(auth, setUser);
     return () => unsubscribe();
   }, []);
 
   useEffect(() => {
     if (!user) return;
-    
     const collections = ['viagens', 'financeiro', 'clientes', 'motoristas', 'veiculos'];
     const unsubscribes = collections.map(colName => {
       const q = query(collection(db, 'artifacts', appId, 'public', 'data', colName));
@@ -198,277 +92,284 @@ function App() {
         if (colName === 'veiculos') setVeiculos(data);
       });
     });
-
     return () => unsubscribes.forEach(unsub => unsub());
   }, [user]);
 
   const stats = useMemo(() => {
-    const faturamento = viagens.reduce((acc, curr) => acc + (Number(curr.valorFrete) || 0), 0);
-    const custos = financeiro.reduce((acc, curr) => acc + (Number(curr.valorPago) || 0), 0);
-    return { 
-      faturamento, 
-      lucro: faturamento - custos, 
-      emRota: viagens.filter(v => v.status === 'Em rota').length, 
-      total: viagens.length 
-    };
-  }, [viagens, financeiro]);
+    const faturamento = viagens.reduce((acc, curr) => acc + (parseFloat(curr.valorFrete) || 0), 0);
+    const emRota = viagens.filter(v => v.status === 'Em rota').length;
+    return { faturamento, emRota, total: viagens.length };
+  }, [viagens]);
 
-  const filteredViagens = useMemo(() => {
-    if (!searchNF) return viagens;
-    return viagens.filter(v => v.numeroNF?.toLowerCase().includes(searchNF.toLowerCase()));
-  }, [viagens, searchNF]);
-
-  const handleSaveData = async (e) => {
-    e.preventDefault();
-    if (!user) return;
-    
-    // Determina a coleção baseada na aba ativa (botão inteligente)
-    let colName = activeTab === 'dashboard' ? 'viagens' : activeTab;
-    
-    try {
-      await addDoc(collection(db, 'artifacts', appId, 'public', 'data', colName), {
-        ...formData,
-        userId: user.uid,
-        createdAt: serverTimestamp()
-      });
-      setModalOpen(false);
-      resetForm();
-    } catch (err) {
-      console.error("Erro ao salvar:", err);
+  const filteredData = useMemo(() => {
+    let list = [];
+    switch (activeTab) {
+      case 'dashboard':
+      case 'viagens': list = viagens; break;
+      case 'financeiro': list = financeiro; break;
+      case 'clientes': list = clientes; break;
+      case 'motoristas': list = motoristas; break;
+      case 'veiculos': list = veiculos; break;
+      default: list = [];
     }
+
+    if (!searchNF) return list;
+    const term = searchNF.toLowerCase();
+    return list.filter(item => 
+      (item.numeroNF?.toLowerCase().includes(term)) ||
+      (item.nome?.toLowerCase().includes(term)) ||
+      (item.placa?.toLowerCase().includes(term)) ||
+      (item.cidade?.toLowerCase().includes(term)) ||
+      (item.motorista?.toLowerCase().includes(term))
+    );
+  }, [activeTab, viagens, financeiro, clientes, motoristas, veiculos, searchNF]);
+
+  const handleOpenEdit = (item) => {
+    setFormData(item);
+    setEditingId(item.id);
+    setModalOpen(true);
+  };
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    const colName = (activeTab === 'dashboard' || activeTab === 'viagens') ? 'viagens' : activeTab;
+    try {
+      if (editingId) {
+        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', colName, editingId), formData);
+      } else {
+        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', colName), {
+          ...formData, userId: user.uid, createdAt: serverTimestamp()
+        });
+      }
+      setModalOpen(false);
+      setEditingId(null);
+      resetForm();
+    } catch (err) { console.error(err); }
   };
 
   const resetForm = () => {
     setFormData({ 
-      numeroNF: '', dataNF: '', cliente: '', destinatario: '', cidade: '', 
+      numeroNF: '', dataNF: '', dataSaida: '', cliente: '', destinatario: '', cidade: '', 
       volume: '', peso: '', valorNF: '', chaveID: '', status: 'Pendente', 
-      valorFrete: '', motorista: '', comprovante: null, vencimento: '', 
+      valorFrete: '', motorista: '', veiculo: '', placa: '', comprovante: '', vencimento: '', 
       statusFinanceiro: 'Pendente', nome: '', email: '', telefone: '', 
-      modelo: '', placa: '', tipo: ''
+      modelo: '', tipo: ''
     });
   };
 
-  const handleDelete = async (col, id) => {
-    if (window.confirm("Apagar este registro permanentemente?")) {
-      await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', col, id));
-    }
-  };
-
-  const getFinanceiroStatus = (vencimento, status) => {
-    if (status === 'Pago') return { label: 'Pago', color: 'bg-emerald-100 text-emerald-700', icon: CheckCircle2 };
-    if (!vencimento) return { label: 'Pendente', color: 'bg-slate-100 text-slate-500', icon: Clock };
+  const generatePDF = () => {
+    const header = "RELATÓRIO DE GESTÃO - CARGOFY\n" + "=".repeat(40) + "\n\n";
+    const body = filteredData.map(v => {
+      const id = v.numeroNF || v.placa || v.nome || "N/A";
+      const info = v.cidade || v.telefone || "";
+      const extra = v.motorista ? ` | Mot: ${v.motorista}` : "";
+      const val = v.valorFrete ? ` | R$ ${v.valorFrete}` : "";
+      return `ID: ${id} | Ref: ${info}${extra}${val} | Status: ${v.status || v.statusFinanceiro || 'Ativo'}`;
+    }).join('\n');
     
-    const hoje = new Date();
-    const dataVenc = new Date(vencimento);
-    const diff = (dataVenc - hoje) / (1000 * 60 * 60 * 24);
-
-    if (diff < 0) return { label: 'Vencido', color: 'bg-red-100 text-red-700', icon: AlertCircle };
-    if (diff <= 3) return { label: 'Urgente', color: 'bg-orange-100 text-orange-700', icon: Clock };
-    return { label: 'No Prazo', color: 'bg-blue-100 text-blue-700', icon: Clock };
+    const blob = new Blob([header + body], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `relatorio_${activeTab}_${new Date().toLocaleDateString()}.txt`;
+    link.click();
   };
 
-  if (loading) return (
-    <div className="h-screen flex flex-col items-center justify-center bg-slate-50 gap-4 text-slate-400 font-bold uppercase tracking-widest text-xs">
-      <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-      Sincronizando Banco de Dados...
-    </div>
-  );
-
-  if (!user) return <LoginPage />;
+  if (!user) return <Login />;
 
   return (
-    <div className="flex h-screen bg-[#f8fafc] overflow-hidden font-sans text-slate-900">
-      {/* Sidebar Lateral */}
-      <aside className="w-72 bg-[#0f172a] text-white flex flex-col shrink-0 relative z-20 shadow-2xl">
-        <div className="p-8 flex items-center gap-4">
-          <div className="bg-blue-600 p-2 rounded-xl"><Truck className="text-white" size={24} /></div>
-          <h1 className="text-2xl font-black tracking-tighter">CargoFy</h1>
+    <div className="flex h-screen bg-[#f1f5f9] text-slate-900 font-sans">
+      <aside className="w-64 bg-[#0f172a] text-white flex flex-col p-6 shadow-2xl shrink-0">
+        <div className="flex items-center gap-3 mb-10 px-2">
+          <Truck className="text-blue-500" size={28} />
+          <h1 className="text-xl font-black tracking-tighter uppercase">CargoFy</h1>
         </div>
-        <nav className="flex-1 px-4 space-y-1.5 mt-4">
-          <NavItem icon={LayoutDashboard} label="Dashboard" active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
+        <nav className="flex-1 space-y-1 overflow-y-auto">
+          <NavItem icon={LayoutDashboard} label="Painel" active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
           <NavItem icon={Package} label="Viagens" active={activeTab === 'viagens'} onClick={() => setActiveTab('viagens')} />
           <NavItem icon={DollarSign} label="Financeiro" active={activeTab === 'financeiro'} onClick={() => setActiveTab('financeiro')} />
-          
-          <div className="pt-8 pb-3 px-6 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Cadastros</div>
+          <div className="py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Gestão</div>
           <NavItem icon={Users} label="Clientes" active={activeTab === 'clientes'} onClick={() => setActiveTab('clientes')} />
           <NavItem icon={Briefcase} label="Motoristas" active={activeTab === 'motoristas'} onClick={() => setActiveTab('motoristas')} />
           <NavItem icon={Layers} label="Veículos" active={activeTab === 'veiculos'} onClick={() => setActiveTab('veiculos')} />
         </nav>
-        <div className="p-6 mt-auto border-t border-slate-800">
-          <button onClick={() => signOut(auth)} className="w-full flex items-center gap-3 px-6 py-4 rounded-2xl bg-slate-800/50 text-slate-400 hover:text-white transition-all hover:bg-red-500/20">
-            <LogOut size={18} /> <span className="text-xs font-bold uppercase tracking-widest">Sair</span>
-          </button>
-        </div>
+        <button onClick={() => signOut(auth)} className="mt-auto flex items-center gap-2 text-slate-400 hover:text-white text-xs font-bold uppercase py-4 border-t border-white/10"><LogOut size={16}/> Sair</button>
       </aside>
 
-      {/* Área Principal */}
-      <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="h-24 bg-white border-b flex items-center justify-between px-10 shrink-0">
-          <div className="flex items-center gap-8">
-            <div>
-              <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest">Gestão de {activeTab}</h2>
-              <p className="text-xl font-bold text-slate-800 capitalize">{activeTab === 'dashboard' ? 'Visão Geral' : activeTab}</p>
-            </div>
-            {/* Campo de Busca NF */}
-            <div className="relative group w-64 hidden md:block">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={18} />
-              <input 
-                type="text" 
-                placeholder="Pesquisar NF..." 
-                value={searchNF}
-                onChange={(e) => setSearchNF(e.target.value)}
-                className="w-full pl-12 pr-4 py-3 bg-slate-50 border-2 border-transparent rounded-2xl focus:border-blue-500 focus:bg-white outline-none transition-all text-sm font-semibold"
-              />
-            </div>
+      <main className="flex-1 flex flex-col overflow-hidden">
+        <header className="h-20 bg-white border-b flex items-center justify-between px-8 shrink-0">
+          <div className="relative w-96">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+            <input 
+              type="text" 
+              placeholder="Pesquisar NF, Placa ou Motorista..." 
+              value={searchNF}
+              onChange={(e) => setSearchNF(e.target.value)}
+              className="w-full pl-12 pr-4 py-2.5 bg-slate-100 rounded-xl outline-none focus:ring-2 ring-blue-500/20 text-sm font-medium transition-all"
+            />
           </div>
-          <div className="flex gap-4">
-            <button onClick={() => { resetForm(); setModalOpen(true); }} className="bg-blue-600 text-white px-6 py-3.5 rounded-2xl text-xs font-black uppercase tracking-widest flex items-center gap-2 hover:bg-blue-700 shadow-xl shadow-blue-500/20 active:scale-95 transition-all">
-              <Plus size={18} /> {activeTab === 'dashboard' ? 'Lançar Viagem' : `Novo(a) ${activeTab.slice(0, -1)}`}
+          <div className="flex gap-3">
+            <button onClick={generatePDF} className="flex items-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-black uppercase transition-all">
+              <Download size={16} /> Exportar
+            </button>
+            <button onClick={() => { resetForm(); setEditingId(null); setModalOpen(true); }} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-blue-500/20 transition-all">
+              <Plus size={16} /> Novo Registro
             </button>
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-10">
+        <div className="p-8 overflow-y-auto">
           {activeTab === 'dashboard' && (
-            <div className="space-y-10">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-                <Card title="Cargas em Rota" value={stats.emRota} icon={MapPin} color="bg-blue-600" />
-                <Card title="Lucro Mensal" value={`R$ ${stats.lucro.toLocaleString('pt-BR')}`} icon={DollarSign} color="bg-emerald-500" />
-                <Card title="Faturamento" value={`R$ ${stats.faturamento.toLocaleString('pt-BR')}`} icon={Briefcase} color="bg-indigo-600" />
-                <Card title="Total Viagens" value={stats.total} icon={Package} color="bg-slate-800" />
-              </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              <Card title="Cargas em Rota" value={stats.emRota} icon={MapPin} color="bg-blue-600" />
+              <Card title="Faturamento Total" value={`R$ ${stats.faturamento.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={DollarSign} color="bg-emerald-500" />
+              <Card title="Total Viagens" value={stats.total} icon={Package} color="bg-indigo-600" />
+            </div>
+          )}
+
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+            <table className="w-full text-left border-collapse">
+              <thead className="bg-slate-50 border-b border-slate-100">
+                <tr>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Identificação</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Motorista / Veículo</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Destino / Valor</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {filteredData.map(item => (
+                  <tr key={item.id} className="hover:bg-slate-50/50 group transition-colors">
+                    <td className="px-6 py-4">
+                      <p className="font-bold text-slate-800">{item.numeroNF || item.nome || item.modelo || "Sem nome"}</p>
+                      <p className="text-[10px] text-slate-400 font-mono truncate w-32">{item.chaveID || item.email || item.placa}</p>
+                    </td>
+                    <td className="px-6 py-4">
+                      {activeTab === 'viagens' || activeTab === 'dashboard' ? (
+                        <>
+                          <p className="text-sm font-bold text-slate-700">{item.motorista || 'Não atribuído'}</p>
+                          <p className="text-[10px] text-slate-400 font-black uppercase">{item.veiculo} - {item.placa}</p>
+                        </>
+                      ) : (
+                        <p className="text-sm font-semibold text-slate-600">{item.telefone || item.tipo}</p>
+                      )}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col gap-1">
+                        <span className={`w-fit px-2 py-0.5 rounded text-[9px] font-black uppercase ${item.status === 'Em rota' ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>
+                          {item.status || item.statusFinanceiro || 'Ativo'}
+                        </span>
+                        <p className="text-[10px] text-slate-500 font-bold">{item.cidade || '---'}</p>
+                        {(item.valorFrete || item.valorNF) && (
+                          <p className="font-black text-slate-900 text-sm">
+                            R$ {parseFloat(item.valorFrete || item.valorNF).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </p>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => handleOpenEdit(item)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"><Edit3 size={16}/></button>
+                        <button onClick={async () => { 
+                          if(confirm('Deseja excluir este registro?')) {
+                            const col = (activeTab === 'dashboard' || activeTab === 'viagens') ? 'viagens' : activeTab;
+                            await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', col, item.id));
+                          }
+                        }} className="p-2 text-red-400 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={16}/></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </main>
+
+      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? `Editar ${activeTab}` : `Novo Cadastro: ${activeTab}`}>
+        <form onSubmit={handleSave} className="space-y-6">
+          {(activeTab === 'dashboard' || activeTab === 'viagens') && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Input label="Número NF" value={formData.numeroNF} onChange={v => setFormData({...formData, numeroNF: v})} />
+              <Input label="Data de Saída" type="date" value={formData.dataSaida} onChange={v => setFormData({...formData, dataSaida: v})} />
               
-              <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden">
-                <div className="px-8 py-6 border-b border-slate-50 flex justify-between items-center">
-                   <h3 className="font-black text-slate-800 text-sm uppercase tracking-widest">Listagem Geral de Notas Fiscais</h3>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left min-w-[800px]">
-                    <thead className="bg-slate-50/50">
-                      <tr>
-                        <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">NF</th>
-                        <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Destinatário / Cidade</th>
-                        <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
-                        <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Valor Frete</th>
-                        <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Ações</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                      {filteredViagens.map(v => (
-                        <tr key={v.id} className="hover:bg-slate-50/50 transition-colors group">
-                          <td className="px-8 py-5">
-                            <p className="font-bold text-slate-700">{v.numeroNF}</p>
-                            <p className="text-[10px] text-slate-400 truncate w-32">{v.chaveID}</p>
-                          </td>
-                          <td className="px-8 py-5">
-                            <p className="font-semibold text-slate-700">{v.destinatario}</p>
-                            <p className="text-xs text-slate-400">{v.cidade}</p>
-                          </td>
-                          <td className="px-8 py-5">
-                            <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase ${
-                              v.status === 'Em rota' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'
-                            }`}>{v.status}</span>
-                          </td>
-                          <td className="px-8 py-5 font-black text-slate-900 text-right">R$ {Number(v.valorFrete).toLocaleString('pt-BR')}</td>
-                          <td className="px-8 py-5">
-                            <button onClick={() => handleDelete('viagens', v.id)} className="p-2 text-slate-400 hover:text-red-600 transition-colors">
-                              <Trash2 size={16} />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+              <div className="space-y-1">
+                <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Motorista Responsável</label>
+                <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold outline-none focus:ring-2 ring-blue-500/20 transition-all" value={formData.motorista} onChange={e => setFormData({...formData, motorista: e.target.value})}>
+                  <option value="">Selecionar Motorista...</option>
+                  {motoristas.map(m => <option key={m.id} value={m.nome}>{m.nome}</option>)}
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Veículo / Placa</label>
+                <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold outline-none focus:ring-2 ring-blue-500/20 transition-all" value={formData.placa} onChange={e => {
+                  const v = veiculos.find(vec => vec.placa === e.target.value);
+                  setFormData({...formData, placa: e.target.value, veiculo: v?.modelo || ''});
+                }}>
+                  <option value="">Selecionar Veículo...</option>
+                  {veiculos.map(v => <option key={v.id} value={v.placa}>{v.modelo} ({v.placa})</option>)}
+                </select>
+              </div>
+
+              <Input label="Cliente Contratante" value={formData.cliente} onChange={v => setFormData({...formData, cliente: v})} />
+              <Input label="Destinatário" value={formData.destinatario} onChange={v => setFormData({...formData, destinatario: v})} />
+              <Input label="Cidade Destino" value={formData.cidade} onChange={v => setFormData({...formData, cidade: v})} />
+              <Input label="Valor Frete (R$)" type="number" value={formData.valorFrete} onChange={v => setFormData({...formData, valorFrete: v})} />
+              
+              <div className="space-y-1">
+                <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Status da Viagem</label>
+                <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold uppercase outline-none focus:ring-2 ring-blue-500/20" value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})}>
+                  <option value="Pendente">Pendente</option>
+                  <option value="Em rota">Em rota</option>
+                  <option value="Entregue">Entregue</option>
+                </select>
+              </div>
+              <Input label="Chave ID (44 Dig)" value={formData.chaveID} onChange={v => setFormData({...formData, chaveID: v})} />
+            </div>
+          )}
+
+          {activeTab === 'financeiro' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Input label="Referência / NF" value={formData.numeroNF} onChange={v => setFormData({...formData, numeroNF: v})} />
+              <Input label="Vencimento" type="date" value={formData.vencimento} onChange={v => setFormData({...formData, vencimento: v})} />
+              <Input label="Valor (R$)" type="number" value={formData.valorFrete} onChange={v => setFormData({...formData, valorFrete: v})} />
+              <div className="space-y-1">
+                <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Status Pagamento</label>
+                <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold uppercase" value={formData.statusFinanceiro} onChange={e => setFormData({...formData, statusFinanceiro: e.target.value})}>
+                  <option value="Pendente">Pendente</option>
+                  <option value="Pago">Pago</option>
+                </select>
               </div>
             </div>
           )}
 
-          {activeTab === 'viagens' && <TableView data={viagens} columns={['numeroNF', 'destinatario', 'cidade', 'valorFrete', 'status']} onDel={(id) => handleDelete('viagens', id)} prefix="R$ " />}
-          {activeTab === 'financeiro' && <FinanceiroView data={financeiro} getStatus={getFinanceiroStatus} onDel={(id) => handleDelete('financeiro', id)} />}
-          {activeTab === 'clientes' && <TableView data={clientes} columns={['nome', 'email', 'telefone']} onDel={(id) => handleDelete('clientes', id)} />}
-          {activeTab === 'motoristas' && <TableView data={motoristas} columns={['nome', 'telefone']} onDel={(id) => handleDelete('motoristas', id)} />}
-          {activeTab === 'veiculos' && <TableView data={veiculos} columns={['modelo', 'placa', 'tipo']} onDel={(id) => handleDelete('veiculos', id)} />}
-        </div>
-      </main>
-
-      {/* Modal de Cadastro Dinâmico */}
-      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={`Novo Lançamento: ${activeTab}`}>
-        <form onSubmit={handleSaveData} className="space-y-6">
-          {(activeTab === 'viagens' || activeTab === 'dashboard') && (
-            <>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <InputField label="Nº Nota Fiscal (NF)" value={formData.numeroNF} onChange={val => setFormData({...formData, numeroNF: val})} />
-                <InputField label="Data da NF" type="date" value={formData.dataNF} onChange={val => setFormData({...formData, dataNF: val})} />
-                <SelectField label="Status de Entrega" value={formData.status} options={['Pendente', 'Em rota', 'Entregue']} onChange={val => setFormData({...formData, status: val})} />
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <InputField label="Cliente Contratante" value={formData.cliente} onChange={val => setFormData({...formData, cliente: val})} />
-                <InputField label="Destinatário" value={formData.destinatario} onChange={val => setFormData({...formData, destinatario: val})} />
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <InputField label="Cidade Destino" value={formData.cidade} onChange={val => setFormData({...formData, cidade: val})} />
-                <InputField label="Volume (M³)" type="number" value={formData.volume} onChange={val => setFormData({...formData, volume: val})} />
-                <InputField label="Peso (KG)" type="number" value={formData.peso} onChange={val => setFormData({...formData, peso: val})} />
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <InputField label="Valor da Nota (R$)" type="number" value={formData.valorNF} onChange={val => setFormData({...formData, valorNF: val})} />
-                <InputField label="Valor do Frete (R$)" type="number" value={formData.valorFrete} onChange={val => setFormData({...formData, valorFrete: val})} />
-              </div>
-              <InputField label="Chave de Acesso ID (44 Caracteres)" value={formData.chaveID} onChange={val => setFormData({...formData, chaveID: val})} />
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2"><Upload size={12} /> Comprovante de Carga</label>
-                <div className="border-2 border-dashed border-slate-200 rounded-2xl p-8 text-center bg-slate-50 hover:border-blue-400 transition-colors cursor-pointer">
-                  <input type="file" className="hidden" id="file-up" onChange={(e) => setFormData({...formData, comprovante: e.target.files[0]?.name})} />
-                  <label htmlFor="file-up" className="cursor-pointer block">
-                    <p className="text-xs font-bold text-slate-500">{formData.comprovante || "Arraste ou clique para anexar imagem/PDF"}</p>
-                  </label>
-                </div>
-              </div>
-            </>
-          )}
-
-          {activeTab === 'financeiro' && (
-            <>
-              <div className="grid grid-cols-2 gap-4">
-                <InputField label="Referência / Documento" value={formData.numeroNF} onChange={val => setFormData({...formData, numeroNF: val})} />
-                <InputField label="Data de Vencimento" type="date" value={formData.vencimento} onChange={val => setFormData({...formData, vencimento: val})} />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <InputField label="Valor do Boleto (R$)" type="number" value={formData.valorFrete} onChange={val => setFormData({...formData, valorFrete: val})} />
-                <SelectField label="Status de Pagamento" value={formData.statusFinanceiro} options={['Pendente', 'Pago']} onChange={val => setFormData({...formData, statusFinanceiro: val})} />
-              </div>
-            </>
-          )}
-
           {activeTab === 'clientes' && (
             <div className="space-y-4">
-              <InputField label="Razão Social / Nome" value={formData.nome} onChange={val => setFormData({...formData, nome: val})} />
-              <div className="grid grid-cols-2 gap-4">
-                <InputField label="E-mail" type="email" value={formData.email} onChange={val => setFormData({...formData, email: val})} />
-                <InputField label="Telefone de Contato" value={formData.telefone} onChange={val => setFormData({...formData, telefone: val})} />
-              </div>
+              <Input label="Nome / Razão Social" value={formData.nome} onChange={v => setFormData({...formData, nome: v})} />
+              <Input label="E-mail" value={formData.email} onChange={v => setFormData({...formData, email: v})} />
+              <Input label="Telefone" value={formData.telefone} onChange={v => setFormData({...formData, telefone: v})} />
             </div>
           )}
 
           {activeTab === 'motoristas' && (
             <div className="space-y-4">
-              <InputField label="Nome Completo do Motorista" value={formData.nome} onChange={val => setFormData({...formData, nome: val})} />
-              <InputField label="CPF / Telefone" value={formData.telefone} onChange={val => setFormData({...formData, telefone: val})} />
+              <Input label="Nome Completo" value={formData.nome} onChange={v => setFormData({...formData, nome: v})} />
+              <Input label="Telefone / Contato" value={formData.telefone} onChange={v => setFormData({...formData, telefone: v})} />
             </div>
           )}
 
           {activeTab === 'veiculos' && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <InputField label="Modelo do Veículo" value={formData.modelo} onChange={val => setFormData({...formData, modelo: val})} />
-              <InputField label="Placa" value={formData.placa} onChange={val => setFormData({...formData, placa: val})} />
-              <SelectField label="Tipo" value={formData.tipo} options={['Truck', 'Toco', 'VUC', 'Carreta']} onChange={val => setFormData({...formData, tipo: val})} />
+            <div className="grid grid-cols-2 gap-4">
+              <Input label="Modelo" value={formData.modelo} onChange={v => setFormData({...formData, modelo: v})} />
+              <Input label="Placa" value={formData.placa} onChange={v => setFormData({...formData, placa: v})} />
+              <Input label="Tipo (Truck, VUC...)" value={formData.tipo} onChange={v => setFormData({...formData, tipo: v})} />
             </div>
           )}
 
-          <div className="pt-6 flex gap-4">
-            <button type="button" onClick={() => setModalOpen(false)} className="flex-1 px-8 py-4 rounded-2xl text-xs font-black uppercase text-slate-400 hover:bg-slate-100">Cancelar</button>
-            <button type="submit" className="flex-[2] bg-blue-600 text-white px-8 py-4 rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl shadow-blue-500/20 hover:bg-blue-700">Confirmar Cadastro</button>
+          <div className="flex gap-3 pt-6 border-t">
+            <button type="button" onClick={() => setModalOpen(false)} className="flex-1 py-3 text-xs font-black uppercase text-slate-400">Cancelar</button>
+            <button type="submit" className="flex-[2] py-3 bg-blue-600 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-blue-500/20">Salvar Alterações</button>
           </div>
         </form>
       </Modal>
@@ -476,114 +377,50 @@ function App() {
   );
 }
 
-// --- VIEWS ESPECÍFICAS ---
-
-function TableView({ data, columns, onDel, prefix = "" }) {
-  return (
-    <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden overflow-x-auto">
-      <table className="w-full text-left min-w-[600px]">
-        <thead className="bg-slate-50/50">
-          <tr>
-            {columns.map(col => (
-              <th key={col} className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                {col === 'numeroNF' ? 'NF' : col === 'valorFrete' ? 'Valor' : col}
-              </th>
-            ))}
-            <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Ações</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-50">
-          {data.map(item => (
-            <tr key={item.id} className="hover:bg-slate-50/50 transition-colors group">
-              {columns.map(col => (
-                <td key={col} className="px-8 py-5 font-bold text-slate-700">
-                  {col.includes('valor') || col.includes('Frete') ? `${prefix}${Number(item[col] || 0).toLocaleString('pt-BR')}` : item[col]}
-                </td>
-              ))}
-              <td className="px-8 py-5 text-right">
-                <button onClick={() => onDel(item.id)} className="p-2 text-slate-300 hover:text-red-500 transition-colors">
-                  <Trash2 size={16} />
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function FinanceiroView({ data, getStatus, onDel }) {
-  return (
-    <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden overflow-x-auto">
-      <table className="w-full text-left min-w-[700px]">
-        <thead className="bg-slate-50/50">
-          <tr>
-            <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Vencimento</th>
-            <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Descrição</th>
-            <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
-            <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Valor</th>
-            <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Ações</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-50">
-          {data.map(item => {
-            const status = getStatus(item.vencimento, item.statusFinanceiro);
-            const Icon = status.icon;
-            return (
-              <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
-                <td className="px-8 py-5 font-bold text-slate-700 flex items-center gap-2">
-                  <Calendar size={14} className="text-slate-300" />
-                  {item.vencimento ? new Date(item.vencimento).toLocaleDateString('pt-BR') : 'S/D'}
-                </td>
-                <td className="px-8 py-5 font-medium text-slate-600">NF: {item.numeroNF}</td>
-                <td className="px-8 py-5">
-                  <span className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase flex items-center gap-1.5 w-fit ${status.color}`}>
-                    <Icon size={12} /> {status.label}
-                  </span>
-                </td>
-                <td className="px-8 py-5 font-black text-slate-900 text-right">R$ {Number(item.valorFrete || 0).toLocaleString('pt-BR')}</td>
-                <td className="px-8 py-5 text-right">
-                  <button onClick={() => onDel(item.id)} className="p-2 text-slate-300 hover:text-red-500"><Trash2 size={16} /></button>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-// --- INPUTS ESTILIZADOS ---
-
-function InputField({ label, type = "text", value, onChange }) {
-  return (
-    <div className="space-y-1.5">
-      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{label}</label>
-      <input type={type} required value={value || ''} onChange={e => onChange(e.target.value)} className="w-full px-5 py-3.5 bg-slate-50 border-2 border-transparent rounded-2xl focus:border-blue-500 focus:bg-white outline-none transition-all font-semibold text-sm" />
-    </div>
-  );
-}
-
-function SelectField({ label, value, options, onChange }) {
-  return (
-    <div className="space-y-1.5">
-      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{label}</label>
-      <select value={value} onChange={e => onChange(e.target.value)} className="w-full px-5 py-3.5 bg-slate-50 border-2 border-transparent rounded-2xl focus:border-blue-500 focus:bg-white outline-none transition-all font-semibold text-sm cursor-pointer">
-        {options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-      </select>
-    </div>
-  );
-}
-
 function NavItem({ icon: Icon, label, active, onClick }) {
   return (
-    <button onClick={onClick} className={`w-full flex items-center gap-4 px-6 py-3.5 rounded-2xl transition-all ${
-      active ? 'bg-blue-600 text-white shadow-xl shadow-blue-600/30' : 'text-slate-400 hover:text-white hover:bg-white/5'
-    }`}>
-      <Icon size={18} /> <span className="text-xs font-bold uppercase tracking-[0.15em]">{label}</span>
+    <button onClick={onClick} className={`w-full flex items-center gap-4 px-5 py-3 rounded-xl transition-all ${active ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}>
+      <Icon size={18} /> <span className="text-[10px] font-black uppercase tracking-widest">{label}</span>
     </button>
+  );
+}
+
+function Input({ label, type = "text", value, onChange }) {
+  return (
+    <div className="space-y-1">
+      <label className="text-[9px] font-black text-slate-400 uppercase ml-1">{label}</label>
+      <input type={type} value={value || ''} onChange={e => onChange(e.target.value)} className="w-full px-4 py-2.5 bg-slate-100 rounded-xl outline-none focus:ring-2 ring-blue-500/20 text-sm font-semibold transition-all" />
+    </div>
+  );
+}
+
+function Login() {
+  const [email, setEmail] = useState('');
+  const [pass, setPass] = useState('');
+  const [isReg, setIsReg] = useState(false);
+  const handle = async (e) => {
+    e.preventDefault();
+    try { 
+      isReg ? await createUserWithEmailAndPassword(auth, email, pass) : await signInWithEmailAndPassword(auth, email, pass); 
+    } catch(err) { 
+      alert('Erro na autenticação: ' + err.message); 
+    }
+  };
+  return (
+    <div className="h-screen bg-[#0f172a] flex items-center justify-center p-6">
+      <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-md shadow-2xl">
+        <div className="text-center mb-8">
+          <Truck className="mx-auto text-blue-600 mb-4" size={48} />
+          <h2 className="text-2xl font-black uppercase tracking-tighter">CargoFy</h2>
+        </div>
+        <form onSubmit={handle} className="space-y-4">
+          <Input label="E-mail" value={email} onChange={setEmail} />
+          <Input label="Senha" type="password" value={pass} onChange={setPass} />
+          <button className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-blue-500/20 mt-4">{isReg ? 'Criar Conta' : 'Entrar'}</button>
+          <button type="button" onClick={() => setIsReg(!isReg)} className="w-full text-center text-xs font-bold text-slate-400 uppercase mt-4">{isReg ? 'Já tenho conta' : 'Criar nova conta'}</button>
+        </form>
+      </div>
+    </div>
   );
 }
 
