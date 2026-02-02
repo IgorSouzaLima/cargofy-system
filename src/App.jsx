@@ -24,18 +24,33 @@ import {
   CreditCard, Scale, Box, User as UserIcon, ChevronRight
 } from 'lucide-react';
 
-// --- INICIALIZAÇÃO FIREBASE (Regra 3) ---
-const firebaseConfig = JSON.parse(__firebase_config);
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
-const auth = getAuth(app);
-const db = getFirestore(app);
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'cargofy-pro-v1';
+// --- CONFIGURAÇÃO FIREBASE ---
+const firebaseConfig = { 
+  apiKey: "AIzaSyDncBYgIrudOBBwjsNFe9TS7Zr0b2nJLRo", 
+  authDomain: "cargofy-b4435.firebaseapp.com", 
+  projectId: "cargofy-b4435", 
+  storageBucket: "cargofy-b4435.firebasestorage.app", 
+  messagingSenderId: "827918943476", 
+  appId: "1:827918943476:web:a1a33a1e6dd84e4e8c8aa1"
+};
 
-// --- COMPONENTES DE UI ---
+// Safe initialization
+let app, auth, db;
+try {
+  app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+  auth = getAuth(app);
+  db = getFirestore(app);
+} catch (e) {
+  console.error("Firebase initialization error:", e);
+}
+
+const appId = 'cargofy-pro-v1';
+
+// --- UI COMPONENTS ---
 
 const NavItem = ({ icon: Icon, label, active, onClick }) => (
   <button onClick={onClick} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all duration-200 group ${active ? 'bg-blue-600 text-white shadow-xl shadow-blue-500/20' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}>
-    <Icon size={18} className={active ? 'text-white' : 'text-slate-500 group-hover:text-blue-400'} /> 
+    {Icon && <Icon size={18} className={active ? 'text-white' : 'text-slate-500 group-hover:text-blue-400'} />}
     <span className="text-[10px] font-black uppercase tracking-widest">{label}</span>
   </button>
 );
@@ -51,7 +66,7 @@ const Card = ({ title, value, icon: Icon, color, onClick, active }) => (
         <h3 className="text-2xl font-black text-slate-800 mt-1">{value}</h3>
       </div>
       <div className={`p-3 rounded-xl ${color} text-white shadow-lg`}>
-        <Icon size={20} />
+        {Icon && <Icon size={20} />}
       </div>
     </div>
   </button>
@@ -87,7 +102,7 @@ const Modal = ({ isOpen, onClose, title, children }) => {
   );
 };
 
-// --- APP PRINCIPAL ---
+// --- MAIN APP ---
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -95,7 +110,6 @@ export default function App() {
   const [statusFilter, setStatusFilter] = useState('Todos');
   const [loading, setLoading] = useState(true);
   
-  // Dados
   const [viagens, setViagens] = useState([]);
   const [financeiro, setFinanceiro] = useState([]);
   const [clientes, setClientes] = useState([]);
@@ -107,38 +121,42 @@ export default function App() {
   const [searchNF, setSearchNF] = useState('');
 
   const [formData, setFormData] = useState({
-    numeroNF: '', dataNF: '', dataSaida: '', dataEntrega: '', 
-    contratante: '', destinatario: '', cidade: '', 
-    volume: '', peso: '', valorNF: '', chaveID: '', status: 'Pendente', 
-    valorFrete: '', motorista: '', veiculo: '', placa: '', urlComprovante: '', 
-    meioPagamento: 'Pix', dataVencimento: '',
-    nome: '', email: '', telefone: '', modelo: '', tipo: ''
+    numeroNF: '', contratante: '', cidade: '', valorFrete: '', status: 'Pendente', 
+    nome: '', email: '', telefone: '', placa: ''
   });
 
-  // Auth (Regra 3)
+  // Auth Fix (Rule 3 + Error Handling for Token Mismatch)
   useEffect(() => {
     const initAuth = async () => {
       try {
+        // First try to sign in with custom token if available
         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          await signInWithCustomToken(auth, __initial_auth_token);
+          try {
+            await signInWithCustomToken(auth, __initial_auth_token);
+          } catch (tokenErr) {
+            // If custom token fails (mismatch), fallback to anonymous
+            console.warn("Custom token mismatch, falling back to anonymous auth");
+            await signInAnonymously(auth);
+          }
         } else {
           await signInAnonymously(auth);
         }
       } catch (err) {
-        console.error("Auth Error:", err);
+        console.error("Critical Auth Error:", err);
+      } finally {
+        setTimeout(() => setLoading(false), 800);
       }
     };
     initAuth();
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u);
-      setLoading(false);
     });
     return () => unsubscribe();
   }, []);
 
-  // Firestore Listeners (Regra 1 e 2)
+  // Firestore Listeners (Rule 1 and 2)
   useEffect(() => {
-    if (!user) return;
+    if (!user || !db) return;
 
     const collections = ['viagens', 'financeiro', 'clientes', 'motoristas', 'veiculos'];
     const unsubscribes = collections.map(colName => {
@@ -150,7 +168,12 @@ export default function App() {
         if (colName === 'clientes') setClientes(data);
         if (colName === 'motoristas') setMotoristas(data);
         if (colName === 'veiculos') setVeiculos(data);
-      }, (err) => console.error(err));
+      }, (err) => {
+        // Filter out permission errors if still syncing
+        if (err.code !== 'permission-denied') {
+          console.error(`Error in collection ${colName}:`, err);
+        }
+      });
     });
 
     return () => unsubscribes.forEach(unsub => unsub());
@@ -184,7 +207,7 @@ export default function App() {
 
   const handleSave = async (e) => {
     e.preventDefault();
-    if (!user) return;
+    if (!user || !db) return;
     const colName = (activeTab === 'dashboard' || activeTab === 'viagens') ? 'viagens' : activeTab;
     
     try {
@@ -196,13 +219,14 @@ export default function App() {
       }
       setModalOpen(false);
       setEditingId(null);
+      setFormData({ numeroNF: '', contratante: '', cidade: '', valorFrete: '', status: 'Pendente', nome: '', email: '', telefone: '', placa: '' });
     } catch (err) { console.error(err); }
   };
 
   if (loading) return (
     <div className="h-screen w-full flex flex-col items-center justify-center bg-[#0f172a] text-white">
       <div className="animate-spin rounded-full h-10 w-10 border-4 border-blue-500 border-t-transparent mb-4"></div>
-      <p className="text-[10px] font-black uppercase tracking-widest opacity-50">Iniciando CargoFy...</p>
+      <p className="text-[10px] font-black uppercase tracking-widest opacity-50">A ligar ao servidor CargoFy...</p>
     </div>
   );
 
@@ -219,14 +243,14 @@ export default function App() {
           <NavItem icon={LayoutDashboard} label="Dashboard" active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
           <NavItem icon={Package} label="Viagens" active={activeTab === 'viagens'} onClick={() => setActiveTab('viagens')} />
           <NavItem icon={DollarSign} label="Financeiro" active={activeTab === 'financeiro'} onClick={() => setActiveTab('financeiro')} />
-          <div className="py-4 opacity-20 text-[10px] font-black uppercase tracking-widest">Registos</div>
+          <div className="py-4 opacity-20 text-[10px] font-black uppercase tracking-widest px-4">Cadastros</div>
           <NavItem icon={Users} label="Clientes" active={activeTab === 'clientes'} onClick={() => setActiveTab('clientes')} />
           <NavItem icon={Briefcase} label="Motoristas" active={activeTab === 'motoristas'} onClick={() => setActiveTab('motoristas')} />
           <NavItem icon={Layers} label="Frota" active={activeTab === 'veiculos'} onClick={() => setActiveTab('veiculos')} />
         </nav>
       </aside>
 
-      {/* Main */}
+      {/* Main Content */}
       <main className="flex-1 flex flex-col overflow-hidden">
         <header className="h-20 bg-white border-b border-slate-100 flex items-center justify-between px-8">
           <div className="relative w-72">
@@ -249,11 +273,11 @@ export default function App() {
 
         <div className="p-8 overflow-y-auto space-y-8">
           {activeTab === 'dashboard' && (
-            <div className="grid grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <Card title="Total Cargas" value={stats.total} icon={Package} color="bg-blue-600" />
               <Card title="Em Rota" value={stats.emRota} icon={Truck} color="bg-amber-500" />
               <Card title="Concluídas" value={stats.entregues} icon={CheckCircle2} color="bg-emerald-500" />
-              <Card title="Faturamento" value={`R$ ${stats.faturamento.toLocaleString()}`} icon={DollarSign} color="bg-slate-900" />
+              <Card title="Faturamento" value={`R$ ${stats.faturamento.toLocaleString('pt-PT')}`} icon={DollarSign} color="bg-slate-900" />
             </div>
           )}
 
@@ -268,29 +292,37 @@ export default function App() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {filteredData.map(item => (
-                  <tr key={item.id} className="hover:bg-slate-50/50 transition-colors group">
-                    <td className="px-6 py-4">
-                      <p className="font-black text-sm text-slate-800">{item.numeroNF || item.nome || item.modelo}</p>
-                      <p className="text-[10px] font-bold text-blue-600 uppercase">{item.contratante || item.placa || item.email}</p>
-                    </td>
-                    <td className="px-6 py-4">
-                      <p className="text-xs font-bold text-slate-600">{item.cidade || item.tipo || "---"}</p>
-                      <p className="text-[10px] text-slate-400 font-bold uppercase">{item.motorista || item.telefone || "Não Atribuído"}</p>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase ${item.status === 'Entregue' ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'}`}>
-                        {item.status || "Ativo"}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => { setFormData(item); setEditingId(item.id); setModalOpen(true); }} className="p-2 hover:bg-blue-100 rounded-lg text-blue-600"><Edit3 size={14}/></button>
-                        <button onClick={() => deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', (activeTab === 'dashboard' ? 'viagens' : activeTab), item.id))} className="p-2 hover:bg-red-100 rounded-lg text-red-500"><Trash2 size={14}/></button>
-                      </div>
+                {filteredData.length === 0 ? (
+                  <tr>
+                    <td colSpan="4" className="px-6 py-20 text-center">
+                      <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Nenhum dado encontrado</p>
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  filteredData.map(item => (
+                    <tr key={item.id} className="hover:bg-slate-50/50 transition-colors group">
+                      <td className="px-6 py-4">
+                        <p className="font-black text-sm text-slate-800">{item.numeroNF || item.nome || item.modelo || item.placa}</p>
+                        <p className="text-[10px] font-bold text-blue-600 uppercase">{item.contratante || item.placa || item.email}</p>
+                      </td>
+                      <td className="px-6 py-4">
+                        <p className="text-xs font-bold text-slate-600">{item.cidade || item.tipo || "Geral"}</p>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase">{item.motorista || item.telefone || "Não Atribuído"}</p>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase ${item.status === 'Entregue' ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'}`}>
+                          {item.status || "Ativo"}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => { setFormData(item); setEditingId(item.id); setModalOpen(true); }} className="p-2 hover:bg-blue-100 rounded-lg text-blue-600 transition-colors"><Edit3 size={14}/></button>
+                          <button onClick={() => deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', (activeTab === 'dashboard' ? 'viagens' : activeTab), item.id))} className="p-2 hover:bg-red-100 rounded-lg text-red-500 transition-colors"><Trash2 size={14}/></button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -298,17 +330,16 @@ export default function App() {
       </main>
 
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Gerir Registo">
-        <form onSubmit={handleSave} className="grid grid-cols-2 gap-6">
+        <form onSubmit={handleSave} className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {(activeTab === 'viagens' || activeTab === 'dashboard') && (
             <>
               <Input label="Número NF" value={formData.numeroNF} onChange={v => setFormData({...formData, numeroNF: v})} />
-              <Input label="Chave de Acesso" value={formData.chaveID} onChange={v => setFormData({...formData, chaveID: v})} />
               <Input label="Contratante" value={formData.contratante} onChange={v => setFormData({...formData, contratante: v})} />
               <Input label="Cidade Destino" value={formData.cidade} onChange={v => setFormData({...formData, cidade: v})} />
               <Input label="Valor Frete (R$)" type="number" value={formData.valorFrete} onChange={v => setFormData({...formData, valorFrete: v})} />
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wide ml-1">Status</label>
-                <select className="w-full p-4 bg-slate-50 rounded-2xl text-xs font-bold" value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})}>
+              <div className="space-y-1.5 col-span-1 md:col-span-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wide ml-1">Status da Viagem</label>
+                <select className="w-full p-4 bg-slate-50 rounded-2xl text-xs font-bold outline-none border border-transparent focus:border-blue-400 focus:bg-white" value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})}>
                   <option value="Pendente">Pendente</option>
                   <option value="Em rota">Em rota</option>
                   <option value="Entregue">Entregue</option>
@@ -316,16 +347,21 @@ export default function App() {
               </div>
             </>
           )}
-          {activeTab === 'clientes' && (
+          {(activeTab === 'clientes' || activeTab === 'motoristas') && (
             <>
-              <Input label="Nome/Razão Social" value={formData.nome} onChange={v => setFormData({...formData, nome: v})} />
-              <Input label="CNPJ/CPF" value={formData.chaveID} onChange={v => setFormData({...formData, chaveID: v})} />
-              <Input label="Email" value={formData.email} onChange={v => setFormData({...formData, email: v})} />
-              <Input label="Telefone" value={formData.telefone} onChange={v => setFormData({...formData, telefone: v})} />
+              <Input label="Nome Completo / Empresa" value={formData.nome} onChange={v => setFormData({...formData, nome: v})} />
+              <Input label="Email de Contacto" value={formData.email} onChange={v => setFormData({...formData, email: v})} />
+              <Input label="Telemóvel / Telefone" value={formData.telefone} onChange={v => setFormData({...formData, telefone: v})} />
             </>
           )}
-          <div className="col-span-2 pt-6">
-            <button type="submit" className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-xs shadow-xl shadow-blue-500/20 hover:scale-[1.01] transition-transform">Guardar Alterações</button>
+          {activeTab === 'veiculos' && (
+            <>
+              <Input label="Matrícula / Placa" value={formData.placa} onChange={v => setFormData({...formData, placa: v})} />
+              <Input label="Modelo do Veículo" value={formData.nome} onChange={v => setFormData({...formData, nome: v})} />
+            </>
+          )}
+          <div className="col-span-1 md:col-span-2 pt-6">
+            <button type="submit" className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-xs shadow-xl shadow-blue-500/20 hover:scale-[1.01] transition-transform active:scale-95">Guardar Alterações</button>
           </div>
         </form>
       </Modal>
