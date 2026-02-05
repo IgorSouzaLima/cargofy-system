@@ -404,7 +404,13 @@ function App() {
       numeroNF: viagemData.numeroNF || '',
       numeroCarga: viagemData.numeroCarga || '',
       contratante: viagemData.contratante || '',
+      destinatario: viagemData.destinatario || '',
+      cidade: viagemData.cidade || '',
+      motorista: viagemData.motorista || '',
+      status: getStatusViagem(viagemData),
       valorFrete: viagemData.valorFrete || '',
+      valorDistribuicao: viagemData.valorDistribuicao || '',
+      lucro: ((parseFloat(viagemData.valorFrete) || 0) - (parseFloat(viagemData.valorDistribuicao) || 0)).toFixed(2),
       statusFinanceiro: registroExistente?.id
         ? (statusInformado && statusInformado.toLowerCase() !== 'pendente' ? statusInformado : (registroExistente.statusFinanceiro || 'Pendente'))
         : (statusInformado || 'Pendente'),
@@ -445,6 +451,7 @@ function App() {
     const payload = colName === 'financeiro'
       ? {
           ...formData,
+          lucro: ((parseFloat(formData.valorFrete) || 0) - (parseFloat(formData.valorDistribuicao) || 0)).toFixed(2),
           urlBoleto: formData.boleto || '',
           urlComprovante: formData.boleto || formData.urlComprovante || ''
         }
@@ -660,7 +667,8 @@ function App() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <p className="text-sm font-bold text-slate-700">{item.cidade || item.tipo || '---'}</p>
+                      <p className="text-sm font-bold text-slate-700">{item.destinatario || item.cidade || item.tipo || '---'}</p>
+                      {(item.destinatario && item.cidade) && <p className="text-[10px] text-slate-500 font-bold">{item.cidade}</p>}
                       <div className="flex items-center gap-1.5 mt-0.5">
                         <p className="text-[10px] text-slate-400 font-black uppercase">{item.motorista || item.telefone || 'Sem Motorista'}</p>
                         {item.status === 'Entregue' && item.dataEntrega && (
@@ -681,13 +689,14 @@ function App() {
                           {(activeTab === 'dashboard' || activeTab === 'viagens') ? getStatusViagem(item) : (item.status || item.statusFinanceiro || 'Ativo')}
                         </span>
                         {item.valorFrete && <p className="font-black text-slate-900 text-sm">Frete: R$ {parseFloat(item.valorFrete).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>}
-                        {(item.valorDistribuicao || item.lucro) && <p className="text-[10px] font-black text-emerald-700">Lucro: R$ {((parseFloat(item.valorFrete) || 0) - (parseFloat(item.valorDistribuicao) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>}
+                        {(item.valorDistribuicao || activeTab === 'financeiro') && <p className="text-[10px] font-black text-amber-700">Custo: R$ {(parseFloat(item.valorDistribuicao) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>}
+                        {(item.valorDistribuicao || item.lucro || activeTab === 'financeiro') && <p className="text-[10px] font-black text-emerald-700">Lucro: R$ {((parseFloat(item.valorFrete) || 0) - (parseFloat(item.valorDistribuicao) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>}
                       </div>
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        {(activeTab === 'dashboard' || activeTab === 'viagens') && (
-                          <button onClick={() => setDetailItem(item)} className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg" title="Ver detalhes da carga"><Eye size={16}/></button>
+                        {(activeTab === 'dashboard' || activeTab === 'viagens' || activeTab === 'financeiro') && (
+                          <button onClick={() => setDetailItem(item)} className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg" title="Ver detalhes"><Eye size={16}/></button>
                         )}
                         <button onClick={() => handleOpenEdit(item)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg"><Edit3 size={16}/></button>
                         <button onClick={async () => { 
@@ -903,7 +912,16 @@ function App() {
                 <Input label="Número da Carga" value={formData.numeroCarga} onChange={v => setFormData({...formData, numeroCarga: v})} />
               </div>
               <Input label="Contratante" value={formData.contratante} onChange={v => setFormData({...formData, contratante: v})} />
-              <Input label="Valor do Frete (R$)" type="number" value={formData.valorFrete} onChange={v => setFormData({...formData, valorFrete: v})} />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input label="Destinatário" value={formData.destinatario || ''} onChange={v => setFormData({...formData, destinatario: v})} />
+                <Input label="Cidade de Entrega" value={formData.cidade || ''} onChange={v => setFormData({...formData, cidade: v})} />
+              </div>
+              <Input label="Motorista" value={formData.motorista || ''} onChange={v => setFormData({...formData, motorista: v})} />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input label="Valor do Frete (R$)" type="number" value={formData.valorFrete} onChange={v => setFormData({...formData, valorFrete: v})} />
+                <Input label="Valor do Custo (R$)" type="number" value={formData.valorDistribuicao || ''} onChange={v => setFormData({...formData, valorDistribuicao: v})} />
+              </div>
+              <p className="text-xs font-black text-emerald-700">Lucro: R$ {((parseFloat(formData.valorFrete) || 0) - (parseFloat(formData.valorDistribuicao) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Input label="Vencimento" type="date" value={formData.vencimento} onChange={v => setFormData({...formData, vencimento: v})} />
                 <div className="space-y-1">
@@ -964,9 +982,10 @@ function App() {
             <Info label="Cidade" value={detailItem.cidade} />
             <Info label="Motorista" value={detailItem.motorista} />
             <Info label="Veículo" value={detailItem.veiculo} />
-            <Info label="Status" value={getStatusViagem(detailItem)} />
+            <Info label="Status" value={detailItem.status || detailItem.statusFinanceiro || getStatusViagem(detailItem)} />
             <Info label="Valor Frete" value={detailItem.valorFrete ? `R$ ${parseFloat(detailItem.valorFrete).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : ''} />
             <Info label="Valor Distribuição" value={detailItem.valorDistribuicao ? `R$ ${parseFloat(detailItem.valorDistribuicao).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : ''} />
+            <Info label="Lucro" value={`R$ ${((parseFloat(detailItem.valorFrete) || 0) - (parseFloat(detailItem.valorDistribuicao) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} />
             <div className="md:col-span-2">
               <Info label="Comprovante" value={detailItem.urlComprovante ? 'Foto anexada' : 'Sem comprovante'} />
               {detailItem.urlComprovante && (
