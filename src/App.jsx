@@ -172,6 +172,12 @@ function App() {
   const handleSave = async (e) => {
     e.preventDefault();
     const colName = (activeTab === 'dashboard' || activeTab === 'viagens') ? 'viagens' : activeTab;
+
+    if (colName === 'viagens' && formData.metodoPagamento === 'Boleto' && (!formData.numeroBoleto || !formData.diaVencimento)) {
+      alert('Para pagamento via boleto, informe o número e o dia de vencimento.');
+      return;
+    }
+
     const payload = colName === 'financeiro'
       ? {
           ...formData,
@@ -181,6 +187,8 @@ function App() {
       : colName === 'viagens'
         ? {
             ...formData,
+            numeroBoleto: formData.metodoPagamento === 'Boleto' ? formData.numeroBoleto : '',
+            diaVencimento: formData.metodoPagamento === 'Boleto' ? formData.diaVencimento : '',
             lucro: ((parseFloat(formData.valorFrete) || 0) - (parseFloat(formData.valorDistribuicao) || 0)).toFixed(2)
           }
         : formData;
@@ -408,7 +416,7 @@ function App() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-1">
                     <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Método de Pagamento</label>
-                    <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold uppercase outline-none border border-transparent focus:border-blue-400" value={formData.metodoPagamento || ''} onChange={e => setFormData({...formData, metodoPagamento: e.target.value})}>
+                    <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold uppercase outline-none border border-transparent focus:border-blue-400" value={formData.metodoPagamento || ''} onChange={e => setFormData({...formData, metodoPagamento: e.target.value, numeroBoleto: e.target.value === 'Boleto' ? formData.numeroBoleto : '', diaVencimento: e.target.value === 'Boleto' ? formData.diaVencimento : ''})}>
                       <option value="">Selecionar...</option>
                       <option value="Boleto">Boleto</option>
                       <option value="Pix">Pix</option>
