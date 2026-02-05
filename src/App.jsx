@@ -129,9 +129,25 @@ function App() {
     const pendentes = viagens.filter(v => v.status === 'Pendente').length;
     const emRota = viagens.filter(v => v.status === 'Em rota').length;
     const entregues = viagens.filter(v => v.status === 'Entregue').length;
-    const faturamento = viagens.reduce((acc, curr) => acc + (parseFloat(curr.valorFrete) || 0), 0);
-    return { pendentes, emRota, entregues, faturamento, total: viagens.length };
+    return { pendentes, emRota, entregues, total: viagens.length };
   }, [viagens]);
+
+  const boletoStats = useMemo(() => {
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+
+    const boletosGerados = financeiro.filter(f => f.boleto || f.urlBoleto || f.urlComprovante).length;
+    const boletosPagos = financeiro.filter(f => (f.statusFinanceiro || '').toLowerCase() === 'pago').length;
+    const boletosAtrasados = financeiro.filter(f => {
+      if ((f.statusFinanceiro || '').toLowerCase() === 'vencido') return true;
+      if ((f.statusFinanceiro || '').toLowerCase() === 'pago') return false;
+      if (!f.vencimento) return false;
+      const venc = new Date(`${f.vencimento}T12:00:00`);
+      return !Number.isNaN(venc.getTime()) && venc < hoje;
+    }).length;
+
+    return { boletosGerados, boletosAtrasados, boletosPagos };
+  }, [financeiro]);
 
   const filteredData = useMemo(() => {
     let list = [];
@@ -266,11 +282,69 @@ function App() {
 
         <div className="p-8 overflow-y-auto">
           {activeTab === 'dashboard' && (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-              <Card title="Cargas Pendentes" value={stats.pendentes} icon={Clock} color="bg-amber-500" active={statusFilter === 'Pendente'} onClick={() => setStatusFilter('Pendente')} />
-              <Card title="Cargas em Rota" value={stats.emRota} icon={MapPin} color="bg-blue-600" active={statusFilter === 'Em rota'} onClick={() => setStatusFilter('Em rota')} />
-              <Card title="Concluídas" value={stats.entregues} icon={CheckCircle2} color="bg-emerald-500" active={statusFilter === 'Entregue'} onClick={() => setStatusFilter('Entregue')} />
-              <Card title="Faturamento" value={`R$ ${stats.faturamento.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={DollarSign} color="bg-indigo-600" />
+            <div className="space-y-8 mb-8">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card title="Cargas Pendentes" value={stats.pendentes} icon={Clock} color="bg-amber-500" active={statusFilter === 'Pendente'} onClick={() => setStatusFilter('Pendente')} />
+                <Card title="Cargas em Rota" value={stats.emRota} icon={MapPin} color="bg-blue-600" active={statusFilter === 'Em rota'} onClick={() => setStatusFilter('Em rota')} />
+                <Card title="Concluídas" value={stats.entregues} icon={CheckCircle2} color="bg-emerald-500" active={statusFilter === 'Entregue'} onClick={() => setStatusFilter('Entregue')} />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card title="Boletos Gerados" value={boletoStats.boletosGerados} icon={FileText} color="bg-indigo-600" />
+                <Card title="Boletos Atrasados" value={boletoStats.boletosAtrasados} icon={AlertCircle} color="bg-rose-600" />
+                <Card title="Boletos Pagos" value={boletoStats.boletosPagos} icon={CheckCircle2} color="bg-emerald-600" />
+              </div>
+
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white">
+                  <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Dashboard Financeiro</h3>
+                  <span className="text-[10px] font-bold text-slate-400">{financeiro.length} registros</span>
+                </div>
+                <table className="w-full text-left border-collapse">
+                  <thead className="bg-slate-50 border-b border-slate-100">
+                    <tr>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">NF / Contratante</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Vencimento</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Status</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase text-right">Boleto</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {financeiro.map(item => (
+                      <tr key={`fin-${item.id}`} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="px-6 py-4">
+                          <p className="font-bold text-slate-800">{item.numeroNF || '---'}</p>
+                          <p className="text-[10px] font-black text-blue-600 uppercase tracking-tight">{item.contratante || 'Contratante não informado'}</p>
+                        </td>
+                        <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.vencimento ? new Date(item.vencimento + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</td>
+                        <td className="px-6 py-4">
+                          <span className={`w-fit px-2 py-0.5 rounded text-[9px] font-black uppercase ${
+                            (item.statusFinanceiro || '').toLowerCase() === 'pago' ? 'bg-emerald-100 text-emerald-600' :
+                            (item.statusFinanceiro || '').toLowerCase() === 'vencido' ? 'bg-rose-100 text-rose-600' :
+                            'bg-amber-100 text-amber-600'
+                          }`}>
+                            {item.statusFinanceiro || 'Pendente'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          {(item.boleto || item.urlBoleto || item.urlComprovante) ? (
+                            <a href={item.boleto || item.urlBoleto || item.urlComprovante} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase">
+                              Abrir <ExternalLink size={12} />
+                            </a>
+                          ) : (
+                            <span className="text-[10px] font-bold text-slate-400">Sem link</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                    {financeiro.length === 0 && (
+                      <tr>
+                        <td colSpan={4} className="px-6 py-8 text-center text-xs font-bold text-slate-400 uppercase">Nenhum boleto encontrado</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 
