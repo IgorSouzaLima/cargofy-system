@@ -329,6 +329,42 @@ function App() {
     setModalOpen(true);
   };
 
+  const syncFinanceiroPorViagem = async (viagemData) => {
+    const numeroNF = (viagemData.numeroNF || '').trim();
+    const numeroCarga = (viagemData.numeroCarga || '').trim();
+    if (!numeroNF && !numeroCarga) return;
+
+    const registroExistente = financeiro.find(f =>
+      (numeroNF && (f.numeroNF || '').trim() === numeroNF) ||
+      (numeroCarga && (f.numeroCarga || '').trim() === numeroCarga && (f.contratante || '') === (viagemData.contratante || ''))
+    );
+
+    const payloadFinanceiro = {
+      numeroNF: viagemData.numeroNF || '',
+      numeroCarga: viagemData.numeroCarga || '',
+      contratante: viagemData.contratante || '',
+      valorFrete: viagemData.valorFrete || '',
+      statusFinanceiro: viagemData.statusFinanceiro || 'Pendente',
+      metodoPagamento: viagemData.metodoPagamento || '',
+      numeroBoleto: viagemData.numeroBoleto || '',
+      dataVencimentoBoleto: viagemData.dataVencimentoBoleto || '',
+      vencimento: viagemData.dataVencimentoBoleto || viagemData.vencimento || '',
+      boleto: viagemData.boleto || viagemData.urlComprovante || '',
+      urlBoleto: viagemData.boleto || viagemData.urlComprovante || '',
+      urlComprovante: viagemData.boleto || viagemData.urlComprovante || ''
+    };
+
+    if (registroExistente?.id) {
+      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'financeiro', registroExistente.id), payloadFinanceiro);
+    } else {
+      await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'financeiro'), {
+        ...payloadFinanceiro,
+        userId: user.uid,
+        createdAt: serverTimestamp()
+      });
+    }
+  };
+
   const handleSave = async (e) => {
     e.preventDefault();
     const colName = (activeTab === 'dashboard' || activeTab === 'viagens') ? 'viagens' : activeTab;
@@ -360,6 +396,11 @@ function App() {
           ...payload, userId: user.uid, createdAt: serverTimestamp()
         });
       }
+
+      if (colName === 'viagens') {
+        await syncFinanceiroPorViagem(payload);
+      }
+
       setModalOpen(false);
       setEditingId(null);
       resetForm();
