@@ -793,14 +793,19 @@ function App() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Input label="Data da Entrega Realizada" type="date" value={formData.dataEntrega} onChange={v => setFormData({...formData, dataEntrega: v})} />
                     <div className="space-y-1">
-                      <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Link do Comprovante (Foto)</label>
-                      <div className="flex gap-2">
+                      <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Foto do Comprovante</label>
+                      <div className="flex gap-2 items-start">
                         <input 
-                          type="text" 
-                          placeholder="Link da imagem/arquivo..."
-                          value={formData.urlComprovante || ''}
-                          onChange={e => setFormData({...formData, urlComprovante: e.target.value})}
-                          className="flex-1 px-4 py-2.5 bg-white border border-emerald-200 rounded-xl text-xs font-semibold outline-none focus:ring-2 ring-emerald-500/20"
+                          type="file"
+                          accept="image/*"
+                          onChange={e => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            const reader = new FileReader();
+                            reader.onload = () => setFormData({...formData, urlComprovante: reader.result});
+                            reader.readAsDataURL(file);
+                          }}
+                          className="flex-1 px-4 py-2.5 bg-white border border-emerald-200 rounded-xl text-xs font-semibold outline-none file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-emerald-100 file:text-emerald-700"
                         />
                         {formData.urlComprovante && (
                           <a href={formData.urlComprovante} target="_blank" rel="noreferrer" className="p-2.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors">
@@ -808,6 +813,9 @@ function App() {
                           </a>
                         )}
                       </div>
+                      {formData.urlComprovante && (
+                        <img src={formData.urlComprovante} alt="Pré-visualização do comprovante" className="mt-2 h-20 w-20 object-cover rounded-lg border border-emerald-200" />
+                      )}
                     </div>
                   </div>
                 </div>
