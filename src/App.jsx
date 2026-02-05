@@ -743,7 +743,7 @@ function App() {
                   <Input label="Número da Carga" value={formData.numeroCarga} onChange={v => setFormData({...formData, numeroCarga: v})} />
                   <Input label="Número do CT-e" value={formData.numeroCTe} onChange={v => setFormData({...formData, numeroCTe: v})} />
                   <Input label="Data do CT-e" type="date" value={formData.dataCTe} onChange={v => setFormData({...formData, dataCTe: v})} />
-                  <Input label="Empresa Contratante" placeholder="Ex: LogiExpress S.A." value={formData.contratante} onChange={v => setFormData({...formData, contratante: v})} />
+                  <Input label="Contratante" placeholder="Ex: LogiExpress S.A." value={formData.contratante} onChange={v => setFormData({...formData, contratante: v})} />
                   <Input label="Valor da NF (R$)" type="number" value={formData.valorNF} onChange={v => setFormData({...formData, valorNF: v})} />
                 </div>
                 <Input label="Chave de Acesso (NF-e)" placeholder="44 dígitos da nota fiscal" value={formData.chaveID} onChange={v => setFormData({...formData, chaveID: v})} />
