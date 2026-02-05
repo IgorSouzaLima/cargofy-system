@@ -5,7 +5,7 @@ import { getFirestore, collection, doc, addDoc, onSnapshot, updateDoc, deleteDoc
 import { 
   LayoutDashboard, Truck, Users, DollarSign, Plus, Package, MapPin, X, Trash2, 
   Briefcase, LogOut, Lock, Mail, Clock, FileText, Search, Calendar, Layers, 
-  CheckCircle2, AlertCircle, Edit3, Download, ArrowRight, Camera, Paperclip, ExternalLink, Building2
+  CheckCircle2, AlertCircle, Edit3, Download, ArrowRight, Camera, Paperclip, ExternalLink, Building2, Eye
 } from 'lucide-react';
 
 // --- CONFIGURAÇÃO ---
@@ -72,10 +72,14 @@ function App() {
   const [reportEmpresa, setReportEmpresa] = useState('Todas');
   const [reportInicio, setReportInicio] = useState('');
   const [reportFim, setReportFim] = useState('');
+  const [reportNumeroCarga, setReportNumeroCarga] = useState('');
+  const [detailItem, setDetailItem] = useState(null);
 
   const [formData, setFormData] = useState({
     numeroNF: '', 
     numeroCarga: '', 
+    numeroCTe: '', 
+    dataCTe: '', 
     dataNF: '', 
     dataSaida: '', 
     dataEntrega: '', // Novo campo
@@ -203,6 +207,7 @@ function App() {
   const relatorioData = useMemo(() => {
     return viagens.filter(v => {
       if (reportEmpresa !== 'Todas' && v.contratante !== reportEmpresa) return false;
+      if (reportNumeroCarga && (v.numeroCarga || '').trim() !== reportNumeroCarga.trim()) return false;
       const dataBase = v.dataSaida || v.dataNF || v.dataEntrega;
       if (!dataBase) return !reportInicio && !reportFim;
       const data = new Date(`${dataBase}T12:00:00`);
@@ -217,7 +222,7 @@ function App() {
       }
       return true;
     });
-  }, [viagens, reportEmpresa, reportInicio, reportFim]);
+  }, [viagens, reportEmpresa, reportNumeroCarga, reportInicio, reportFim]);
 
   const resumoRelatorio = useMemo(() => {
     const faturou = relatorioData.reduce((acc, curr) => acc + (parseFloat(curr.valorFrete) || 0), 0);
@@ -226,8 +231,9 @@ function App() {
   }, [relatorioData]);
 
   const downloadRelatorioCSV = () => {
-    const header = ['NF', 'Empresa', 'Data', 'Frete', 'Distribuicao', 'Lucro'];
+    const header = ['Carga', 'NF', 'Empresa', 'Data', 'Frete', 'Distribuicao', 'Lucro'];
     const rows = relatorioData.map(item => [
+      item.numeroCarga || '',
       item.numeroNF || '',
       item.contratante || '',
       item.dataSaida || item.dataNF || item.dataEntrega || '',
@@ -287,7 +293,7 @@ function App() {
       const frete = (parseFloat(item.valorFrete) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
       const dist = (parseFloat(item.valorDistribuicao) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
       const lucro = ((parseFloat(item.valorFrete) || 0) - (parseFloat(item.valorDistribuicao) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-      return `<tr><td>${item.numeroNF || '---'}</td><td>${item.contratante || 'Sem empresa'}</td><td>${dataFmt}</td><td>R$ ${frete}</td><td>R$ ${dist}</td><td>R$ ${lucro}</td></tr>`;
+      return `<tr><td>${item.numeroCarga || '---'}</td><td>${item.numeroNF || '---'}</td><td>${item.contratante || 'Sem empresa'}</td><td>${dataFmt}</td><td>R$ ${frete}</td><td>R$ ${dist}</td><td>R$ ${lucro}</td></tr>`;
     }).join('');
 
     janela.document.write(`
@@ -306,7 +312,7 @@ function App() {
         </head>
         <body>
           <h1>Relatório CargoFy</h1>
-          <p>Empresa: ${reportEmpresa} | Período: ${reportInicio || 'Início'} até ${reportFim || 'Hoje'} | Registros: ${relatorioData.length}</p>
+          <p>Empresa: ${reportEmpresa} | Carga: ${reportNumeroCarga || 'Todas'} | Período: ${reportInicio || 'Início'} até ${reportFim || 'Hoje'} | Registros: ${relatorioData.length}</p>
           <div class="resumo">
             <span>Faturamento: R$ ${resumoRelatorio.faturou.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
             <span>Distribuição: R$ ${resumoRelatorio.distribuicao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
@@ -314,9 +320,9 @@ function App() {
           </div>
           <table>
             <thead>
-              <tr><th>NF</th><th>Empresa</th><th>Data</th><th>Frete</th><th>Distribuição</th><th>Lucro</th></tr>
+              <tr><th>Carga</th><th>NF</th><th>Empresa</th><th>Data</th><th>Frete</th><th>Distribuição</th><th>Lucro</th></tr>
             </thead>
-            <tbody>${linhas || '<tr><td colspan="6">Sem registros para o filtro.</td></tr>'}</tbody>
+            <tbody>${linhas || '<tr><td colspan="7">Sem registros para o filtro.</td></tr>'}</tbody>
           </table>
         </body>
       </html>
@@ -408,6 +414,11 @@ function App() {
     e.preventDefault();
     const colName = (activeTab === 'dashboard' || activeTab === 'viagens') ? 'viagens' : activeTab;
 
+    if (colName === 'viagens' && (!formData.numeroCTe || !formData.dataCTe)) {
+      alert('Informe o número e a data do CT-e para cadastrar a carga.');
+      return;
+    }
+
     if (colName === 'viagens' && formData.metodoPagamento === 'Boleto' && (!formData.numeroBoleto || !formData.dataVencimentoBoleto)) {
       alert('Para pagamento via boleto, informe o número e a data de vencimento.');
       return;
@@ -448,7 +459,7 @@ function App() {
 
   const resetForm = () => {
     setFormData({ 
-      numeroNF: '', numeroCarga: '', dataNF: '', dataSaida: '', dataEntrega: '', 
+      numeroNF: '', numeroCarga: '', numeroCTe: '', dataCTe: '', dataNF: '', dataSaida: '', dataEntrega: '', 
       contratante: '', destinatario: '', cidade: '', 
       volume: '', peso: '', valorNF: '', chaveID: '', status: 'Pendente', 
       valorFrete: '', valorDistribuicao: '', lucro: '', metodoPagamento: '', numeroBoleto: '', dataVencimentoBoleto: '', motorista: '', veiculo: '', placa: '', urlComprovante: '', boleto: '', vencimento: '', 
@@ -526,13 +537,14 @@ function App() {
 
           {activeTab === 'relatorios' && (
             <div className="space-y-6 mb-8">
-              <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 grid grid-cols-1 md:grid-cols-5 gap-4">
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 grid grid-cols-1 md:grid-cols-6 gap-4">
                 <div className="space-y-1">
                   <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Empresa</label>
                   <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold outline-none border border-transparent focus:border-blue-400" value={reportEmpresa} onChange={e => setReportEmpresa(e.target.value)}>
                     {empresasRelatorio.map(emp => <option key={emp} value={emp}>{emp}</option>)}
                   </select>
                 </div>
+                <Input label="Número da Carga" value={reportNumeroCarga} onChange={setReportNumeroCarga} placeholder="Ex: 1020" />
                 <Input label="Data Inicial" type="date" value={reportInicio} onChange={setReportInicio} />
                 <Input label="Data Final" type="date" value={reportFim} onChange={setReportFim} />
                 <div className="flex items-end">
@@ -561,7 +573,7 @@ function App() {
                 <table className="w-full text-left border-collapse">
                   <thead className="bg-slate-50 border-b border-slate-100">
                     <tr>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">NF / Empresa</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Carga / NF / Empresa</th>
                       <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Data</th>
                       <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Frete / Distribuição</th>
                       <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Lucro</th>
@@ -571,6 +583,7 @@ function App() {
                     {relatorioData.map(item => (
                       <tr key={`rel-${item.id}`} className="hover:bg-slate-50/50 transition-colors">
                         <td className="px-6 py-4">
+                          <p className="text-[10px] font-black text-indigo-600 uppercase">Carga #{item.numeroCarga || '---'}</p>
                           <p className="font-bold text-slate-800">{item.numeroNF || '---'}</p>
                           <p className="text-[10px] font-black text-blue-600 uppercase tracking-tight">{item.contratante || 'Sem empresa'}</p>
                         </td>
@@ -650,6 +663,9 @@ function App() {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {(activeTab === 'dashboard' || activeTab === 'viagens') && (
+                          <button onClick={() => setDetailItem(item)} className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg" title="Ver detalhes da carga"><Eye size={16}/></button>
+                        )}
                         <button onClick={() => handleOpenEdit(item)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg"><Edit3 size={16}/></button>
                         <button onClick={async () => { 
                           if(confirm('Deseja realmente excluir este registro?')) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', (activeTab === 'dashboard' || activeTab === 'viagens' ? 'viagens' : activeTab), item.id));
@@ -722,9 +738,11 @@ function App() {
                 <div className="flex items-center gap-2 border-l-4 border-blue-500 pl-3">
                   <h4 className="text-[11px] font-black text-slate-800 uppercase tracking-widest">Documentação e Contrato</h4>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
                   <Input label="Número Nota Fiscal" value={formData.numeroNF} onChange={v => setFormData({...formData, numeroNF: v})} />
                   <Input label="Número da Carga" value={formData.numeroCarga} onChange={v => setFormData({...formData, numeroCarga: v})} />
+                  <Input label="Número do CT-e" value={formData.numeroCTe} onChange={v => setFormData({...formData, numeroCTe: v})} />
+                  <Input label="Data do CT-e" type="date" value={formData.dataCTe} onChange={v => setFormData({...formData, dataCTe: v})} />
                   <Input label="Empresa Contratante" placeholder="Ex: LogiExpress S.A." value={formData.contratante} onChange={v => setFormData({...formData, contratante: v})} />
                   <Input label="Valor da NF (R$)" type="number" value={formData.valorNF} onChange={v => setFormData({...formData, valorNF: v})} />
                 </div>
@@ -910,6 +928,34 @@ function App() {
           </div>
         </form>
       </Modal>
+
+      <Modal isOpen={!!detailItem} onClose={() => setDetailItem(null)} title="Detalhes da Carga">
+        {detailItem && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            <Info label="Número da Carga" value={detailItem.numeroCarga} />
+            <Info label="NF" value={detailItem.numeroNF} />
+            <Info label="Número do CT-e" value={detailItem.numeroCTe} />
+            <Info label="Data do CT-e" value={detailItem.dataCTe ? new Date(detailItem.dataCTe + 'T12:00:00').toLocaleDateString('pt-BR') : ''} />
+            <Info label="Contratante" value={detailItem.contratante} />
+            <Info label="Destinatário" value={detailItem.destinatario} />
+            <Info label="Cidade" value={detailItem.cidade} />
+            <Info label="Motorista" value={detailItem.motorista} />
+            <Info label="Veículo" value={detailItem.veiculo} />
+            <Info label="Status" value={getStatusViagem(detailItem)} />
+            <Info label="Valor Frete" value={detailItem.valorFrete ? `R$ ${parseFloat(detailItem.valorFrete).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : ''} />
+            <Info label="Valor Distribuição" value={detailItem.valorDistribuicao ? `R$ ${parseFloat(detailItem.valorDistribuicao).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : ''} />
+          </div>
+        )}
+      </Modal>
+    </div>
+  );
+}
+
+function Info({ label, value }) {
+  return (
+    <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+      <p className="text-[10px] font-black text-slate-400 uppercase">{label}</p>
+      <p className="font-bold text-slate-800">{value || '---'}</p>
     </div>
   );
 }
