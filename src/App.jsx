@@ -92,7 +92,7 @@ function App() {
     lucro: '', 
     metodoPagamento: '', 
     numeroBoleto: '', 
-    diaVencimento: '', 
+    dataVencimentoBoleto: '', 
     motorista: '', 
     veiculo: '', 
     placa: '', 
@@ -322,7 +322,8 @@ function App() {
     setFormData({
       ...item,
       boleto: item.boleto || item.urlBoleto || item.urlComprovante || '',
-      statusFinanceiro: item.statusFinanceiro || 'Pendente'
+      statusFinanceiro: item.statusFinanceiro || 'Pendente',
+      dataVencimentoBoleto: item.dataVencimentoBoleto || item.diaVencimento || ''
     });
     setEditingId(item.id);
     setModalOpen(true);
@@ -332,8 +333,8 @@ function App() {
     e.preventDefault();
     const colName = (activeTab === 'dashboard' || activeTab === 'viagens') ? 'viagens' : activeTab;
 
-    if (colName === 'viagens' && formData.metodoPagamento === 'Boleto' && (!formData.numeroBoleto || !formData.diaVencimento)) {
-      alert('Para pagamento via boleto, informe o número e o dia de vencimento.');
+    if (colName === 'viagens' && formData.metodoPagamento === 'Boleto' && (!formData.numeroBoleto || !formData.dataVencimentoBoleto)) {
+      alert('Para pagamento via boleto, informe o número e a data de vencimento.');
       return;
     }
 
@@ -347,7 +348,7 @@ function App() {
         ? {
             ...formData,
             numeroBoleto: formData.metodoPagamento === 'Boleto' ? formData.numeroBoleto : '',
-            diaVencimento: formData.metodoPagamento === 'Boleto' ? formData.diaVencimento : '',
+            dataVencimentoBoleto: formData.metodoPagamento === 'Boleto' ? formData.dataVencimentoBoleto : '',
             lucro: ((parseFloat(formData.valorFrete) || 0) - (parseFloat(formData.valorDistribuicao) || 0)).toFixed(2)
           }
         : formData;
@@ -370,7 +371,7 @@ function App() {
       numeroNF: '', numeroCarga: '', dataNF: '', dataSaida: '', dataEntrega: '', 
       contratante: '', destinatario: '', cidade: '', 
       volume: '', peso: '', valorNF: '', chaveID: '', status: 'Pendente', 
-      valorFrete: '', valorDistribuicao: '', lucro: '', metodoPagamento: '', numeroBoleto: '', diaVencimento: '', motorista: '', veiculo: '', placa: '', urlComprovante: '', boleto: '', vencimento: '', 
+      valorFrete: '', valorDistribuicao: '', lucro: '', metodoPagamento: '', numeroBoleto: '', dataVencimentoBoleto: '', motorista: '', veiculo: '', placa: '', urlComprovante: '', boleto: '', vencimento: '', 
       statusFinanceiro: 'Pendente', nome: '', email: '', telefone: '', 
       modelo: '', tipo: ''
     });
@@ -711,7 +712,7 @@ function App() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-1">
                     <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Método de Pagamento</label>
-                    <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold uppercase outline-none border border-transparent focus:border-blue-400" value={formData.metodoPagamento || ''} onChange={e => setFormData({...formData, metodoPagamento: e.target.value, numeroBoleto: e.target.value === 'Boleto' ? formData.numeroBoleto : '', diaVencimento: e.target.value === 'Boleto' ? formData.diaVencimento : ''})}>
+                    <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold uppercase outline-none border border-transparent focus:border-blue-400" value={formData.metodoPagamento || ''} onChange={e => setFormData({...formData, metodoPagamento: e.target.value, numeroBoleto: e.target.value === 'Boleto' ? formData.numeroBoleto : '', dataVencimentoBoleto: e.target.value === 'Boleto' ? formData.dataVencimentoBoleto : ''})}>
                       <option value="">Selecionar...</option>
                       <option value="Boleto">Boleto</option>
                       <option value="Pix">Pix</option>
@@ -722,7 +723,7 @@ function App() {
                   {formData.metodoPagamento === 'Boleto' && (
                     <>
                       <Input label="Número do Boleto" value={formData.numeroBoleto || ''} onChange={v => setFormData({...formData, numeroBoleto: v})} />
-                      <Input label="Dia do Vencimento" type="number" value={formData.diaVencimento || ''} onChange={v => setFormData({...formData, diaVencimento: v})} placeholder="Ex: 15" />
+                      <Input label="Data de Vencimento" type="date" value={formData.dataVencimentoBoleto || ''} onChange={v => setFormData({...formData, dataVencimentoBoleto: v})} />
                     </>
                   )}
                 </div>
