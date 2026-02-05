@@ -185,7 +185,10 @@ function App() {
       return !Number.isNaN(venc.getTime()) && venc < hoje;
     }).length;
 
-    const boletosPendentes = Math.max(boletosGerados - boletosPagos - boletosAtrasados, 0);
+    const boletosPendentes = financeiro.filter(f => {
+      const status = (f.statusFinanceiro || 'pendente').toLowerCase();
+      return status === 'pendente';
+    }).length;
 
     return { boletosGerados, boletosPendentes, boletosAtrasados, boletosPagos };
   }, [financeiro]);
