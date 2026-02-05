@@ -171,22 +171,24 @@ function App() {
     return { faturou, gastouDistribuicao, lucroTotal };
   }, [viagens]);
 
+  const normalizarStatusFinanceiro = (status) => (status || 'pendente').trim().toLowerCase();
+
   const boletoStats = useMemo(() => {
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
 
     const boletosGerados = financeiro.length;
-    const boletosPagos = financeiro.filter(f => (f.statusFinanceiro || '').toLowerCase() === 'pago').length;
+    const boletosPagos = financeiro.filter(f => normalizarStatusFinanceiro(f.statusFinanceiro) === 'pago').length;
     const boletosAtrasados = financeiro.filter(f => {
-      if ((f.statusFinanceiro || '').toLowerCase() === 'vencido') return true;
-      if ((f.statusFinanceiro || '').toLowerCase() === 'pago') return false;
+      if (normalizarStatusFinanceiro(f.statusFinanceiro) === 'vencido') return true;
+      if (normalizarStatusFinanceiro(f.statusFinanceiro) === 'pago') return false;
       if (!f.vencimento) return false;
       const venc = new Date(`${f.vencimento}T12:00:00`);
       return !Number.isNaN(venc.getTime()) && venc < hoje;
     }).length;
 
     const boletosPendentes = financeiro.filter(f => {
-      const status = (f.statusFinanceiro || 'pendente').toLowerCase();
+      const status = normalizarStatusFinanceiro(f.statusFinanceiro);
       return status === 'pendente';
     }).length;
 
@@ -344,12 +346,15 @@ function App() {
       (numeroCarga && (f.numeroCarga || '').trim() === numeroCarga && (f.contratante || '') === (viagemData.contratante || ''))
     );
 
+    const statusInformado = (viagemData.statusFinanceiro || '').trim();
     const payloadFinanceiro = {
       numeroNF: viagemData.numeroNF || '',
       numeroCarga: viagemData.numeroCarga || '',
       contratante: viagemData.contratante || '',
       valorFrete: viagemData.valorFrete || '',
-      statusFinanceiro: viagemData.statusFinanceiro || 'Pendente',
+      statusFinanceiro: registroExistente?.id
+        ? (statusInformado && statusInformado.toLowerCase() !== 'pendente' ? statusInformado : (registroExistente.statusFinanceiro || 'Pendente'))
+        : (statusInformado || 'Pendente'),
       metodoPagamento: viagemData.metodoPagamento || '',
       numeroBoleto: viagemData.numeroBoleto || '',
       dataVencimentoBoleto: viagemData.dataVencimentoBoleto || '',
