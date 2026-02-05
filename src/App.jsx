@@ -245,6 +245,35 @@ function App() {
     URL.revokeObjectURL(url);
   };
 
+  const processarFotoComprovante = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Falha ao ler imagem.'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Arquivo de imagem inválido.'));
+      img.onload = () => {
+        const maxW = 1280;
+        const maxH = 1280;
+        let { width, height } = img;
+        const ratio = Math.min(maxW / width, maxH / height, 1);
+        width = Math.round(width * ratio);
+        height = Math.round(height * ratio);
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return reject(new Error('Falha ao processar imagem.'));
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.75);
+        resolve(dataUrl);
+      };
+      img.src = String(reader.result);
+    };
+    reader.readAsDataURL(file);
+  });
+
   const gerarRelatorioPDF = () => {
     const janela = window.open('', '_blank');
     if (!janela) {
@@ -798,12 +827,15 @@ function App() {
                         <input 
                           type="file"
                           accept="image/*"
-                          onChange={e => {
+                          onChange={async e => {
                             const file = e.target.files?.[0];
                             if (!file) return;
-                            const reader = new FileReader();
-                            reader.onload = () => setFormData({...formData, urlComprovante: reader.result});
-                            reader.readAsDataURL(file);
+                            try {
+                              const fotoProcessada = await processarFotoComprovante(file);
+                              setFormData({...formData, urlComprovante: fotoProcessada});
+                            } catch (error) {
+                              alert('Não foi possível processar a foto do comprovante. Tente outra imagem.');
+                            }
                           }}
                           className="flex-1 px-4 py-2.5 bg-white border border-emerald-200 rounded-xl text-xs font-semibold outline-none file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-emerald-100 file:text-emerald-700"
                         />
