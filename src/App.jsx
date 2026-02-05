@@ -231,10 +231,12 @@ function App() {
   }, [relatorioData]);
 
   const downloadRelatorioCSV = () => {
-    const header = ['Carga', 'NF', 'Empresa', 'Data', 'Frete', 'Distribuicao', 'Lucro'];
+    const header = ['Carga', 'NF', 'CT-e', 'Data CT-e', 'Empresa', 'Data', 'Frete', 'Distribuicao', 'Lucro'];
     const rows = relatorioData.map(item => [
       item.numeroCarga || '',
       item.numeroNF || '',
+      item.numeroCTe || '',
+      item.dataCTe || '',
       item.contratante || '',
       item.dataSaida || item.dataNF || item.dataEntrega || '',
       (parseFloat(item.valorFrete) || 0).toFixed(2),
@@ -293,7 +295,7 @@ function App() {
       const frete = (parseFloat(item.valorFrete) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
       const dist = (parseFloat(item.valorDistribuicao) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
       const lucro = ((parseFloat(item.valorFrete) || 0) - (parseFloat(item.valorDistribuicao) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-      return `<tr><td>${item.numeroCarga || '---'}</td><td>${item.numeroNF || '---'}</td><td>${item.contratante || 'Sem empresa'}</td><td>${dataFmt}</td><td>R$ ${frete}</td><td>R$ ${dist}</td><td>R$ ${lucro}</td></tr>`;
+      return `<tr><td>${item.numeroCarga || '---'}</td><td>${item.numeroNF || '---'}</td><td>${item.numeroCTe || '---'}</td><td>${item.dataCTe ? new Date(item.dataCTe + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</td><td>${item.contratante || 'Sem empresa'}</td><td>${dataFmt}</td><td>R$ ${frete}</td><td>R$ ${dist}</td><td>R$ ${lucro}</td></tr>`;
     }).join('');
 
     janela.document.write(`
@@ -320,9 +322,9 @@ function App() {
           </div>
           <table>
             <thead>
-              <tr><th>Carga</th><th>NF</th><th>Empresa</th><th>Data</th><th>Frete</th><th>Distribuição</th><th>Lucro</th></tr>
+              <tr><th>Carga</th><th>NF</th><th>CT-e</th><th>Data CT-e</th><th>Empresa</th><th>Data</th><th>Frete</th><th>Distribuição</th><th>Lucro</th></tr>
             </thead>
-            <tbody>${linhas || '<tr><td colspan="7">Sem registros para o filtro.</td></tr>'}</tbody>
+            <tbody>${linhas || '<tr><td colspan="9">Sem registros para o filtro.</td></tr>'}</tbody>
           </table>
         </body>
       </html>
@@ -574,6 +576,7 @@ function App() {
                   <thead className="bg-slate-50 border-b border-slate-100">
                     <tr>
                       <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Carga / NF / Empresa</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">CT-e</th>
                       <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Data</th>
                       <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Frete / Distribuição</th>
                       <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Lucro</th>
@@ -585,8 +588,10 @@ function App() {
                         <td className="px-6 py-4">
                           <p className="text-[10px] font-black text-indigo-600 uppercase">Carga #{item.numeroCarga || '---'}</p>
                           <p className="font-bold text-slate-800">{item.numeroNF || '---'}</p>
+                          <p className="text-[10px] font-black text-slate-500">CT-e: {item.numeroCTe || '---'}</p>
                           <p className="text-[10px] font-black text-blue-600 uppercase tracking-tight">{item.contratante || 'Sem empresa'}</p>
                         </td>
+                        <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.dataCTe ? new Date(item.dataCTe + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</td>
                         <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.dataSaida || item.dataNF || item.dataEntrega ? new Date((item.dataSaida || item.dataNF || item.dataEntrega) + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</td>
                         <td className="px-6 py-4 text-sm font-bold text-slate-700">R$ {(parseFloat(item.valorFrete) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} / R$ {(parseFloat(item.valorDistribuicao) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                         <td className="px-6 py-4 text-sm font-black text-emerald-700">R$ {((parseFloat(item.valorFrete) || 0) - (parseFloat(item.valorDistribuicao) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
@@ -944,6 +949,14 @@ function App() {
             <Info label="Status" value={getStatusViagem(detailItem)} />
             <Info label="Valor Frete" value={detailItem.valorFrete ? `R$ ${parseFloat(detailItem.valorFrete).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : ''} />
             <Info label="Valor Distribuição" value={detailItem.valorDistribuicao ? `R$ ${parseFloat(detailItem.valorDistribuicao).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : ''} />
+            <div className="md:col-span-2">
+              <Info label="Comprovante" value={detailItem.urlComprovante ? 'Foto anexada' : 'Sem comprovante'} />
+              {detailItem.urlComprovante && (
+                <div className="mt-2">
+                  <img src={detailItem.urlComprovante} alt="Comprovante da carga" className="h-28 w-28 object-cover rounded-lg border border-slate-200" />
+                </div>
+              )}
+            </div>
           </div>
         )}
       </Modal>
