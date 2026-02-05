@@ -587,12 +587,26 @@ function App() {
                 <div className="flex items-center gap-2 border-l-4 border-indigo-500 pl-3">
                   <h4 className="text-[11px] font-black text-slate-800 uppercase tracking-widest">Operação e Status</h4>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-1">
                     <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Motorista Responsável</label>
                     <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold outline-none border border-transparent focus:border-indigo-200" value={formData.motorista} onChange={e => setFormData({...formData, motorista: e.target.value})}>
                       <option value="">Selecionar Motorista...</option>
                       {motoristas.map(m => <option key={m.id} value={m.nome}>{m.nome}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Veículo</label>
+                    <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold outline-none border border-transparent focus:border-indigo-200" value={formData.veiculo || ''} onChange={e => {
+                      const selecionado = veiculos.find(v => v.id === e.target.value);
+                      setFormData({
+                        ...formData,
+                        veiculo: e.target.value,
+                        placa: selecionado?.placa || formData.placa
+                      });
+                    }}>
+                      <option value="">Selecionar Veículo...</option>
+                      {veiculos.map(v => <option key={v.id} value={v.id}>{v.modelo || 'Veículo'} {v.placa ? `- ${v.placa}` : ''}</option>)}
                     </select>
                   </div>
                   <div className="space-y-1">
