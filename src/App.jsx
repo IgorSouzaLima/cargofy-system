@@ -209,6 +209,58 @@ function App() {
     URL.revokeObjectURL(url);
   };
 
+  const gerarRelatorioPDF = () => {
+    const janela = window.open('', '_blank');
+    if (!janela) {
+      alert('Não foi possível abrir a janela de impressão. Verifique se o bloqueador de pop-up está ativo.');
+      return;
+    }
+
+    const linhas = relatorioData.map(item => {
+      const data = item.dataSaida || item.dataNF || item.dataEntrega;
+      const dataFmt = data ? new Date(`${data}T12:00:00`).toLocaleDateString('pt-BR') : '---';
+      const frete = (parseFloat(item.valorFrete) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+      const dist = (parseFloat(item.valorDistribuicao) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+      const lucro = ((parseFloat(item.valorFrete) || 0) - (parseFloat(item.valorDistribuicao) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+      return `<tr><td>${item.numeroNF || '---'}</td><td>${item.contratante || 'Sem empresa'}</td><td>${dataFmt}</td><td>R$ ${frete}</td><td>R$ ${dist}</td><td>R$ ${lucro}</td></tr>`;
+    }).join('');
+
+    janela.document.write(`
+      <html>
+        <head>
+          <title>Relatório CargoFy</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 24px; color: #0f172a; }
+            h1 { margin: 0 0 12px; font-size: 20px; }
+            p { margin: 4px 0 16px; font-size: 12px; color: #475569; }
+            table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+            th, td { border: 1px solid #cbd5e1; padding: 8px; font-size: 12px; text-align: left; }
+            th { background: #f1f5f9; text-transform: uppercase; font-size: 11px; }
+            .resumo { display: flex; gap: 16px; margin: 12px 0; font-weight: bold; }
+          </style>
+        </head>
+        <body>
+          <h1>Relatório CargoFy</h1>
+          <p>Empresa: ${reportEmpresa} | Período: ${reportInicio || 'Início'} até ${reportFim || 'Hoje'} | Registros: ${relatorioData.length}</p>
+          <div class="resumo">
+            <span>Faturamento: R$ ${resumoRelatorio.faturou.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+            <span>Distribuição: R$ ${resumoRelatorio.distribuicao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+            <span>Lucro: R$ ${resumoRelatorio.lucro.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+          </div>
+          <table>
+            <thead>
+              <tr><th>NF</th><th>Empresa</th><th>Data</th><th>Frete</th><th>Distribuição</th><th>Lucro</th></tr>
+            </thead>
+            <tbody>${linhas || '<tr><td colspan="6">Sem registros para o filtro.</td></tr>'}</tbody>
+          </table>
+        </body>
+      </html>
+    `);
+    janela.document.close();
+    janela.focus();
+    janela.print();
+  };
+
   const filteredData = useMemo(() => {
     let list = [];
     switch (activeTab) {
@@ -363,7 +415,7 @@ function App() {
 
           {activeTab === 'relatorios' && (
             <div className="space-y-6 mb-8">
-              <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 grid grid-cols-1 md:grid-cols-5 gap-4">
                 <div className="space-y-1">
                   <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Empresa</label>
                   <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold outline-none border border-transparent focus:border-blue-400" value={reportEmpresa} onChange={e => setReportEmpresa(e.target.value)}>
@@ -375,6 +427,11 @@ function App() {
                 <div className="flex items-end">
                   <button onClick={downloadRelatorioCSV} className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase transition-all">
                     <Download size={16} /> Gerar Relatório CSV
+                  </button>
+                </div>
+                <div className="flex items-end">
+                  <button onClick={gerarRelatorioPDF} className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-slate-700 hover:bg-slate-800 text-white rounded-xl text-xs font-black uppercase transition-all">
+                    <FileText size={16} /> Gerar Relatório PDF
                   </button>
                 </div>
               </div>
