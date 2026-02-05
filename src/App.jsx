@@ -69,6 +69,9 @@ function App() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [searchNF, setSearchNF] = useState('');
+  const [reportEmpresa, setReportEmpresa] = useState('Todas');
+  const [reportInicio, setReportInicio] = useState('');
+  const [reportFim, setReportFim] = useState('');
 
   const [formData, setFormData] = useState({
     numeroNF: '', 
@@ -139,6 +142,73 @@ function App() {
     return { faturou, gastouDistribuicao, lucroTotal };
   }, [viagens]);
 
+  const boletoStats = useMemo(() => {
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+
+    const boletosGerados = financeiro.filter(f => f.boleto || f.urlBoleto || f.urlComprovante).length;
+    const boletosPagos = financeiro.filter(f => (f.statusFinanceiro || '').toLowerCase() === 'pago').length;
+    const boletosAtrasados = financeiro.filter(f => {
+      if ((f.statusFinanceiro || '').toLowerCase() === 'vencido') return true;
+      if ((f.statusFinanceiro || '').toLowerCase() === 'pago') return false;
+      if (!f.vencimento) return false;
+      const venc = new Date(`${f.vencimento}T12:00:00`);
+      return !Number.isNaN(venc.getTime()) && venc < hoje;
+    }).length;
+
+    return { boletosGerados, boletosAtrasados, boletosPagos };
+  }, [financeiro]);
+
+  const empresasRelatorio = useMemo(() => {
+    const empresas = [...new Set(viagens.map(v => v.contratante).filter(Boolean))];
+    return ['Todas', ...empresas];
+  }, [viagens]);
+
+  const relatorioData = useMemo(() => {
+    return viagens.filter(v => {
+      if (reportEmpresa !== 'Todas' && v.contratante !== reportEmpresa) return false;
+      const dataBase = v.dataSaida || v.dataNF || v.dataEntrega;
+      if (!dataBase) return !reportInicio && !reportFim;
+      const data = new Date(`${dataBase}T12:00:00`);
+      if (Number.isNaN(data.getTime())) return false;
+      if (reportInicio) {
+        const ini = new Date(`${reportInicio}T00:00:00`);
+        if (data < ini) return false;
+      }
+      if (reportFim) {
+        const fim = new Date(`${reportFim}T23:59:59`);
+        if (data > fim) return false;
+      }
+      return true;
+    });
+  }, [viagens, reportEmpresa, reportInicio, reportFim]);
+
+  const resumoRelatorio = useMemo(() => {
+    const faturou = relatorioData.reduce((acc, curr) => acc + (parseFloat(curr.valorFrete) || 0), 0);
+    const distribuicao = relatorioData.reduce((acc, curr) => acc + (parseFloat(curr.valorDistribuicao) || 0), 0);
+    return { faturou, distribuicao, lucro: faturou - distribuicao };
+  }, [relatorioData]);
+
+  const downloadRelatorioCSV = () => {
+    const header = ['NF', 'Empresa', 'Data', 'Frete', 'Distribuicao', 'Lucro'];
+    const rows = relatorioData.map(item => [
+      item.numeroNF || '',
+      item.contratante || '',
+      item.dataSaida || item.dataNF || item.dataEntrega || '',
+      (parseFloat(item.valorFrete) || 0).toFixed(2),
+      (parseFloat(item.valorDistribuicao) || 0).toFixed(2),
+      ((parseFloat(item.valorFrete) || 0) - (parseFloat(item.valorDistribuicao) || 0)).toFixed(2)
+    ]);
+    const csv = [header, ...rows].map(r => r.map(c => `"${String(c).replaceAll('\"', '\"\"')}"`).join(';')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'relatorio_cargofy.csv';
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   const filteredData = useMemo(() => {
     let list = [];
     switch (activeTab) {
@@ -147,6 +217,7 @@ function App() {
         list = statusFilter === 'Todos' ? viagens : viagens.filter(v => v.status === statusFilter);
         break;
       case 'financeiro': list = financeiro; break;
+      case 'relatorios': list = viagens; break;
       case 'clientes': list = clientes; break;
       case 'motoristas': list = motoristas; break;
       case 'veiculos': list = veiculos; break;
@@ -238,6 +309,7 @@ function App() {
           <NavItem icon={LayoutDashboard} label="Painel" active={activeTab === 'dashboard'} onClick={() => {setActiveTab('dashboard'); setStatusFilter('Todos');}} />
           <NavItem icon={Package} label="Viagens" active={activeTab === 'viagens'} onClick={() => {setActiveTab('viagens'); setStatusFilter('Todos');}} />
           <NavItem icon={DollarSign} label="Financeiro" active={activeTab === 'financeiro'} onClick={() => setActiveTab('financeiro')} />
+          <NavItem icon={FileText} label="Relatórios" active={activeTab === 'relatorios'} onClick={() => setActiveTab('relatorios')} />
           <div className="py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Gestão</div>
           <NavItem icon={Users} label="Clientes" active={activeTab === 'clientes'} onClick={() => setActiveTab('clientes')} />
           <NavItem icon={Briefcase} label="Motoristas" active={activeTab === 'motoristas'} onClick={() => setActiveTab('motoristas')} />
@@ -265,9 +337,11 @@ function App() {
               </button>
             )}
           </div>
-          <button onClick={() => { resetForm(); setEditingId(null); setModalOpen(true); }} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-blue-500/20 transition-all">
-            <Plus size={16} /> Novo Registro
-          </button>
+          {activeTab !== 'relatorios' && (
+            <button onClick={() => { resetForm(); setEditingId(null); setModalOpen(true); }} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-blue-500/20 transition-all">
+              <Plus size={16} /> Novo Registro
+            </button>
+          )}
         </header>
 
         <div className="p-8 overflow-y-auto">
@@ -287,6 +361,63 @@ function App() {
             </div>
           )}
 
+          {activeTab === 'relatorios' && (
+            <div className="space-y-6 mb-8">
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Empresa</label>
+                  <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold outline-none border border-transparent focus:border-blue-400" value={reportEmpresa} onChange={e => setReportEmpresa(e.target.value)}>
+                    {empresasRelatorio.map(emp => <option key={emp} value={emp}>{emp}</option>)}
+                  </select>
+                </div>
+                <Input label="Data Inicial" type="date" value={reportInicio} onChange={setReportInicio} />
+                <Input label="Data Final" type="date" value={reportFim} onChange={setReportFim} />
+                <div className="flex items-end">
+                  <button onClick={downloadRelatorioCSV} className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase transition-all">
+                    <Download size={16} /> Gerar Relatório CSV
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card title="Faturamento" value={`R$ ${resumoRelatorio.faturou.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={DollarSign} color="bg-indigo-600" />
+                <Card title="Distribuição" value={`R$ ${resumoRelatorio.distribuicao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={Truck} color="bg-amber-500" />
+                <Card title="Lucro" value={`R$ ${resumoRelatorio.lucro.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={CheckCircle2} color="bg-emerald-600" />
+              </div>
+
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white">
+                  <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Relatório Detalhado</h3>
+                  <span className="text-[10px] font-bold text-slate-400">{relatorioData.length} registros</span>
+                </div>
+                <table className="w-full text-left border-collapse">
+                  <thead className="bg-slate-50 border-b border-slate-100">
+                    <tr>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">NF / Empresa</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Data</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Frete / Distribuição</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Lucro</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {relatorioData.map(item => (
+                      <tr key={`rel-${item.id}`} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="px-6 py-4">
+                          <p className="font-bold text-slate-800">{item.numeroNF || '---'}</p>
+                          <p className="text-[10px] font-black text-blue-600 uppercase tracking-tight">{item.contratante || 'Sem empresa'}</p>
+                        </td>
+                        <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.dataSaida || item.dataNF || item.dataEntrega ? new Date((item.dataSaida || item.dataNF || item.dataEntrega) + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</td>
+                        <td className="px-6 py-4 text-sm font-bold text-slate-700">R$ {(parseFloat(item.valorFrete) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} / R$ {(parseFloat(item.valorDistribuicao) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="px-6 py-4 text-sm font-black text-emerald-700">R$ {((parseFloat(item.valorFrete) || 0) - (parseFloat(item.valorDistribuicao) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {activeTab !== 'relatorios' && (
           <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white">
               <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">{activeTab}</h3>
@@ -361,6 +492,54 @@ function App() {
               </tbody>
             </table>
           </div>
+          )}
+
+          {activeTab === 'dashboard' && (
+            <div className="space-y-6 mt-8">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card title="Boletos Gerados" value={boletoStats.boletosGerados} icon={FileText} color="bg-indigo-600" />
+                <Card title="Boletos Atrasados" value={boletoStats.boletosAtrasados} icon={AlertCircle} color="bg-rose-600" />
+                <Card title="Boletos Pagos" value={boletoStats.boletosPagos} icon={CheckCircle2} color="bg-emerald-600" />
+              </div>
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white">
+                  <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Dashboard Boletos</h3>
+                  <span className="text-[10px] font-bold text-slate-400">{financeiro.length} registros</span>
+                </div>
+                <table className="w-full text-left border-collapse">
+                  <thead className="bg-slate-50 border-b border-slate-100">
+                    <tr>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">NF / Contratante</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Vencimento</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Status</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase text-right">Boleto</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {financeiro.map(item => (
+                      <tr key={`dash-fin-${item.id}`} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="px-6 py-4">
+                          <p className="font-bold text-slate-800">{item.numeroNF || '---'}</p>
+                          <p className="text-[10px] font-black text-blue-600 uppercase tracking-tight">{item.contratante || 'Contratante não informado'}</p>
+                        </td>
+                        <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.vencimento ? new Date(item.vencimento + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</td>
+                        <td className="px-6 py-4">
+                          <span className={`w-fit px-2 py-0.5 rounded text-[9px] font-black uppercase ${(item.statusFinanceiro || '').toLowerCase() === 'pago' ? 'bg-emerald-100 text-emerald-600' : (item.statusFinanceiro || '').toLowerCase() === 'vencido' ? 'bg-rose-100 text-rose-600' : 'bg-amber-100 text-amber-600'}`}>
+                            {item.statusFinanceiro || 'Pendente'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          {(item.boleto || item.urlBoleto || item.urlComprovante) ? (
+                            <a href={item.boleto || item.urlBoleto || item.urlComprovante} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase">Abrir <ExternalLink size={12} /></a>
+                          ) : <span className="text-[10px] font-bold text-slate-400">Sem link</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       </main>
 
