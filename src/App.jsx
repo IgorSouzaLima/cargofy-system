@@ -688,9 +688,9 @@ function App() {
                         }`}>
                           {(activeTab === 'dashboard' || activeTab === 'viagens') ? getStatusViagem(item) : (item.status || item.statusFinanceiro || 'Ativo')}
                         </span>
-                        {item.valorFrete && <p className="font-black text-slate-900 text-sm">Frete: R$ {parseFloat(item.valorFrete).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>}
-                        {(item.valorDistribuicao || activeTab === 'financeiro') && <p className="text-[10px] font-black text-amber-700">Custo: R$ {(parseFloat(item.valorDistribuicao) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>}
-                        {(item.valorDistribuicao || item.lucro || activeTab === 'financeiro') && <p className="text-[10px] font-black text-emerald-700">Lucro: R$ {((parseFloat(item.valorFrete) || 0) - (parseFloat(item.valorDistribuicao) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>}
+                        {activeTab !== 'dashboard' && item.valorFrete && <p className="font-black text-slate-900 text-sm">Frete: R$ {parseFloat(item.valorFrete).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>}
+                        {activeTab !== 'dashboard' && (item.valorDistribuicao || activeTab === 'financeiro') && <p className="text-[10px] font-black text-amber-700">Custo: R$ {(parseFloat(item.valorDistribuicao) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>}
+                        {activeTab !== 'dashboard' && (item.valorDistribuicao || item.lucro || activeTab === 'financeiro') && <p className="text-[10px] font-black text-emerald-700">Lucro: R$ {((parseFloat(item.valorFrete) || 0) - (parseFloat(item.valorDistribuicao) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>}
                       </div>
                     </td>
                     <td className="px-6 py-4 text-right">
