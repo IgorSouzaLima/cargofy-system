@@ -75,6 +75,7 @@ function App() {
 
   const [formData, setFormData] = useState({
     numeroNF: '', 
+    numeroCarga: '', 
     dataNF: '', 
     dataSaida: '', 
     dataEntrega: '', // Novo campo
@@ -128,10 +129,38 @@ function App() {
     return () => unsubscribes.forEach(unsub => unsub());
   }, [user]);
 
+  const cargaStatusMap = useMemo(() => {
+    const agrupado = {};
+    viagens.forEach(v => {
+      const chave = (v.numeroCarga || '').trim();
+      if (!chave) return;
+      if (!agrupado[chave]) agrupado[chave] = [];
+      agrupado[chave].push(v);
+    });
+
+    const mapa = {};
+    Object.entries(agrupado).forEach(([chave, itens]) => {
+      mapa[chave] = {
+        total: itens.length,
+        entregues: itens.filter(i => i.status === 'Entregue').length,
+        allEntregues: itens.every(i => i.status === 'Entregue')
+      };
+    });
+    return mapa;
+  }, [viagens]);
+
+  const getStatusViagem = (viagem) => {
+    const chave = (viagem.numeroCarga || '').trim();
+    if (chave && cargaStatusMap[chave]) {
+      return cargaStatusMap[chave].allEntregues ? 'Entregue' : 'Em rota';
+    }
+    return viagem.status || 'Pendente';
+  };
+
   const stats = useMemo(() => {
-    const pendentes = viagens.filter(v => v.status === 'Pendente').length;
-    const emRota = viagens.filter(v => v.status === 'Em rota').length;
-    const entregues = viagens.filter(v => v.status === 'Entregue').length;
+    const pendentes = viagens.filter(v => getStatusViagem(v) === 'Pendente').length;
+    const emRota = viagens.filter(v => getStatusViagem(v) === 'Em rota').length;
+    const entregues = viagens.filter(v => getStatusViagem(v) === 'Entregue').length;
     return { pendentes, emRota, entregues, total: viagens.length };
   }, [viagens]);
 
@@ -146,7 +175,7 @@ function App() {
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
 
-    const boletosGerados = financeiro.filter(f => f.boleto || f.urlBoleto || f.urlComprovante).length;
+    const boletosGerados = financeiro.length;
     const boletosPagos = financeiro.filter(f => (f.statusFinanceiro || '').toLowerCase() === 'pago').length;
     const boletosAtrasados = financeiro.filter(f => {
       if ((f.statusFinanceiro || '').toLowerCase() === 'vencido') return true;
@@ -266,7 +295,7 @@ function App() {
     switch (activeTab) {
       case 'dashboard':
       case 'viagens': 
-        list = statusFilter === 'Todos' ? viagens : viagens.filter(v => v.status === statusFilter);
+        list = statusFilter === 'Todos' ? viagens : viagens.filter(v => getStatusViagem(v) === statusFilter);
         break;
       case 'financeiro': list = financeiro; break;
       case 'relatorios': list = viagens; break;
@@ -280,6 +309,7 @@ function App() {
     const term = searchNF.toLowerCase();
     return list.filter(item => 
       (item.numeroNF?.toLowerCase().includes(term)) ||
+      (item.numeroCarga?.toLowerCase().includes(term)) ||
       (item.contratante?.toLowerCase().includes(term)) ||
       (item.nome?.toLowerCase().includes(term)) ||
       (item.placa?.toLowerCase().includes(term)) ||
@@ -337,7 +367,7 @@ function App() {
 
   const resetForm = () => {
     setFormData({ 
-      numeroNF: '', dataNF: '', dataSaida: '', dataEntrega: '', 
+      numeroNF: '', numeroCarga: '', dataNF: '', dataSaida: '', dataEntrega: '', 
       contratante: '', destinatario: '', cidade: '', 
       volume: '', peso: '', valorNF: '', chaveID: '', status: 'Pendente', 
       valorFrete: '', valorDistribuicao: '', lucro: '', metodoPagamento: '', numeroBoleto: '', diaVencimento: '', motorista: '', veiculo: '', placa: '', urlComprovante: '', boleto: '', vencimento: '', 
@@ -496,6 +526,7 @@ function App() {
                       <div className="flex flex-col">
                         <div className="flex items-center gap-2">
                           <p className="font-bold text-slate-800">{item.numeroNF || item.nome || item.modelo || "---"}</p>
+                          {item.numeroCarga && <p className="text-[10px] font-black text-indigo-600 uppercase">Carga #{item.numeroCarga}</p>}
                           {(item.boleto || item.urlBoleto || item.urlComprovante) && (
                             <a href={item.boleto || item.urlBoleto || item.urlComprovante} target="_blank" rel="noreferrer" title="Ver Comprovante" className="text-emerald-500 hover:scale-110 transition-transform">
                               <Paperclip size={14} />
@@ -525,12 +556,12 @@ function App() {
                     <td className="px-6 py-4">
                       <div className="flex flex-col gap-1">
                         <span className={`w-fit px-2 py-0.5 rounded text-[9px] font-black uppercase ${
-                          item.status === 'Em rota' ? 'bg-blue-100 text-blue-600' : 
-                          item.status === 'Entregue' ? 'bg-emerald-100 text-emerald-600' :
-                          item.status === 'Pendente' ? 'bg-amber-100 text-amber-600' :
+                          ((activeTab === 'dashboard' || activeTab === 'viagens') ? getStatusViagem(item) : item.status) === 'Em rota' ? 'bg-blue-100 text-blue-600' : 
+                          ((activeTab === 'dashboard' || activeTab === 'viagens') ? getStatusViagem(item) : item.status) === 'Entregue' ? 'bg-emerald-100 text-emerald-600' :
+                          ((activeTab === 'dashboard' || activeTab === 'viagens') ? getStatusViagem(item) : item.status) === 'Pendente' ? 'bg-amber-100 text-amber-600' :
                           'bg-slate-100 text-slate-500'
                         }`}>
-                          {item.status || item.statusFinanceiro || 'Ativo'}
+                          {(activeTab === 'dashboard' || activeTab === 'viagens') ? getStatusViagem(item) : (item.status || item.statusFinanceiro || 'Ativo')}
                         </span>
                         {item.valorFrete && <p className="font-black text-slate-900 text-sm">Frete: R$ {parseFloat(item.valorFrete).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>}
                         {(item.valorDistribuicao || item.lucro) && <p className="text-[10px] font-black text-emerald-700">Lucro: R$ {((parseFloat(item.valorFrete) || 0) - (parseFloat(item.valorDistribuicao) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>}
@@ -609,8 +640,9 @@ function App() {
                 <div className="flex items-center gap-2 border-l-4 border-blue-500 pl-3">
                   <h4 className="text-[11px] font-black text-slate-800 uppercase tracking-widest">Documentação e Contrato</h4>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <Input label="Número Nota Fiscal" value={formData.numeroNF} onChange={v => setFormData({...formData, numeroNF: v})} />
+                  <Input label="Número da Carga" value={formData.numeroCarga} onChange={v => setFormData({...formData, numeroCarga: v})} />
                   <Input label="Empresa Contratante" placeholder="Ex: LogiExpress S.A." value={formData.contratante} onChange={v => setFormData({...formData, contratante: v})} />
                   <Input label="Valor da NF (R$)" type="number" value={formData.valorNF} onChange={v => setFormData({...formData, valorNF: v})} />
                 </div>
@@ -734,9 +766,10 @@ function App() {
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Input label="Número Nota Fiscal" value={formData.numeroNF} onChange={v => setFormData({...formData, numeroNF: v})} />
-                <Input label="Valor do Frete (R$)" type="number" value={formData.valorFrete} onChange={v => setFormData({...formData, valorFrete: v})} />
+                <Input label="Número da Carga" value={formData.numeroCarga} onChange={v => setFormData({...formData, numeroCarga: v})} />
               </div>
               <Input label="Contratante" value={formData.contratante} onChange={v => setFormData({...formData, contratante: v})} />
+              <Input label="Valor do Frete (R$)" type="number" value={formData.valorFrete} onChange={v => setFormData({...formData, valorFrete: v})} />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Input label="Vencimento" type="date" value={formData.vencimento} onChange={v => setFormData({...formData, vencimento: v})} />
                 <div className="space-y-1">
