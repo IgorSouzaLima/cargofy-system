@@ -5,7 +5,7 @@ import { getFirestore, collection, doc, addDoc, onSnapshot, updateDoc, deleteDoc
 import { 
   LayoutDashboard, Truck, Users, DollarSign, Plus, Package, MapPin, X, Trash2, 
   Briefcase, LogOut, Lock, Mail, Clock, FileText, Search, Calendar, Layers, 
-  CheckCircle2, AlertCircle, Edit3, Download, SteeringWheel, ArrowRight, Camera, Paperclip, ExternalLink, Building2
+  CheckCircle2, AlertCircle, Edit3, Download, ArrowRight, Camera, Paperclip, ExternalLink, Building2
 } from 'lucide-react';
 
 // --- CONFIGURAÇÃO ---
@@ -84,10 +84,16 @@ function App() {
     chaveID: '', 
     status: 'Pendente', 
     valorFrete: '', 
+    valorDistribuicao: '', 
+    lucro: '', 
+    metodoPagamento: '', 
+    numeroBoleto: '', 
+    diaVencimento: '', 
     motorista: '', 
     veiculo: '', 
     placa: '', 
     urlComprovante: '', 
+    boleto: '', 
     vencimento: '', 
     statusFinanceiro: 'Pendente', 
     nome: '', 
@@ -154,7 +160,11 @@ function App() {
   }, [activeTab, statusFilter, viagens, financeiro, clientes, motoristas, veiculos, searchNF]);
 
   const handleOpenEdit = (item) => {
-    setFormData(item);
+    setFormData({
+      ...item,
+      boleto: item.boleto || item.urlBoleto || item.urlComprovante || '',
+      statusFinanceiro: item.statusFinanceiro || 'Pendente'
+    });
     setEditingId(item.id);
     setModalOpen(true);
   };
@@ -162,12 +172,24 @@ function App() {
   const handleSave = async (e) => {
     e.preventDefault();
     const colName = (activeTab === 'dashboard' || activeTab === 'viagens') ? 'viagens' : activeTab;
+    const payload = colName === 'financeiro'
+      ? {
+          ...formData,
+          urlBoleto: formData.boleto || '',
+          urlComprovante: formData.boleto || formData.urlComprovante || ''
+        }
+      : colName === 'viagens'
+        ? {
+            ...formData,
+            lucro: ((parseFloat(formData.valorFrete) || 0) - (parseFloat(formData.valorDistribuicao) || 0)).toFixed(2)
+          }
+        : formData;
     try {
       if (editingId) {
-        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', colName, editingId), formData);
+        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', colName, editingId), payload);
       } else {
         await addDoc(collection(db, 'artifacts', appId, 'public', 'data', colName), {
-          ...formData, userId: user.uid, createdAt: serverTimestamp()
+          ...payload, userId: user.uid, createdAt: serverTimestamp()
         });
       }
       setModalOpen(false);
@@ -181,11 +203,13 @@ function App() {
       numeroNF: '', dataNF: '', dataSaida: '', dataEntrega: '', 
       contratante: '', destinatario: '', cidade: '', 
       volume: '', peso: '', valorNF: '', chaveID: '', status: 'Pendente', 
-      valorFrete: '', motorista: '', veiculo: '', placa: '', urlComprovante: '', vencimento: '', 
+      valorFrete: '', valorDistribuicao: '', lucro: '', metodoPagamento: '', numeroBoleto: '', diaVencimento: '', motorista: '', veiculo: '', placa: '', urlComprovante: '', boleto: '', vencimento: '', 
       statusFinanceiro: 'Pendente', nome: '', email: '', telefone: '', 
       modelo: '', tipo: ''
     });
   };
+
+  const lucroViagem = (parseFloat(formData.valorFrete) || 0) - (parseFloat(formData.valorDistribuicao) || 0);
 
   if (!user) return <Login />;
 
@@ -263,8 +287,8 @@ function App() {
                       <div className="flex flex-col">
                         <div className="flex items-center gap-2">
                           <p className="font-bold text-slate-800">{item.numeroNF || item.nome || item.modelo || "---"}</p>
-                          {item.urlComprovante && (
-                            <a href={item.urlComprovante} target="_blank" rel="noreferrer" title="Ver Comprovante" className="text-emerald-500 hover:scale-110 transition-transform">
+                          {(item.boleto || item.urlBoleto || item.urlComprovante) && (
+                            <a href={item.boleto || item.urlBoleto || item.urlComprovante} target="_blank" rel="noreferrer" title="Ver Comprovante" className="text-emerald-500 hover:scale-110 transition-transform">
                               <Paperclip size={14} />
                             </a>
                           )}
@@ -299,7 +323,8 @@ function App() {
                         }`}>
                           {item.status || item.statusFinanceiro || 'Ativo'}
                         </span>
-                        {item.valorFrete && <p className="font-black text-slate-900 text-sm">R$ {parseFloat(item.valorFrete).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>}
+                        {item.valorFrete && <p className="font-black text-slate-900 text-sm">Frete: R$ {parseFloat(item.valorFrete).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>}
+                        {(item.valorDistribuicao || item.lucro) && <p className="text-[10px] font-black text-emerald-700">Lucro: R$ {((parseFloat(item.valorFrete) || 0) - (parseFloat(item.valorDistribuicao) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>}
                       </div>
                     </td>
                     <td className="px-6 py-4 text-right">
@@ -344,11 +369,16 @@ function App() {
                   <Input label="Empresa Destinatária" value={formData.destinatario} onChange={v => setFormData({...formData, destinatario: v})} />
                   <Input label="Cidade de Destino" value={formData.cidade} onChange={v => setFormData({...formData, cidade: v})} />
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                   <Input label="Volume (Qtd)" type="number" value={formData.volume} onChange={v => setFormData({...formData, volume: v})} />
                   <Input label="Peso (Kg)" type="number" value={formData.peso} onChange={v => setFormData({...formData, peso: v})} />
                   <Input label="Valor Frete (R$)" type="number" value={formData.valorFrete} onChange={v => setFormData({...formData, valorFrete: v})} />
+                  <Input label="Valor da Distribuição (R$)" type="number" value={formData.valorDistribuicao} onChange={v => setFormData({...formData, valorDistribuicao: v})} />
                   <Input label="Data Saída" type="date" value={formData.dataSaida} onChange={v => setFormData({...formData, dataSaida: v})} />
+                </div>
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+                  <p className="text-[10px] font-black text-emerald-700 uppercase tracking-wider">Lucro estimado (Frete - Distribuição)</p>
+                  <p className="text-lg font-black text-emerald-800">R$ {lucroViagem.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                 </div>
               </div>
 
@@ -373,6 +403,25 @@ function App() {
                       <option value="Entregue">Entregue (Concluído)</option>
                     </select>
                   </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Método de Pagamento</label>
+                    <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold uppercase outline-none border border-transparent focus:border-blue-400" value={formData.metodoPagamento || ''} onChange={e => setFormData({...formData, metodoPagamento: e.target.value})}>
+                      <option value="">Selecionar...</option>
+                      <option value="Boleto">Boleto</option>
+                      <option value="Pix">Pix</option>
+                      <option value="Transferencia">Transferência</option>
+                      <option value="Dinheiro">Dinheiro</option>
+                    </select>
+                  </div>
+                  {formData.metodoPagamento === 'Boleto' && (
+                    <>
+                      <Input label="Número do Boleto" value={formData.numeroBoleto || ''} onChange={v => setFormData({...formData, numeroBoleto: v})} />
+                      <Input label="Dia do Vencimento" type="number" value={formData.diaVencimento || ''} onChange={v => setFormData({...formData, diaVencimento: v})} placeholder="Ex: 15" />
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -409,6 +458,29 @@ function App() {
               )}
             </div>
           )}
+
+          {activeTab === 'financeiro' && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input label="Número Nota Fiscal" value={formData.numeroNF} onChange={v => setFormData({...formData, numeroNF: v})} />
+                <Input label="Valor do Frete (R$)" type="number" value={formData.valorFrete} onChange={v => setFormData({...formData, valorFrete: v})} />
+              </div>
+              <Input label="Contratante" value={formData.contratante} onChange={v => setFormData({...formData, contratante: v})} />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input label="Vencimento" type="date" value={formData.vencimento} onChange={v => setFormData({...formData, vencimento: v})} />
+                <div className="space-y-1">
+                  <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Status Financeiro</label>
+                  <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold uppercase outline-none border border-transparent focus:border-blue-400" value={formData.statusFinanceiro || 'Pendente'} onChange={e => setFormData({...formData, statusFinanceiro: e.target.value})}>
+                    <option value="Pendente">Pendente</option>
+                    <option value="Pago">Pago</option>
+                    <option value="Vencido">Vencido</option>
+                  </select>
+                </div>
+              </div>
+              <Input label="Link do Boleto" placeholder="https://..." value={formData.boleto || ''} onChange={v => setFormData({...formData, boleto: v})} />
+            </div>
+          )}
+
 
           {activeTab === 'clientes' && (
             <div className="space-y-4">
