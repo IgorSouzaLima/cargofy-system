@@ -185,7 +185,9 @@ function App() {
       return !Number.isNaN(venc.getTime()) && venc < hoje;
     }).length;
 
-    return { boletosGerados, boletosAtrasados, boletosPagos };
+    const boletosPendentes = Math.max(boletosGerados - boletosPagos - boletosAtrasados, 0);
+
+    return { boletosGerados, boletosPendentes, boletosAtrasados, boletosPagos };
   }, [financeiro]);
 
   const empresasRelatorio = useMemo(() => {
@@ -626,8 +628,9 @@ function App() {
 
           {activeTab === 'dashboard' && (
             <div className="space-y-6 mt-8">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <Card title="Boletos Gerados" value={boletoStats.boletosGerados} icon={FileText} color="bg-indigo-600" />
+                <Card title="Boletos Pendentes" value={boletoStats.boletosPendentes} icon={Clock} color="bg-amber-500" />
                 <Card title="Boletos Atrasados" value={boletoStats.boletosAtrasados} icon={AlertCircle} color="bg-rose-600" />
                 <Card title="Boletos Pagos" value={boletoStats.boletosPagos} icon={CheckCircle2} color="bg-emerald-600" />
               </div>
