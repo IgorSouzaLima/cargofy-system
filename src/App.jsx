@@ -177,24 +177,27 @@ function App() {
 
   const normalizarStatusFinanceiro = (status) => (status || 'pendente').trim().toLowerCase();
 
+
+  const getStatusFinanceiro = (item) => {
+    const statusAtual = normalizarStatusFinanceiro(item.statusFinanceiro);
+    if (statusAtual === 'pago') return 'Pago';
+
+    const dataVencimento = item.dataVencimentoBoleto || item.vencimento;
+    if (dataVencimento) {
+      const hoje = new Date();
+      hoje.setHours(0, 0, 0, 0);
+      const venc = new Date(`${dataVencimento}T12:00:00`);
+      if (!Number.isNaN(venc.getTime()) && venc < hoje) return 'Vencido';
+    }
+
+    return 'Pendente';
+  };
+
   const boletoStats = useMemo(() => {
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
-
     const boletosGerados = financeiro.length;
-    const boletosPagos = financeiro.filter(f => normalizarStatusFinanceiro(f.statusFinanceiro) === 'pago').length;
-    const boletosAtrasados = financeiro.filter(f => {
-      if (normalizarStatusFinanceiro(f.statusFinanceiro) === 'vencido') return true;
-      if (normalizarStatusFinanceiro(f.statusFinanceiro) === 'pago') return false;
-      if (!f.vencimento) return false;
-      const venc = new Date(`${f.vencimento}T12:00:00`);
-      return !Number.isNaN(venc.getTime()) && venc < hoje;
-    }).length;
-
-    const boletosPendentes = financeiro.filter(f => {
-      const status = normalizarStatusFinanceiro(f.statusFinanceiro);
-      return status === 'pendente';
-    }).length;
+    const boletosPagos = financeiro.filter(f => getStatusFinanceiro(f) === 'Pago').length;
+    const boletosAtrasados = financeiro.filter(f => getStatusFinanceiro(f) === 'Vencido').length;
+    const boletosPendentes = financeiro.filter(f => getStatusFinanceiro(f) === 'Pendente').length;
 
     return { boletosGerados, boletosPendentes, boletosAtrasados, boletosPagos };
   }, [financeiro]);
@@ -681,12 +684,12 @@ function App() {
                     <td className="px-6 py-4">
                       <div className="flex flex-col gap-1">
                         <span className={`w-fit px-2 py-0.5 rounded text-[9px] font-black uppercase ${
-                          ((activeTab === 'dashboard' || activeTab === 'viagens') ? getStatusViagem(item) : item.status) === 'Em rota' ? 'bg-blue-100 text-blue-600' : 
-                          ((activeTab === 'dashboard' || activeTab === 'viagens') ? getStatusViagem(item) : item.status) === 'Entregue' ? 'bg-emerald-100 text-emerald-600' :
-                          ((activeTab === 'dashboard' || activeTab === 'viagens') ? getStatusViagem(item) : item.status) === 'Pendente' ? 'bg-amber-100 text-amber-600' :
+                          ((activeTab === 'dashboard' || activeTab === 'viagens') ? getStatusViagem(item) : (activeTab === 'financeiro' ? getStatusFinanceiro(item) : item.status)) === 'Em rota' ? 'bg-blue-100 text-blue-600' : 
+                          ((activeTab === 'dashboard' || activeTab === 'viagens') ? getStatusViagem(item) : (activeTab === 'financeiro' ? getStatusFinanceiro(item) : item.status)) === 'Entregue' ? 'bg-emerald-100 text-emerald-600' :
+                          ((activeTab === 'dashboard' || activeTab === 'viagens') ? getStatusViagem(item) : (activeTab === 'financeiro' ? getStatusFinanceiro(item) : item.status)) === 'Pendente' ? 'bg-amber-100 text-amber-600' :
                           'bg-slate-100 text-slate-500'
                         }`}>
-                          {(activeTab === 'dashboard' || activeTab === 'viagens') ? getStatusViagem(item) : (item.status || item.statusFinanceiro || 'Ativo')}
+                          {(activeTab === 'dashboard' || activeTab === 'viagens') ? getStatusViagem(item) : (activeTab === 'financeiro' ? getStatusFinanceiro(item) : (item.status || 'Ativo'))}
                         </span>
                         {activeTab !== 'dashboard' && item.valorFrete && <p className="font-black text-slate-900 text-sm">Frete: R$ {parseFloat(item.valorFrete).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>}
                         {activeTab !== 'dashboard' && (item.valorDistribuicao || activeTab === 'financeiro') && <p className="text-[10px] font-black text-amber-700">Custo: R$ {(parseFloat(item.valorDistribuicao) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>}
@@ -742,8 +745,8 @@ function App() {
                         </td>
                         <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.vencimento ? new Date(item.vencimento + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</td>
                         <td className="px-6 py-4">
-                          <span className={`w-fit px-2 py-0.5 rounded text-[9px] font-black uppercase ${(item.statusFinanceiro || '').toLowerCase() === 'pago' ? 'bg-emerald-100 text-emerald-600' : (item.statusFinanceiro || '').toLowerCase() === 'vencido' ? 'bg-rose-100 text-rose-600' : 'bg-amber-100 text-amber-600'}`}>
-                            {item.statusFinanceiro || 'Pendente'}
+                          <span className={`w-fit px-2 py-0.5 rounded text-[9px] font-black uppercase ${getStatusFinanceiro(item) === 'Pago' ? 'bg-emerald-100 text-emerald-600' : getStatusFinanceiro(item) === 'Vencido' ? 'bg-rose-100 text-rose-600' : 'bg-amber-100 text-amber-600'}`}>
+                            {getStatusFinanceiro(item)}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-right">
@@ -929,7 +932,6 @@ function App() {
                   <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold uppercase outline-none border border-transparent focus:border-blue-400" value={formData.statusFinanceiro || 'Pendente'} onChange={e => setFormData({...formData, statusFinanceiro: e.target.value})}>
                     <option value="Pendente">Pendente</option>
                     <option value="Pago">Pago</option>
-                    <option value="Vencido">Vencido</option>
                   </select>
                 </div>
               </div>
@@ -982,7 +984,7 @@ function App() {
             <Info label="Cidade" value={detailItem.cidade} />
             <Info label="Motorista" value={detailItem.motorista} />
             <Info label="Veículo" value={detailItem.veiculo} />
-            <Info label="Status" value={detailItem.status || detailItem.statusFinanceiro || getStatusViagem(detailItem)} />
+            <Info label="Status" value={detailItem.status || (detailItem.statusFinanceiro || detailItem.vencimento || detailItem.dataVencimentoBoleto ? getStatusFinanceiro(detailItem) : getStatusViagem(detailItem))} />
             <Info label="Valor Frete" value={detailItem.valorFrete ? `R$ ${parseFloat(detailItem.valorFrete).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : ''} />
             <Info label="Valor Distribuição" value={detailItem.valorDistribuicao ? `R$ ${parseFloat(detailItem.valorDistribuicao).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : ''} />
             <Info label="Lucro" value={`R$ ${((parseFloat(detailItem.valorFrete) || 0) - (parseFloat(detailItem.valorDistribuicao) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} />
