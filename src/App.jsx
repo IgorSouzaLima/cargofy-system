@@ -1,12 +1,18 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
+import { getAuth, onAuthStateChanged, signOut } from 'firebase/auth';
 import { getFirestore, collection, doc, addDoc, onSnapshot, updateDoc, deleteDoc, serverTimestamp, query } from 'firebase/firestore';
 import { 
   LayoutDashboard, Truck, Users, DollarSign, Plus, Package, MapPin, X, Trash2, 
-  Briefcase, LogOut, Lock, Mail, Clock, FileText, Search, Calendar, Layers, 
-  CheckCircle2, AlertCircle, Edit3, Download, ArrowRight, Camera, Paperclip, ExternalLink, Building2, Eye
+  Briefcase, LogOut, Clock, FileText, Search, Calendar, Layers, 
+  CheckCircle2, AlertCircle, Edit3, Download, Camera, Paperclip, ExternalLink, Building2, Eye
 } from 'lucide-react';
+import Card from './components/Card';
+import Modal from './components/Modal';
+import NavItem from './components/NavItem';
+import Input from './components/Input';
+import Info from './components/Info';
+import Login from './components/Login';
 
 // --- CONFIGURAÇÃO ---
 const firebaseConfig = { 
@@ -24,43 +30,13 @@ const appId = 'cargofy-b4435-prod';
 
 // --- COMPONENTES DE UI ---
 
-const Card = ({ title, value, icon: Icon, color, onClick, active }) => (
-  <button 
-    onClick={onClick}
-    className={`w-full text-left bg-white p-6 rounded-2xl shadow-sm border ${active ? 'border-blue-500 ring-2 ring-blue-500/10' : 'border-slate-100'} flex items-start justify-between transition-all hover:shadow-md hover:scale-[1.02] active:scale-95`}
-  >
-    <div>
-      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{title}</p>
-      <h3 className="text-xl font-black text-slate-800 mt-1">{value}</h3>
-      {onClick && <p className="text-[9px] font-bold text-blue-500 mt-2 flex items-center gap-1 uppercase">Ver detalhes <ArrowRight size={10}/></p>}
-    </div>
-    <div className={`p-3 rounded-xl ${color} text-white shadow-lg`}>
-      <Icon size={20} />
-    </div>
-  </button>
-);
-
-const Modal = ({ isOpen, onClose, title, children }) => {
-  if (!isOpen) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-        <div className="px-8 py-5 border-b flex justify-between items-center bg-slate-50">
-          <h2 className="text-lg font-black text-slate-800 uppercase tracking-tight">{title}</h2>
-          <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors"><X size={20} /></button>
-        </div>
-        <div className="p-8 overflow-y-auto">{children}</div>
-      </div>
-    </div>
-  );
-};
-
 // --- APP PRINCIPAL ---
 
 function App() {
   const [user, setUser] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [statusFilter, setStatusFilter] = useState('Todos');
+  const [boletoFilter, setBoletoFilter] = useState('Gerados');
   const [viagens, setViagens] = useState([]);
   const [financeiro, setFinanceiro] = useState([]);
   const [clientes, setClientes] = useState([]);
@@ -202,6 +178,11 @@ function App() {
     return { boletosGerados, boletosPendentes, boletosAtrasados, boletosPagos };
   }, [financeiro]);
 
+  const boletosDashboardFiltrados = useMemo(() => {
+    if (boletoFilter === 'Gerados') return financeiro;
+    return financeiro.filter((f) => getStatusFinanceiro(f) === boletoFilter);
+  }, [financeiro, boletoFilter]);
+
   const empresasRelatorio = useMemo(() => {
     const empresas = [...new Set(viagens.map(v => v.contratante).filter(Boolean))];
     return ['Todas', ...empresas];
@@ -340,8 +321,8 @@ function App() {
           <p>Empresa: ${reportEmpresa} | Carga: ${reportNumeroCarga || 'Todas'} | Período: ${reportInicio || 'Início'} até ${reportFim || 'Hoje'} | Registros: ${relatorioData.length}</p>
           <div class="resumo">
             <span>Faturamento: R$ ${resumoRelatorio.faturou.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-            <span>Distribuição: R$ ${resumoRelatorio.distribuicao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-            <span>Lucro: R$ ${resumoRelatorio.lucro.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+            ${relatorioPorCarga ? '' : `<span>Distribuição: R$ ${resumoRelatorio.distribuicao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>`}
+            ${relatorioPorCarga ? '' : `<span>Lucro: R$ ${resumoRelatorio.lucro.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>`}
           </div>
           <table>
             <thead>
@@ -396,19 +377,35 @@ function App() {
     setModalOpen(true);
   };
 
-  const syncFinanceiroPorViagem = async (viagemData) => {
+  const syncFinanceiroPorViagem = async (viagemData, viagemId) => {
     const numeroNF = (viagemData.numeroNF || '').trim();
     const numeroCarga = (viagemData.numeroCarga || '').trim();
-    if (!numeroNF && !numeroCarga) return;
+    const numeroBoleto = (viagemData.numeroBoleto || '').trim();
+    const contratante = (viagemData.contratante || '').trim();
+    const viagemOrigemId = (viagemId || viagemData.id || '').trim();
+    if (!numeroNF && !numeroCarga && !numeroBoleto && !viagemOrigemId) return;
 
-    const registroExistente = financeiro.find(f =>
-      (numeroNF && (f.numeroNF || '').trim() === numeroNF) ||
-      (numeroCarga && (f.numeroCarga || '').trim() === numeroCarga && (f.contratante || '') === (viagemData.contratante || ''))
-    );
+    const registroExistente = financeiro.find((f) => {
+      const nfAtual = (f.numeroNF || '').trim();
+      const cargaAtual = (f.numeroCarga || '').trim();
+      const boletoAtual = (f.numeroBoleto || '').trim();
+      const contratanteAtual = (f.contratante || '').trim();
+      const origemAtual = (f.viagemOrigemId || '').trim();
+
+      if (viagemOrigemId && origemAtual === viagemOrigemId) return true;
+      if (numeroNF && numeroBoleto) {
+        return nfAtual === numeroNF && boletoAtual === numeroBoleto && cargaAtual === numeroCarga && contratanteAtual === contratante;
+      }
+      if (numeroNF) return nfAtual === numeroNF && cargaAtual === numeroCarga && contratanteAtual === contratante;
+      if (numeroBoleto) return boletoAtual === numeroBoleto && cargaAtual === numeroCarga && contratanteAtual === contratante;
+
+      return false;
+    });
 
     const statusInformado = (viagemData.statusFinanceiro || '').trim();
     const payloadFinanceiro = {
-      numeroNF: viagemData.numeroNF || '',
+      viagemOrigemId: viagemOrigemId || '',
+      numeroNF: numeroNF,
       numeroCarga: viagemData.numeroCarga || '',
       contratante: viagemData.contratante || '',
       destinatario: viagemData.destinatario || '',
@@ -422,7 +419,7 @@ function App() {
         ? (statusInformado && statusInformado.toLowerCase() !== 'pendente' ? statusInformado : (registroExistente.statusFinanceiro || 'Pendente'))
         : (statusInformado || 'Pendente'),
       metodoPagamento: viagemData.metodoPagamento || '',
-      numeroBoleto: viagemData.numeroBoleto || '',
+      numeroBoleto: numeroBoleto,
       dataVencimentoBoleto: viagemData.dataVencimentoBoleto || '',
       vencimento: viagemData.dataVencimentoBoleto || viagemData.vencimento || '',
       boleto: viagemData.boleto || viagemData.urlComprovante || '',
@@ -471,16 +468,18 @@ function App() {
           }
         : formData;
     try {
+      let viagemId = editingId;
       if (editingId) {
         await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', colName, editingId), payload);
       } else {
-        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', colName), {
+        const novoRegistro = await addDoc(collection(db, 'artifacts', appId, 'public', 'data', colName), {
           ...payload, userId: user.uid, createdAt: serverTimestamp()
         });
+        viagemId = novoRegistro.id;
       }
 
       if (colName === 'viagens') {
-        await syncFinanceiroPorViagem(payload);
+        await syncFinanceiroPorViagem(payload, viagemId);
       }
 
       setModalOpen(false);
@@ -502,7 +501,7 @@ function App() {
 
   const lucroViagem = (parseFloat(formData.valorFrete) || 0) - (parseFloat(formData.valorDistribuicao) || 0);
 
-  if (!user) return <Login />;
+  if (!user) return <Login auth={auth} />;
 
   return (
     <div className="flex h-screen bg-[#f1f5f9] text-slate-900 font-sans">
@@ -728,15 +727,15 @@ function App() {
           {activeTab === 'dashboard' && (
             <div className="space-y-6 mt-8">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Card title="Boletos Gerados" value={boletoStats.boletosGerados} icon={FileText} color="bg-indigo-600" />
-                <Card title="Boletos Pendentes" value={boletoStats.boletosPendentes} icon={Clock} color="bg-amber-500" />
-                <Card title="Boletos Atrasados" value={boletoStats.boletosAtrasados} icon={AlertCircle} color="bg-rose-600" />
-                <Card title="Boletos Pagos" value={boletoStats.boletosPagos} icon={CheckCircle2} color="bg-emerald-600" />
+                <Card title="Boletos Gerados" value={boletoStats.boletosGerados} icon={FileText} color="bg-indigo-600" active={boletoFilter === 'Gerados'} onClick={() => setBoletoFilter('Gerados')} />
+                <Card title="Boletos Pendentes" value={boletoStats.boletosPendentes} icon={Clock} color="bg-amber-500" active={boletoFilter === 'Pendente'} onClick={() => setBoletoFilter('Pendente')} />
+                <Card title="Boletos Atrasados" value={boletoStats.boletosAtrasados} icon={AlertCircle} color="bg-rose-600" active={boletoFilter === 'Vencido'} onClick={() => setBoletoFilter('Vencido')} />
+                <Card title="Boletos Pagos" value={boletoStats.boletosPagos} icon={CheckCircle2} color="bg-emerald-600" active={boletoFilter === 'Pago'} onClick={() => setBoletoFilter('Pago')} />
               </div>
               <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white">
                   <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Dashboard Boletos</h3>
-                  <span className="text-[10px] font-bold text-slate-400">{financeiro.length} registros</span>
+                  <span className="text-[10px] font-bold text-slate-400">{boletosDashboardFiltrados.length} registros</span>
                 </div>
                 <table className="w-full text-left border-collapse">
                   <thead className="bg-slate-50 border-b border-slate-100">
@@ -748,7 +747,12 @@ function App() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
-                    {financeiro.map(item => (
+                    {boletosDashboardFiltrados.length === 0 && (
+                      <tr>
+                        <td colSpan={4} className="px-6 py-8 text-center text-xs font-bold text-slate-400 uppercase">Sem boletos para o filtro selecionado</td>
+                      </tr>
+                    )}
+                    {boletosDashboardFiltrados.map(item => (
                       <tr key={`dash-fin-${item.id}`} className="hover:bg-slate-50/50 transition-colors">
                         <td className="px-6 py-4">
                           <p className="font-bold text-slate-800">{item.numeroNF || '---'}</p>
@@ -1020,98 +1024,5 @@ function App() {
   );
 }
 
-function Info({ label, value }) {
-  return (
-    <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
-      <p className="text-[10px] font-black text-slate-400 uppercase">{label}</p>
-      <p className="font-bold text-slate-800">{value || '---'}</p>
-    </div>
-  );
-}
-
-function NavItem({ icon: Icon, label, active, onClick }) {
-  return (
-    <button onClick={onClick} className={`w-full flex items-center gap-4 px-5 py-3 rounded-xl transition-all ${active ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}>
-      <Icon size={18} /> <span className="text-[10px] font-black uppercase tracking-widest">{label}</span>
-    </button>
-  );
-}
-
-function Input({ label, type = "text", value, onChange, placeholder = "" }) {
-  return (
-    <div className="space-y-1">
-      <label className="text-[9px] font-black text-slate-400 uppercase ml-1">{label}</label>
-      <input 
-        type={type} 
-        placeholder={placeholder}
-        value={value || ''} 
-        onChange={e => onChange(e.target.value)} 
-        className="w-full px-4 py-2.5 bg-slate-100 rounded-xl outline-none border border-transparent focus:border-blue-400 focus:bg-white text-sm font-semibold transition-all" 
-      />
-    </div>
-  );
-}
-
-function Login() {
-  const [email, setEmail] = useState('');
-  const [pass, setPass] = useState('');
-  const [isReg, setIsReg] = useState(false);
-  const handle = async (e) => {
-    e.preventDefault();
-    try { isReg ? await createUserWithEmailAndPassword(auth, email, pass) : await signInWithEmailAndPassword(auth, email, pass); } 
-    catch(err) { alert('Falha na autenticação. Verifique os dados.'); }
-  };
-  return (
-    <div className="min-h-screen bg-slate-950 text-white font-sans relative overflow-hidden">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(59,130,246,0.22),transparent_38%),radial-gradient(circle_at_15%_85%,_rgba(14,165,233,0.2),transparent_34%)]" />
-      <div className="relative min-h-screen grid grid-cols-1 xl:grid-cols-[1.1fr_0.9fr] gap-8 p-6 lg:p-10 items-center">
-        <section className="hidden xl:flex flex-col justify-between rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-md p-10 min-h-[78vh]">
-          <div>
-            <div className="inline-flex items-center gap-3 px-4 py-2 rounded-full bg-blue-500/15 border border-blue-300/20">
-              <Truck size={18} className="text-blue-300" />
-              <span className="text-xs font-black tracking-[0.2em] uppercase text-blue-100">CargoFy TMS</span>
-            </div>
-            <h1 className="mt-8 text-4xl font-black leading-tight tracking-tight max-w-xl">Plataforma profissional para gestão operacional de transporte e frete.</h1>
-            <p className="mt-5 text-slate-300 max-w-xl">Controle cargas, documentos, financeiro e comprovantes em um único painel com visão de operação em tempo real.</p>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            {['Rastreamento de Cargas', 'Gestão de CT-e e NF', 'Conciliação Financeira', 'Relatórios Operacionais'].map((item) => (
-              <div key={item} className="px-4 py-3 rounded-xl border border-white/10 bg-slate-900/50 text-sm font-semibold text-slate-200">{item}</div>
-            ))}
-          </div>
-        </section>
-
-        <section className="w-full max-w-lg mx-auto">
-          <div className="rounded-3xl border border-slate-200/20 bg-white shadow-2xl p-8 md:p-10 text-slate-900">
-            <div className="flex items-center gap-3 mb-8">
-              <div className="h-12 w-12 rounded-2xl bg-blue-600 text-white grid place-items-center shadow-lg shadow-blue-600/30">
-                <Truck size={22} />
-              </div>
-              <div>
-                <h2 className="text-2xl font-black tracking-tight">CargoFy TMS</h2>
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Acesso seguro ao painel operacional</p>
-              </div>
-            </div>
-
-            <form onSubmit={handle} className="space-y-4">
-              <Input label="E-mail corporativo" value={email} onChange={setEmail} placeholder="seuemail@empresa.com" />
-              <Input label="Senha" type="password" value={pass} onChange={setPass} placeholder="••••••••" />
-
-              <button className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black uppercase tracking-widest shadow-xl shadow-blue-500/20 transition-all">
-                {isReg ? 'Criar Conta' : 'Entrar no TMS'}
-              </button>
-
-              <div className="pt-3 border-t border-slate-100 text-center">
-                <button type="button" onClick={() => setIsReg(!isReg)} className="text-xs font-bold text-slate-500 uppercase tracking-wider hover:text-blue-600 transition-colors">
-                  {isReg ? 'Já possui conta? Fazer login' : 'Primeiro acesso? Criar conta'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </section>
-      </div>
-    </div>
-  );
-}
 
 export default App;
