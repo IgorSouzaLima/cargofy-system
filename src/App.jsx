@@ -910,7 +910,9 @@ function App() {
                         )}
                       </div>
                       {formData.urlComprovante && (
-                        <img src={formData.urlComprovante} alt="Pré-visualização do comprovante" className="mt-2 h-20 w-20 object-cover rounded-lg border border-emerald-200" />
+                        <a href={formData.urlComprovante} target="_blank" rel="noreferrer" title="Abrir comprovante em nova aba" className="inline-block mt-2">
+                          <img src={formData.urlComprovante} alt="Pré-visualização do comprovante" className="h-20 w-20 object-cover rounded-lg border border-emerald-200 hover:opacity-90 transition-opacity cursor-pointer" />
+                        </a>
                       )}
                     </div>
                   </div>
@@ -1005,7 +1007,9 @@ function App() {
               <Info label="Comprovante" value={detailItem.urlComprovante ? 'Foto anexada' : 'Sem comprovante'} />
               {detailItem.urlComprovante && (
                 <div className="mt-2">
-                  <img src={detailItem.urlComprovante} alt="Comprovante da carga" className="h-28 w-28 object-cover rounded-lg border border-slate-200" />
+                  <a href={detailItem.urlComprovante} target="_blank" rel="noreferrer" title="Abrir comprovante em nova aba" className="inline-block">
+                    <img src={detailItem.urlComprovante} alt="Comprovante da carga" className="h-28 w-28 object-cover rounded-lg border border-slate-200 hover:opacity-90 transition-opacity cursor-pointer" />
+                  </a>
                 </div>
               )}
             </div>
