@@ -306,6 +306,8 @@ function App() {
       return;
     }
 
+    const logoUrl = `${window.location.origin}/logo-cargofy.svg`;
+
     const linhas = relatorioData.map(item => {
       const data = item.dataSaida || item.dataNF || item.dataEntrega;
       const dataFmt = data ? new Date(`${data}T12:00:00`).toLocaleDateString('pt-BR') : '---';
@@ -323,7 +325,9 @@ function App() {
           <title>Relatório CargoFy</title>
           <style>
             body { font-family: Arial, sans-serif; padding: 24px; color: #0f172a; }
-            h1 { margin: 0 0 12px; font-size: 20px; }
+            .header { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+            .logo { width: 44px; height: 44px; object-fit: contain; }
+            h1 { margin: 0; font-size: 20px; }
             p { margin: 4px 0 16px; font-size: 12px; color: #475569; }
             table { width: 100%; border-collapse: collapse; margin-top: 12px; }
             th, td { border: 1px solid #cbd5e1; padding: 8px; font-size: 12px; text-align: left; }
@@ -332,7 +336,7 @@ function App() {
           </style>
         </head>
         <body>
-          <h1>Relatório CargoFy</h1>
+          <div class="header"><img src="${logoUrl}" alt="Logo CargoFy" class="logo" /><h1>Relatório CargoFy</h1></div>
           <p>Empresa: ${reportEmpresa} | Carga: ${reportNumeroCarga || 'Todas'} | Período: ${reportInicio || 'Início'} até ${reportFim || 'Hoje'} | Registros: ${relatorioData.length}</p>
           <div class="resumo">
             <span>Faturamento: R$ ${resumoRelatorio.faturou.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
@@ -565,6 +569,13 @@ function App() {
 
           {activeTab === 'relatorios' && (
             <div className="space-y-6 mb-8">
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-5 flex items-center gap-4">
+                <img src="/logo-cargofy.svg" alt="Logo CargoFy" className="h-14 w-14 rounded-xl object-contain border border-slate-200 p-1" />
+                <div>
+                  <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Relatórios CargoFy</h3>
+                  <p className="text-xs font-semibold text-slate-500">Exportação em CSV/PDF com identidade visual da operação.</p>
+                </div>
+              </div>
               <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 grid grid-cols-1 md:grid-cols-6 gap-4">
                 <div className="space-y-1">
                   <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Empresa</label>
