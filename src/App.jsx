@@ -36,6 +36,7 @@ function App() {
   const [user, setUser] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [statusFilter, setStatusFilter] = useState('Todos');
+  const [boletoFilter, setBoletoFilter] = useState('Gerados');
   const [viagens, setViagens] = useState([]);
   const [financeiro, setFinanceiro] = useState([]);
   const [clientes, setClientes] = useState([]);
@@ -176,6 +177,11 @@ function App() {
 
     return { boletosGerados, boletosPendentes, boletosAtrasados, boletosPagos };
   }, [financeiro]);
+
+  const boletosDashboardFiltrados = useMemo(() => {
+    if (boletoFilter === 'Gerados') return financeiro;
+    return financeiro.filter((f) => getStatusFinanceiro(f) === boletoFilter);
+  }, [financeiro, boletoFilter]);
 
   const empresasRelatorio = useMemo(() => {
     const empresas = [...new Set(viagens.map(v => v.contratante).filter(Boolean))];
@@ -721,15 +727,15 @@ function App() {
           {activeTab === 'dashboard' && (
             <div className="space-y-6 mt-8">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Card title="Boletos Gerados" value={boletoStats.boletosGerados} icon={FileText} color="bg-indigo-600" />
-                <Card title="Boletos Pendentes" value={boletoStats.boletosPendentes} icon={Clock} color="bg-amber-500" />
-                <Card title="Boletos Atrasados" value={boletoStats.boletosAtrasados} icon={AlertCircle} color="bg-rose-600" />
-                <Card title="Boletos Pagos" value={boletoStats.boletosPagos} icon={CheckCircle2} color="bg-emerald-600" />
+                <Card title="Boletos Gerados" value={boletoStats.boletosGerados} icon={FileText} color="bg-indigo-600" active={boletoFilter === 'Gerados'} onClick={() => setBoletoFilter('Gerados')} />
+                <Card title="Boletos Pendentes" value={boletoStats.boletosPendentes} icon={Clock} color="bg-amber-500" active={boletoFilter === 'Pendente'} onClick={() => setBoletoFilter('Pendente')} />
+                <Card title="Boletos Atrasados" value={boletoStats.boletosAtrasados} icon={AlertCircle} color="bg-rose-600" active={boletoFilter === 'Vencido'} onClick={() => setBoletoFilter('Vencido')} />
+                <Card title="Boletos Pagos" value={boletoStats.boletosPagos} icon={CheckCircle2} color="bg-emerald-600" active={boletoFilter === 'Pago'} onClick={() => setBoletoFilter('Pago')} />
               </div>
               <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white">
                   <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Dashboard Boletos</h3>
-                  <span className="text-[10px] font-bold text-slate-400">{financeiro.length} registros</span>
+                  <span className="text-[10px] font-bold text-slate-400">{boletosDashboardFiltrados.length} registros</span>
                 </div>
                 <table className="w-full text-left border-collapse">
                   <thead className="bg-slate-50 border-b border-slate-100">
@@ -741,7 +747,12 @@ function App() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
-                    {financeiro.map(item => (
+                    {boletosDashboardFiltrados.length === 0 && (
+                      <tr>
+                        <td colSpan={4} className="px-6 py-8 text-center text-xs font-bold text-slate-400 uppercase">Sem boletos para o filtro selecionado</td>
+                      </tr>
+                    )}
+                    {boletosDashboardFiltrados.map(item => (
                       <tr key={`dash-fin-${item.id}`} className="hover:bg-slate-50/50 transition-colors">
                         <td className="px-6 py-4">
                           <p className="font-bold text-slate-800">{item.numeroNF || '---'}</p>
