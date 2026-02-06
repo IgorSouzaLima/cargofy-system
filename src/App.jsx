@@ -321,8 +321,8 @@ function App() {
           <p>Empresa: ${reportEmpresa} | Carga: ${reportNumeroCarga || 'Todas'} | Período: ${reportInicio || 'Início'} até ${reportFim || 'Hoje'} | Registros: ${relatorioData.length}</p>
           <div class="resumo">
             <span>Faturamento: R$ ${resumoRelatorio.faturou.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-            <span>Distribuição: R$ ${resumoRelatorio.distribuicao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-            <span>Lucro: R$ ${resumoRelatorio.lucro.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+            ${relatorioPorCarga ? '' : `<span>Distribuição: R$ ${resumoRelatorio.distribuicao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>`}
+            ${relatorioPorCarga ? '' : `<span>Lucro: R$ ${resumoRelatorio.lucro.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>`}
           </div>
           <table>
             <thead>
