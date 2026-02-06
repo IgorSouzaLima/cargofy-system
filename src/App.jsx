@@ -216,21 +216,32 @@ function App() {
 
   const relatorioPorCarga = !!reportNumeroCarga.trim();
 
-  const downloadRelatorioCSV = () => {
+  const enviarRelatorioPorEmail = () => {
     const header = relatorioPorCarga
-      ? ['Carga', 'NF', 'CT-e', 'Data CT-e', 'Empresa', 'Data', 'Frete']
+      ? ['Carga', 'NF', 'CT-e', 'Data CT-e', 'Empresa', 'Número Boleto', 'Data', 'Frete']
       : ['Carga', 'NF', 'CT-e', 'Data CT-e', 'Empresa', 'Data', 'Frete', 'Distribuicao', 'Lucro'];
 
     const rows = relatorioData.map(item => {
-      const base = [
-        item.numeroCarga || '',
-        item.numeroNF || '',
-        item.numeroCTe || '',
-        item.dataCTe || '',
-        item.contratante || '',
-        item.dataSaida || item.dataNF || item.dataEntrega || '',
-        (parseFloat(item.valorFrete) || 0).toFixed(2)
-      ];
+      const base = relatorioPorCarga
+        ? [
+            item.numeroCarga || '',
+            item.numeroNF || '',
+            item.numeroCTe || '',
+            item.dataCTe || '',
+            item.contratante || '',
+            item.numeroBoleto || '',
+            item.dataSaida || item.dataNF || item.dataEntrega || '',
+            (parseFloat(item.valorFrete) || 0).toFixed(2)
+          ]
+        : [
+            item.numeroCarga || '',
+            item.numeroNF || '',
+            item.numeroCTe || '',
+            item.dataCTe || '',
+            item.contratante || '',
+            item.dataSaida || item.dataNF || item.dataEntrega || '',
+            (parseFloat(item.valorFrete) || 0).toFixed(2)
+          ];
 
       if (relatorioPorCarga) return base;
 
@@ -241,14 +252,31 @@ function App() {
       ];
     });
 
-    const csv = [header, ...rows].map(r => r.map(c => `"${String(c).replaceAll('\"', '\"\"')}"`).join(';')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'relatorio_cargofy.csv';
-    link.click();
-    URL.revokeObjectURL(url);
+    const csv = [header, ...rows].map(r => r.map(c => `"${String(c).replaceAll('"', '""')}"`).join(';')).join('\n');
+
+    const emailDestino = window.prompt('Informe o e-mail de destino para envio do relatório:');
+    if (!emailDestino) return;
+
+    const assunto = `Relatório CargoFy${reportNumeroCarga ? ` - Carga ${reportNumeroCarga}` : ''}`;
+    const resumo = [
+      `Empresa: ${reportEmpresa}`,
+      `Carga: ${reportNumeroCarga || 'Todas'}`,
+      `Período: ${reportInicio || 'Início'} até ${reportFim || 'Hoje'}`,
+      `Registros: ${relatorioData.length}`
+    ].join('\n');
+
+    const corpo = [
+      'Olá,',
+      '',
+      'Segue relatório gerado no CargoFy:',
+      resumo,
+      '',
+      'CSV:',
+      csv
+    ].join('\n');
+
+    const mailto = `mailto:${encodeURIComponent(emailDestino)}?subject=${encodeURIComponent(assunto)}&body=${encodeURIComponent(corpo)}`;
+    window.location.href = mailto;
   };
 
   const processarFotoComprovante = (file) => new Promise((resolve, reject) => {
@@ -296,7 +324,7 @@ function App() {
       const dist = (parseFloat(item.valorDistribuicao) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
       const lucro = ((parseFloat(item.valorFrete) || 0) - (parseFloat(item.valorDistribuicao) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
       return relatorioPorCarga
-        ? `<tr><td>${item.numeroCarga || '---'}</td><td>${item.numeroNF || '---'}</td><td>${item.numeroCTe || '---'}</td><td>${item.dataCTe ? new Date(item.dataCTe + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</td><td>${item.contratante || 'Sem empresa'}</td><td>${dataFmt}</td><td>R$ ${frete}</td></tr>`
+        ? `<tr><td>${item.numeroCarga || '---'}</td><td>${item.numeroNF || '---'}</td><td>${item.numeroCTe || '---'}</td><td>${item.dataCTe ? new Date(item.dataCTe + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</td><td>${item.contratante || 'Sem empresa'}${item.numeroBoleto ? ` / Boleto ${item.numeroBoleto}` : ''}</td><td>${dataFmt}</td><td>R$ ${frete}</td></tr>`
         : `<tr><td>${item.numeroCarga || '---'}</td><td>${item.numeroNF || '---'}</td><td>${item.numeroCTe || '---'}</td><td>${item.dataCTe ? new Date(item.dataCTe + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</td><td>${item.contratante || 'Sem empresa'}</td><td>${dataFmt}</td><td>R$ ${frete}</td><td>R$ ${dist}</td><td>R$ ${lucro}</td></tr>`;
     }).join('');
 
@@ -326,7 +354,7 @@ function App() {
           </div>
           <table>
             <thead>
-              ${relatorioPorCarga ? '<tr><th>Carga</th><th>NF</th><th>CT-e</th><th>Data CT-e</th><th>Empresa</th><th>Data</th><th>Frete</th></tr>' : '<tr><th>Carga</th><th>NF</th><th>CT-e</th><th>Data CT-e</th><th>Empresa</th><th>Data</th><th>Frete</th><th>Distribuição</th><th>Lucro</th></tr>'}
+              ${relatorioPorCarga ? '<tr><th>Carga</th><th>NF</th><th>CT-e</th><th>Data CT-e</th><th>Empresa / Boleto</th><th>Data</th><th>Frete</th></tr>' : '<tr><th>Carga</th><th>NF</th><th>CT-e</th><th>Data CT-e</th><th>Empresa</th><th>Data</th><th>Frete</th><th>Distribuição</th><th>Lucro</th></tr>'}
             </thead>
             <tbody>${linhas || `<tr><td colspan="${relatorioPorCarga ? 7 : 9}">Sem registros para o filtro.</td></tr>`}</tbody>
           </table>
@@ -586,8 +614,8 @@ function App() {
                 <Input label="Data Inicial" type="date" value={reportInicio} onChange={setReportInicio} />
                 <Input label="Data Final" type="date" value={reportFim} onChange={setReportFim} />
                 <div className="flex items-end">
-                  <button onClick={downloadRelatorioCSV} className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase transition-all">
-                    <Download size={16} /> Gerar Relatório CSV
+                  <button onClick={enviarRelatorioPorEmail} className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase transition-all">
+                    <Download size={16} /> Enviar Relatório por E-mail
                   </button>
                 </div>
                 <div className="flex items-end">
@@ -626,7 +654,7 @@ function App() {
                           <p className="text-[10px] font-black text-indigo-600 uppercase">Carga #{item.numeroCarga || '---'}</p>
                           <p className="font-bold text-slate-800">{item.numeroNF || '---'}</p>
                           <p className="text-[10px] font-black text-slate-500">CT-e: {item.numeroCTe || '---'}</p>
-                          <p className="text-[10px] font-black text-blue-600 uppercase tracking-tight">{item.contratante || 'Sem empresa'}</p>
+                          <p className="text-[10px] font-black text-blue-600 uppercase tracking-tight">{item.contratante || 'Sem empresa'}{relatorioPorCarga && item.numeroBoleto ? ` / Boleto ${item.numeroBoleto}` : ''}</p>
                         </td>
                         <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.dataCTe ? new Date(item.dataCTe + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</td>
                         <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.dataSaida || item.dataNF || item.dataEntrega ? new Date((item.dataSaida || item.dataNF || item.dataEntrega) + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</td>
