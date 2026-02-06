@@ -767,13 +767,13 @@ function App() {
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? "Editar Registro" : "Novo Cadastro"}>
         <form onSubmit={handleSave} className="space-y-6">
           {(activeTab === 'dashboard' || activeTab === 'viagens') && (
-            <div className="space-y-8">
+            <div className="space-y-6">
               {/* Seção 1: Identificação */}
-              <div className="space-y-4">
+              <div className="space-y-4 p-5 rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50/60 to-white">
                 <div className="flex items-center gap-2 border-l-4 border-blue-500 pl-3">
                   <h4 className="text-[11px] font-black text-slate-800 uppercase tracking-widest">Documentação e Contrato</h4>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                   <Input label="Número Nota Fiscal" value={formData.numeroNF} onChange={v => setFormData({...formData, numeroNF: v})} />
                   <Input label="Número da Carga" value={formData.numeroCarga} onChange={v => setFormData({...formData, numeroCarga: v})} />
                   <Input label="Número do CT-e" value={formData.numeroCTe} onChange={v => setFormData({...formData, numeroCTe: v})} />
@@ -785,7 +785,7 @@ function App() {
               </div>
 
               {/* Seção 2: Logística */}
-              <div className="space-y-4">
+              <div className="space-y-4 p-5 rounded-2xl border border-slate-200 bg-white shadow-sm">
                 <div className="flex items-center gap-2 border-l-4 border-slate-300 pl-3">
                   <h4 className="text-[11px] font-black text-slate-800 uppercase tracking-widest">Detalhes da Carga e Destino</h4>
                 </div>
@@ -793,25 +793,25 @@ function App() {
                   <Input label="Empresa Destinatária" value={formData.destinatario} onChange={v => setFormData({...formData, destinatario: v})} />
                   <Input label="Cidade de Destino" value={formData.cidade} onChange={v => setFormData({...formData, cidade: v})} />
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
                   <Input label="Volume (Qtd)" type="number" value={formData.volume} onChange={v => setFormData({...formData, volume: v})} />
                   <Input label="Peso (Kg)" type="number" value={formData.peso} onChange={v => setFormData({...formData, peso: v})} />
                   <Input label="Valor Frete (R$)" type="number" value={formData.valorFrete} onChange={v => setFormData({...formData, valorFrete: v})} />
                   <Input label="Valor da Distribuição (R$)" type="number" value={formData.valorDistribuicao} onChange={v => setFormData({...formData, valorDistribuicao: v})} />
                   <Input label="Data Saída" type="date" value={formData.dataSaida} onChange={v => setFormData({...formData, dataSaida: v})} />
                 </div>
-                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl">
                   <p className="text-[10px] font-black text-emerald-700 uppercase tracking-wider">Lucro estimado (Frete - Distribuição)</p>
                   <p className="text-lg font-black text-emerald-800">R$ {lucroViagem.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                 </div>
               </div>
 
               {/* Seção 3: Transporte e Status */}
-              <div className="space-y-4">
+              <div className="space-y-4 p-5 rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50/60 to-white">
                 <div className="flex items-center gap-2 border-l-4 border-indigo-500 pl-3">
                   <h4 className="text-[11px] font-black text-slate-800 uppercase tracking-widest">Operação e Status</h4>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
                   <div className="space-y-1">
                     <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Motorista Responsável</label>
                     <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold outline-none border border-transparent focus:border-indigo-200" value={formData.motorista} onChange={e => setFormData({...formData, motorista: e.target.value})}>
@@ -843,7 +843,7 @@ function App() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
                   <div className="space-y-1">
                     <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Método de Pagamento</label>
                     <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold uppercase outline-none border border-transparent focus:border-blue-400" value={formData.metodoPagamento || ''} onChange={e => setFormData({...formData, metodoPagamento: e.target.value, numeroBoleto: e.target.value === 'Boleto' ? formData.numeroBoleto : '', dataVencimentoBoleto: e.target.value === 'Boleto' ? formData.dataVencimentoBoleto : ''})}>
@@ -865,7 +865,7 @@ function App() {
 
               {/* Seção 4: Conclusão da Entrega */}
               {formData.status === 'Entregue' && (
-                <div className="p-6 bg-emerald-50 border border-emerald-100 rounded-3xl space-y-4 animate-in fade-in slide-in-from-top-2">
+                <div className="p-6 bg-emerald-50 border border-emerald-100 rounded-3xl space-y-4 animate-in fade-in slide-in-from-top-2 shadow-sm">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-emerald-700">
                       <CheckCircle2 size={18} />
