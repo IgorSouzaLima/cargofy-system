@@ -3,7 +3,7 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, onAuthStateChanged, signOut } from 'firebase/auth';
 import { getFirestore, collection, doc, addDoc, onSnapshot, updateDoc, deleteDoc, serverTimestamp, query } from 'firebase/firestore';
 import { 
-  LayoutDashboard, Truck, Users, DollarSign, Plus, Package, MapPin, Trash2, 
+  LayoutDashboard, Truck, Users, DollarSign, Plus, Package, MapPin, X, Trash2, 
   Briefcase, LogOut, Clock, FileText, Search, Calendar, Layers, 
   CheckCircle2, AlertCircle, Edit3, Download, Camera, Paperclip, ExternalLink, Building2, Eye
 } from 'lucide-react';
