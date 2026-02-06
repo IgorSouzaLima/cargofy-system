@@ -399,12 +399,23 @@ function App() {
   const syncFinanceiroPorViagem = async (viagemData) => {
     const numeroNF = (viagemData.numeroNF || '').trim();
     const numeroCarga = (viagemData.numeroCarga || '').trim();
-    if (!numeroNF && !numeroCarga) return;
+    const numeroBoleto = (viagemData.numeroBoleto || '').trim();
+    const contratante = (viagemData.contratante || '').trim();
+    if (!numeroNF && !numeroCarga && !numeroBoleto) return;
 
-    const registroExistente = financeiro.find(f =>
-      (numeroNF && (f.numeroNF || '').trim() === numeroNF) ||
-      (numeroCarga && (f.numeroCarga || '').trim() === numeroCarga && (f.contratante || '') === (viagemData.contratante || ''))
-    );
+    const registroExistente = financeiro.find((f) => {
+      const nfAtual = (f.numeroNF || '').trim();
+      const cargaAtual = (f.numeroCarga || '').trim();
+      const boletoAtual = (f.numeroBoleto || '').trim();
+      const contratanteAtual = (f.contratante || '').trim();
+
+      if (numeroNF) return nfAtual === numeroNF;
+      if (numeroBoleto) {
+        return boletoAtual === numeroBoleto && cargaAtual === numeroCarga && contratanteAtual === contratante;
+      }
+
+      return false;
+    });
 
     const statusInformado = (viagemData.statusFinanceiro || '').trim();
     const payloadFinanceiro = {
@@ -422,7 +433,7 @@ function App() {
         ? (statusInformado && statusInformado.toLowerCase() !== 'pendente' ? statusInformado : (registroExistente.statusFinanceiro || 'Pendente'))
         : (statusInformado || 'Pendente'),
       metodoPagamento: viagemData.metodoPagamento || '',
-      numeroBoleto: viagemData.numeroBoleto || '',
+      numeroBoleto: numeroBoleto,
       dataVencimentoBoleto: viagemData.dataVencimentoBoleto || '',
       vencimento: viagemData.dataVencimentoBoleto || viagemData.vencimento || '',
       boleto: viagemData.boleto || viagemData.urlComprovante || '',
