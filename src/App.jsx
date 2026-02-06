@@ -387,8 +387,11 @@ function App() {
       const origemAtual = (f.viagemOrigemId || '').trim();
 
       if (viagemOrigemId && origemAtual === viagemOrigemId) return true;
-      if (numeroBoleto) return boletoAtual === numeroBoleto && cargaAtual === numeroCarga && contratanteAtual === contratante;
+      if (numeroNF && numeroBoleto) {
+        return nfAtual === numeroNF && boletoAtual === numeroBoleto && cargaAtual === numeroCarga && contratanteAtual === contratante;
+      }
       if (numeroNF) return nfAtual === numeroNF && cargaAtual === numeroCarga && contratanteAtual === contratante;
+      if (numeroBoleto) return boletoAtual === numeroBoleto && cargaAtual === numeroCarga && contratanteAtual === contratante;
 
       return false;
     });
@@ -396,7 +399,7 @@ function App() {
     const statusInformado = (viagemData.statusFinanceiro || '').trim();
     const payloadFinanceiro = {
       viagemOrigemId: viagemOrigemId || '',
-      numeroNF: viagemData.numeroNF || '',
+      numeroNF: numeroNF,
       numeroCarga: viagemData.numeroCarga || '',
       contratante: viagemData.contratante || '',
       destinatario: viagemData.destinatario || '',
