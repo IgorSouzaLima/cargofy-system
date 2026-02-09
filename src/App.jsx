@@ -139,13 +139,6 @@ function App() {
     return viagem.status || 'Pendente';
   };
 
-  const stats = useMemo(() => {
-    const pendentes = viagensDashboardMes.filter(v => getStatusViagem(v) === 'Pendente').length;
-    const emRota = viagensDashboardMes.filter(v => getStatusViagem(v) === 'Em rota').length;
-    const entregues = viagensDashboardMes.filter(v => getStatusViagem(v) === 'Entregue').length;
-    return { pendentes, emRota, entregues, total: viagensDashboardMes.length };
-  }, [viagensDashboardMes]);
-
   const financeiroResumo = useMemo(() => {
     const faturou = viagens.reduce((acc, curr) => acc + (parseFloat(curr.valorFrete) || 0), 0);
     const gastouDistribuicao = viagens.reduce((acc, curr) => acc + (parseFloat(curr.valorDistribuicao) || 0), 0);
@@ -186,6 +179,13 @@ function App() {
       return dataBase.startsWith(dashboardMes);
     });
   }, [financeiro, dashboardMes]);
+
+  const stats = useMemo(() => {
+    const pendentes = viagensDashboardMes.filter(v => getStatusViagem(v) === 'Pendente').length;
+    const emRota = viagensDashboardMes.filter(v => getStatusViagem(v) === 'Em rota').length;
+    const entregues = viagensDashboardMes.filter(v => getStatusViagem(v) === 'Entregue').length;
+    return { pendentes, emRota, entregues, total: viagensDashboardMes.length };
+  }, [viagensDashboardMes]);
 
   const boletoStats = useMemo(() => {
     const boletosGerados = financeiroDashboardMes.length;
