@@ -38,6 +38,8 @@ function App() {
   const [statusFilter, setStatusFilter] = useState('Todos');
   const [boletoFilter, setBoletoFilter] = useState('Gerados');
   const [dashboardMes, setDashboardMes] = useState('');
+  const [dashboardSecao, setDashboardSecao] = useState('cargas');
+  const [dashboardCargaBusca, setDashboardCargaBusca] = useState('');
   const [viagens, setViagens] = useState([]);
   const [financeiro, setFinanceiro] = useState([]);
   const [clientes, setClientes] = useState([]);
@@ -201,6 +203,19 @@ function App() {
     if (boletoFilter === 'Gerados') return financeiroDashboardMes;
     return financeiroDashboardMes.filter((f) => getStatusFinanceiro(f) === boletoFilter);
   }, [financeiroDashboardMes, boletoFilter]);
+
+  const proximasCargasPagamento = useMemo(() => {
+    return financeiroDashboardMes
+      .filter((f) => getStatusFinanceiro(f) !== 'Pago')
+      .map((f) => {
+        const vencimento = f.dataVencimentoBoleto || f.vencimento || '';
+        const data = vencimento ? new Date(`${vencimento}T12:00:00`) : null;
+        return { ...f, _vencimento: data && !Number.isNaN(data.getTime()) ? data : null };
+      })
+      .filter((f) => f._vencimento)
+      .sort((a, b) => a._vencimento - b._vencimento)
+      .slice(0, 5);
+  }, [financeiroDashboardMes]);
 
   const empresasRelatorio = useMemo(() => {
     const empresas = [...new Set(viagens.map(v => v.contratante).filter(Boolean))];
@@ -619,6 +634,10 @@ function App() {
     switch (activeTab) {
       case 'dashboard':
         list = statusFilter === 'Todos' ? viagensDashboardMes : viagensDashboardMes.filter(v => getStatusViagem(v) === statusFilter);
+        if (dashboardCargaBusca.trim()) {
+          const cargaBusca = dashboardCargaBusca.trim().toLowerCase();
+          list = list.filter(v => (v.numeroCarga || '').toLowerCase().includes(cargaBusca));
+        }
         break;
       case 'viagens': 
         list = statusFilter === 'Todos' ? viagens : viagens.filter(v => getStatusViagem(v) === statusFilter);
@@ -642,7 +661,7 @@ function App() {
       (item.cidade?.toLowerCase().includes(term)) ||
       (item.motorista?.toLowerCase().includes(term))
     );
-  }, [activeTab, statusFilter, viagensDashboardMes, viagens, financeiro, clientes, motoristas, veiculos, searchNF]);
+  }, [activeTab, statusFilter, viagensDashboardMes, viagens, financeiro, clientes, motoristas, veiculos, searchNF, dashboardCargaBusca]);
 
   const handleOpenEdit = (item) => {
     setFormData({
@@ -816,10 +835,17 @@ function App() {
             </div>
             {activeTab === 'dashboard' && (
               <div className="flex items-center gap-2">
+                <div className="flex items-center rounded-xl bg-slate-100 p-1">
+                  <button type="button" onClick={() => setDashboardSecao('cargas')} className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase ${dashboardSecao === 'cargas' ? 'bg-white text-slate-800 shadow' : 'text-slate-500'}`}>Cargas</button>
+                  <button type="button" onClick={() => setDashboardSecao('boletos')} className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase ${dashboardSecao === 'boletos' ? 'bg-white text-slate-800 shadow' : 'text-slate-500'}`}>Boletos</button>
+                </div>
                 <Calendar size={16} className="text-slate-400" />
                 <input type="month" value={dashboardMes} onChange={(e) => setDashboardMes(e.target.value)} className="px-3 py-2 bg-slate-100 rounded-xl outline-none text-xs font-bold text-slate-700" />
-                {dashboardMes && (
-                  <button onClick={() => setDashboardMes('')} className="bg-slate-100 text-slate-600 px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase">Limpar</button>
+                {dashboardSecao === 'cargas' && (
+                  <input type="text" value={dashboardCargaBusca} onChange={(e) => setDashboardCargaBusca(e.target.value)} placeholder="Buscar Nº da carga" className="px-3 py-2 bg-slate-100 rounded-xl outline-none text-xs font-bold text-slate-700 w-40" />
+                )}
+                {(dashboardMes || dashboardCargaBusca) && (
+                  <button onClick={() => { setDashboardMes(''); setDashboardCargaBusca(''); }} className="bg-slate-100 text-slate-600 px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase">Limpar</button>
                 )}
               </div>
             )}
@@ -829,7 +855,7 @@ function App() {
               </button>
             )}
           </div>
-          {activeTab !== 'relatorios' && (
+          {(activeTab !== 'relatorios' && !(activeTab === 'dashboard' && dashboardSecao === 'boletos')) && (
             <div className="flex items-center gap-2">
               {(activeTab === 'dashboard' || activeTab === 'viagens') && (
                 <>
@@ -850,11 +876,33 @@ function App() {
         </header>
 
         <div className="p-8 overflow-y-auto">
-          {activeTab === 'dashboard' && (
+          {activeTab === 'dashboard' && dashboardSecao === 'cargas' && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
               <Card title="Cargas Pendentes" value={stats.pendentes} icon={Clock} color="bg-amber-500" active={statusFilter === 'Pendente'} onClick={() => setStatusFilter('Pendente')} />
               <Card title="Cargas em Rota" value={stats.emRota} icon={MapPin} color="bg-blue-600" active={statusFilter === 'Em rota'} onClick={() => setStatusFilter('Em rota')} />
               <Card title="Concluídas" value={stats.entregues} icon={CheckCircle2} color="bg-emerald-500" active={statusFilter === 'Entregue'} onClick={() => setStatusFilter('Entregue')} />
+            </div>
+          )}
+
+
+          {activeTab === 'dashboard' && (
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-5 mb-6">
+              <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3">Próximas cargas para pagamento</h3>
+              {proximasCargasPagamento.length === 0 ? (
+                <p className="text-xs font-bold text-slate-400 uppercase">Sem pagamentos pendentes com vencimento informado</p>
+              ) : (
+                <div className="space-y-2">
+                  {proximasCargasPagamento.map((item) => (
+                    <div key={`prox-${item.id}`} className="flex items-center justify-between bg-slate-50 rounded-xl px-3 py-2">
+                      <div>
+                        <p className="text-xs font-black text-slate-800">Carga #{item.numeroCarga || '---'} {item.numeroNF ? `- NF ${item.numeroNF}` : ''}</p>
+                        <p className="text-[10px] font-bold text-slate-500 uppercase">{item.contratante || 'Sem empresa'}</p>
+                      </div>
+                      <p className="text-xs font-black text-amber-600">{item._vencimento.toLocaleDateString('pt-BR')}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -945,7 +993,7 @@ function App() {
             </div>
           )}
 
-          {activeTab !== 'relatorios' && (
+          {(activeTab !== 'relatorios' && !(activeTab === 'dashboard' && dashboardSecao === 'boletos')) && (
           <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white">
               <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">{activeTab}</h3>
@@ -1028,7 +1076,7 @@ function App() {
           </div>
           )}
 
-          {activeTab === 'dashboard' && (
+          {activeTab === 'dashboard' && dashboardSecao === 'boletos' && (
             <div className="space-y-6 mt-8">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <Card title="Boletos Gerados" value={boletoStats.boletosGerados} icon={FileText} color="bg-indigo-600" active={boletoFilter === 'Gerados'} onClick={() => setBoletoFilter('Gerados')} />
