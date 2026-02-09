@@ -72,6 +72,7 @@ function App() {
     status: 'Pendente', 
     valorFrete: '', 
     valorDistribuicao: '', 
+    orcamento: '', 
     lucro: '', 
     metodoPagamento: '', 
     numeroBoleto: '', 
@@ -432,6 +433,7 @@ function App() {
 
   const mapearLinhaPlanilha = (headers, valores) => {
     const row = {};
+      orcamento: get('orcamento', 'orçamento', 'valor orcamento', 'valor orçamento'),
     headers.forEach((h, i) => { row[normalizarChaveColuna(h)] = (valores[i] || '').trim(); });
 
     const get = (...keys) => {
@@ -690,6 +692,7 @@ function App() {
     const registroExistente = financeiro.find((f) => {
       const nfAtual = (f.numeroNF || '').trim();
       const cargaAtual = (f.numeroCarga || '').trim();
+      orcamento: viagemData.orcamento || '',
       const boletoAtual = (f.numeroBoleto || '').trim();
       const contratanteAtual = (f.contratante || '').trim();
       const origemAtual = (f.viagemOrigemId || '').trim();
@@ -769,7 +772,7 @@ function App() {
             lucro: ((parseFloat(formData.valorFrete) || 0) - (parseFloat(formData.valorDistribuicao) || 0)).toFixed(2)
           }
         : formData;
-    try {
+      valorFrete: '', valorDistribuicao: '', orcamento: '', lucro: '', metodoPagamento: '', numeroBoleto: '', dataVencimentoBoleto: '', motorista: '', veiculo: '', placa: '', urlComprovante: '', boleto: '', vencimento: '', 
       let viagemId = editingId;
       if (editingId) {
         await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', colName, editingId), payload);
@@ -1070,6 +1073,7 @@ function App() {
                         </span>
                         {activeTab !== 'dashboard' && item.valorFrete && <p className="font-black text-slate-900 text-sm">Frete: R$ {parseFloat(item.valorFrete).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>}
                         {activeTab !== 'dashboard' && (item.valorDistribuicao || activeTab === 'financeiro') && <p className="text-[10px] font-black text-amber-700">Custo: R$ {(parseFloat(item.valorDistribuicao) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>}
+                        {activeTab !== 'dashboard' && item.orcamento && <p className="text-[10px] font-black text-indigo-700">Orçamento: R$ {(parseFloat(item.orcamento) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>}
                         {activeTab !== 'dashboard' && (item.valorDistribuicao || item.lucro || activeTab === 'financeiro') && <p className="text-[10px] font-black text-emerald-700">Lucro: R$ {((parseFloat(item.valorFrete) || 0) - (parseFloat(item.valorDistribuicao) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>}
                       </div>
                     </td>
@@ -1204,11 +1208,12 @@ function App() {
                   <Input label="Empresa Destinatária" value={formData.destinatario} onChange={v => setFormData({...formData, destinatario: v})} />
                   <Input label="Cidade de Destino" value={formData.cidade} onChange={v => setFormData({...formData, cidade: v})} />
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4">
                   <Input label="Volume (Qtd)" type="number" value={formData.volume} onChange={v => setFormData({...formData, volume: v})} />
                   <Input label="Peso (Kg)" type="number" value={formData.peso} onChange={v => setFormData({...formData, peso: v})} />
                   <Input label="Valor Frete (R$)" type="number" value={formData.valorFrete} onChange={v => setFormData({...formData, valorFrete: v})} />
                   <Input label="Valor da Distribuição (R$)" type="number" value={formData.valorDistribuicao} onChange={v => setFormData({...formData, valorDistribuicao: v})} />
+                  <Input label="Orçamento (R$)" type="number" value={formData.orcamento || ""} onChange={v => setFormData({...formData, orcamento: v})} />
                   <Input label="Data Saída" type="date" value={formData.dataSaida} onChange={v => setFormData({...formData, dataSaida: v})} />
                 </div>
                 <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl">
@@ -1333,9 +1338,10 @@ function App() {
                 <Input label="Cidade de Entrega" value={formData.cidade || ''} onChange={v => setFormData({...formData, cidade: v})} />
               </div>
               <Input label="Motorista" value={formData.motorista || ''} onChange={v => setFormData({...formData, motorista: v})} />
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Input label="Valor do Frete (R$)" type="number" value={formData.valorFrete} onChange={v => setFormData({...formData, valorFrete: v})} />
                 <Input label="Valor do Custo (R$)" type="number" value={formData.valorDistribuicao || ''} onChange={v => setFormData({...formData, valorDistribuicao: v})} />
+                <Input label="Orçamento (R$)" type="number" value={formData.orcamento || ''} onChange={v => setFormData({...formData, orcamento: v})} />
               </div>
               <p className="text-xs font-black text-emerald-700">Lucro: R$ {((parseFloat(formData.valorFrete) || 0) - (parseFloat(formData.valorDistribuicao) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1411,6 +1417,7 @@ function App() {
             <Info label="Status" value={detailItem.status || (detailItem.statusFinanceiro || detailItem.vencimento || detailItem.dataVencimentoBoleto ? getStatusFinanceiro(detailItem) : getStatusViagem(detailItem))} />
             <Info label="Valor Frete" value={detailItem.valorFrete ? `R$ ${parseFloat(detailItem.valorFrete).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : ''} />
             <Info label="Valor Distribuição" value={detailItem.valorDistribuicao ? `R$ ${parseFloat(detailItem.valorDistribuicao).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : ''} />
+            <Info label="Orçamento" value={detailItem.orcamento ? `R$ ${parseFloat(detailItem.orcamento).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : ''} />
             <Info label="Lucro" value={`R$ ${((parseFloat(detailItem.valorFrete) || 0) - (parseFloat(detailItem.valorDistribuicao) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} />
             <Info label="Número do Boleto" value={detailItem.numeroBoleto || ''} />
             <Info label="Data de Vencimento" value={(detailItem.dataVencimentoBoleto || detailItem.vencimento) ? new Date(((detailItem.dataVencimentoBoleto || detailItem.vencimento) + 'T12:00:00')).toLocaleDateString('pt-BR') : ''} />
