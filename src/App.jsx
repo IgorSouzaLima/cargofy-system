@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, onAuthStateChanged, signOut } from 'firebase/auth';
 import { getFirestore, collection, doc, addDoc, onSnapshot, updateDoc, deleteDoc, serverTimestamp, query } from 'firebase/firestore';
 import { 
   LayoutDashboard, Truck, Users, DollarSign, Plus, Package, MapPin, X, Trash2, 
   Briefcase, LogOut, Clock, FileText, Search, Calendar, Layers, 
-  CheckCircle2, AlertCircle, Edit3, Download, Camera, Paperclip, ExternalLink, Building2, Eye, Upload
+  CheckCircle2, AlertCircle, Edit3, Download, Camera, Paperclip, ExternalLink, Building2, Eye
 } from 'lucide-react';
 import Card from './components/Card';
 import Modal from './components/Modal';
@@ -52,7 +52,6 @@ function App() {
   const [reportNumeroCarga, setReportNumeroCarga] = useState('');
   const [detailItem, setDetailItem] = useState(null);
   const [comprovantePreview, setComprovantePreview] = useState('');
-  const planilhaInputRef = useRef(null);
 
   const [formData, setFormData] = useState({
     numeroNF: '', 
@@ -380,152 +379,6 @@ function App() {
     window.location.href = mailto;
   };
 
-  const normalizarChaveColuna = (valor) => (valor || '')
-    .toString()
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]/g, '');
-
-  const mapearLinhaPlanilha = (headers, valores) => {
-    const row = {};
-    headers.forEach((h, i) => { row[normalizarChaveColuna(h)] = (valores[i] || '').trim(); });
-
-    const get = (...keys) => {
-      for (const key of keys) {
-        const val = row[normalizarChaveColuna(key)];
-        if (val) return val;
-      }
-      return '';
-    };
-
-    const metodoPagamento = get('metodo pagamento', 'metodopagamento', 'pagamento');
-    const numeroBoleto = get('numero boleto', 'numeroboleto', 'boleto numero', 'boleto');
-
-    return {
-      numeroNF: get('numero nf', 'nf', 'nota fiscal', 'numeronf'),
-      numeroCarga: get('numero carga', 'carga', 'numerocarga'),
-      numeroCTe: get('numero cte', 'cte', 'numerocte'),
-      dataCTe: get('data cte', 'datacte'),
-      dataNF: get('data nf', 'datanf'),
-      dataSaida: get('data saida', 'datasaida'),
-      dataEntrega: get('data entrega', 'dataentrega'),
-      contratante: get('contratante', 'empresa'),
-      destinatario: get('destinatario', 'empresa destinataria'),
-      cidade: get('cidade', 'cidade destino'),
-      valorFrete: get('valor frete', 'frete', 'valorfrete'),
-      valorDistribuicao: get('valor distribuicao', 'distribuicao', 'valordistribuicao'),
-      motorista: get('motorista'),
-      metodoPagamento: metodoPagamento,
-      numeroBoleto: numeroBoleto,
-      dataVencimentoBoleto: get('data vencimento boleto', 'vencimento boleto', 'datavencimentoboleto'),
-      status: get('status') || 'Pendente',
-      statusFinanceiro: get('status financeiro', 'statusfinanceiro') || 'Pendente',
-      boleto: get('link boleto', 'url boleto', 'boleto link', 'link comprovante', 'url comprovante'),
-      urlComprovante: get('url comprovante', 'link comprovante', 'comprovante'),
-      lucro: ((parseFloat(get('valor frete', 'frete', 'valorfrete')) || 0) - (parseFloat(get('valor distribuicao', 'distribuicao', 'valordistribuicao')) || 0)).toFixed(2)
-    };
-  };
-
-  const importarConteudoPlanilha = async (conteudo) => {
-    const linhasBrutas = conteudo.split(/\r?\n/).filter(Boolean);
-    if (linhasBrutas.length < 2) {
-      alert('Planilha vazia ou inválida. Use CSV com cabeçalho.');
-      return;
-    }
-
-    const separador = linhasBrutas[0].includes(';') ? ';' : ',';
-    const parseLinha = (linha) => linha.split(separador).map((v) => v.replace(/^"|"$/g, '').trim());
-
-    const headers = parseLinha(linhasBrutas[0]);
-    const linhas = linhasBrutas.slice(1).map(parseLinha);
-
-    let inseridos = 0;
-    let ignorados = 0;
-    for (const valores of linhas) {
-      const payload = mapearLinhaPlanilha(headers, valores);
-      if (!payload.numeroCTe || !payload.dataCTe) {
-        ignorados += 1;
-        continue;
-      }
-
-      if (payload.metodoPagamento.toLowerCase() === 'boleto' && (!payload.numeroBoleto || !payload.dataVencimentoBoleto)) {
-        ignorados += 1;
-        continue;
-      }
-
-      const novoRegistro = await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'viagens'), {
-        ...payload,
-        userId: user.uid,
-        createdAt: serverTimestamp()
-      });
-
-      await syncFinanceiroPorViagem(payload, novoRegistro.id);
-      inseridos += 1;
-    }
-
-    alert(`Importação concluída. Inseridos: ${inseridos}. Ignorados: ${ignorados}.`);
-  };
-
-  const construirUrlCsvGoogleSheets = (urlInformada) => {
-    const url = new URL(urlInformada);
-    if (!url.hostname.includes('docs.google.com')) return '';
-
-    if (url.searchParams.get('output') === 'csv' || url.pathname.includes('/export')) {
-      return url.toString();
-    }
-
-    const match = url.pathname.match(/\/spreadsheets\/d\/([^/]+)/);
-    if (!match) return '';
-
-    const spreadsheetId = match[1];
-    let gid = url.searchParams.get('gid') || '';
-    if (!gid && url.hash.includes('gid=')) {
-      gid = url.hash.split('gid=')[1] || '';
-    }
-
-    return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv${gid ? `&gid=${gid}` : ''}`;
-  };
-
-  const importarGoogleSheets = async () => {
-    const urlInformada = window.prompt('Cole a URL do Google Sheets (aba que deseja importar):');
-    if (!urlInformada) return;
-
-    const urlCsv = construirUrlCsvGoogleSheets(urlInformada.trim());
-    if (!urlCsv) {
-      alert('URL inválida. Use um link do Google Sheets.');
-      return;
-    }
-
-    try {
-      const resp = await fetch(urlCsv);
-      if (!resp.ok) throw new Error('Falha ao baixar CSV do Google Sheets.');
-      const conteudo = await resp.text();
-      await importarConteudoPlanilha(conteudo);
-    } catch (err) {
-      console.error(err);
-      alert('Não foi possível importar do Google Sheets. Verifique se a planilha está publicada/compartilhada e tente novamente.');
-    }
-  };
-
-  const importarPlanilhaFretes = async (arquivo) => {
-    try {
-      const conteudo = await arquivo.text();
-      await importarConteudoPlanilha(conteudo);
-    } catch (err) {
-      console.error(err);
-      alert('Erro ao importar planilha. Verifique se o arquivo é CSV válido.');
-    }
-  };
-
-  const handleUploadPlanilha = async (e) => {
-    const arquivo = e.target.files?.[0];
-    if (!arquivo) return;
-    await importarPlanilhaFretes(arquivo);
-    e.target.value = '';
-  };
-
   const processarFotoComprovante = (file) => new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(new Error('Falha ao ler imagem.'));
@@ -829,22 +682,9 @@ function App() {
             )}
           </div>
           {activeTab !== 'relatorios' && (
-            <div className="flex items-center gap-2">
-              {(activeTab === 'dashboard' || activeTab === 'viagens') && (
-                <>
-                  <input ref={planilhaInputRef} type="file" accept=".csv,text/csv" onChange={handleUploadPlanilha} className="hidden" />
-                  <button type="button" onClick={() => planilhaInputRef.current?.click()} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-emerald-500/20 transition-all">
-                    <Upload size={16} /> Importar Planilha
-                  </button>
-                  <button type="button" onClick={importarGoogleSheets} className="flex items-center gap-2 px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-teal-500/20 transition-all">
-                    <ExternalLink size={16} /> Google Sheets
-                  </button>
-                </>
-              )}
-              <button onClick={() => { resetForm(); setEditingId(null); setModalOpen(true); }} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-blue-500/20 transition-all">
-                <Plus size={16} /> Novo Registro
-              </button>
-            </div>
+            <button onClick={() => { resetForm(); setEditingId(null); setModalOpen(true); }} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-blue-500/20 transition-all">
+              <Plus size={16} /> Novo Registro
+            </button>
           )}
         </header>
 
