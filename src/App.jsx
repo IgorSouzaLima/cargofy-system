@@ -5,7 +5,8 @@ import { getFirestore, collection, doc, addDoc, onSnapshot, updateDoc, deleteDoc
 import { 
   LayoutDashboard, Truck, Users, DollarSign, Plus, Package, MapPin, X, Trash2, 
   Briefcase, LogOut, Clock, FileText, Search, Calendar, Layers, 
-  CheckCircle2, AlertCircle, Edit3, Download, Camera, Paperclip, ExternalLink, Building2, Eye
+  CheckCircle2, AlertCircle, Edit3, Download, Camera, Paperclip, ExternalLink, Building2, Eye,
+  TrendingUp, TrendingDown, Target, BadgeDollarSign
 } from 'lucide-react';
 import Card from './components/Card';
 import Modal from './components/Modal';
@@ -212,17 +213,35 @@ function App() {
   }, [financeiroDashboardMes, boletoFilter, searchNF]);
 
   const proximosBoletosVencer = useMemo(() => {
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+
     return financeiroDashboardMes
       .filter((item) => getStatusFinanceiro(item) !== 'Pago')
       .map((item) => {
         const venc = item.dataVencimentoBoleto || item.vencimento || '';
         const data = venc ? new Date(`${venc}T12:00:00`) : null;
-        return { ...item, _vencimentoData: data && !Number.isNaN(data.getTime()) ? data : null };
+        const dataValida = data && !Number.isNaN(data.getTime()) ? data : null;
+        const diasRestantes = dataValida ? Math.ceil((dataValida - hoje) / (1000 * 60 * 60 * 24)) : null;
+        return { ...item, _vencimentoData: dataValida, _diasRestantes: diasRestantes };
       })
       .filter((item) => item._vencimentoData)
       .sort((a, b) => a._vencimentoData - b._vencimentoData)
       .slice(0, 8);
   }, [financeiroDashboardMes]);
+
+  const dashboardResumo = useMemo(() => {
+    const total = stats.total || 0;
+    const taxaEntrega = total ? Math.round((stats.entregues / total) * 100) : 0;
+    const taxaEmRota = total ? Math.round((stats.emRota / total) * 100) : 0;
+    const faturamentoMedio = total ? financeiroResumo.faturou / total : 0;
+    const margemLucro = financeiroResumo.faturou > 0
+      ? Math.round((financeiroResumo.lucroTotal / financeiroResumo.faturou) * 100)
+      : 0;
+    const boletosEmRisco = proximosBoletosVencer.filter((b) => b._diasRestantes !== null && b._diasRestantes <= 3).length;
+
+    return { taxaEntrega, taxaEmRota, faturamentoMedio, margemLucro, boletosEmRisco };
+  }, [stats, financeiroResumo, proximosBoletosVencer]);
 
   const empresasRelatorio = useMemo(() => {
     const empresas = [...new Set(viagens.map(v => v.contratante).filter(Boolean))];
@@ -852,10 +871,50 @@ function App() {
 
         <div className="p-8 overflow-y-auto">
           {activeTab === 'dashboard' && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
               <Card title="Cargas Pendentes" value={stats.pendentes} icon={Clock} color="bg-amber-500" active={statusFilter === 'Pendente'} onClick={() => setStatusFilter('Pendente')} />
               <Card title="Cargas em Rota" value={stats.emRota} icon={MapPin} color="bg-blue-600" active={statusFilter === 'Em rota'} onClick={() => setStatusFilter('Em rota')} />
               <Card title="Concluídas" value={stats.entregues} icon={CheckCircle2} color="bg-emerald-500" active={statusFilter === 'Entregue'} onClick={() => setStatusFilter('Entregue')} />
+            </div>
+          )}
+
+          {activeTab === 'dashboard' && (
+            <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 rounded-3xl p-6 md:p-7 mb-8 shadow-xl shadow-slate-900/20 border border-slate-700/70 text-white">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-5">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-200">Visão executiva</p>
+                  <h3 className="text-xl md:text-2xl font-black tracking-tight">Painel profissional da operação</h3>
+                </div>
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/20 text-[10px] font-black uppercase tracking-wider">
+                  <Target size={13} /> SLA de entrega: {dashboardResumo.taxaEntrega}%
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+                <div className="rounded-2xl bg-white/10 border border-white/15 p-4">
+                  <p className="text-[10px] uppercase font-black text-slate-200">Taxa de entrega</p>
+                  <p className="text-2xl font-black mt-1">{dashboardResumo.taxaEntrega}%</p>
+                  <p className="text-[11px] mt-1 text-emerald-200 font-bold flex items-center gap-1"><TrendingUp size={13} /> desempenho de finalização</p>
+                </div>
+                <div className="rounded-2xl bg-white/10 border border-white/15 p-4">
+                  <p className="text-[10px] uppercase font-black text-slate-200">Cargas em rota</p>
+                  <p className="text-2xl font-black mt-1">{dashboardResumo.taxaEmRota}%</p>
+                  <p className="text-[11px] mt-1 text-blue-200 font-bold">{stats.emRota} viagens ativas no período</p>
+                </div>
+                <div className="rounded-2xl bg-white/10 border border-white/15 p-4">
+                  <p className="text-[10px] uppercase font-black text-slate-200">Ticket médio por carga</p>
+                  <p className="text-2xl font-black mt-1">R$ {dashboardResumo.faturamentoMedio.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                  <p className="text-[11px] mt-1 text-indigo-200 font-bold flex items-center gap-1"><BadgeDollarSign size={13} /> eficiência comercial</p>
+                </div>
+                <div className="rounded-2xl bg-white/10 border border-white/15 p-4">
+                  <p className="text-[10px] uppercase font-black text-slate-200">Margem operacional</p>
+                  <p className="text-2xl font-black mt-1">{dashboardResumo.margemLucro}%</p>
+                  <p className={`text-[11px] mt-1 font-bold flex items-center gap-1 ${dashboardResumo.margemLucro >= 20 ? 'text-emerald-200' : 'text-amber-200'}`}>
+                    {dashboardResumo.margemLucro >= 20 ? <TrendingUp size={13} /> : <TrendingDown size={13} />}
+                    {dashboardResumo.boletosEmRisco} boletos com vencimento crítico
+                  </p>
+                </div>
+              </div>
             </div>
           )}
 
@@ -1034,17 +1093,23 @@ function App() {
 
           {activeTab === 'dashboard' && (
             <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-5 mt-6">
-              <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3">Próximos boletos a vencer</h3>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Próximos boletos a vencer</h3>
+                <span className="text-[10px] font-black uppercase rounded-full px-2 py-1 bg-rose-50 text-rose-600">{dashboardResumo.boletosEmRisco} críticos (≤ 3 dias)</span>
+              </div>
               {proximosBoletosVencer.length === 0 ? (
                 <p className="text-xs font-bold text-slate-400 uppercase">Sem boletos pendentes com vencimento</p>
               ) : (
                 <div className="space-y-2">
                   {proximosBoletosVencer.map((item) => (
-                    <div key={`venc-${item.id}`} className="grid grid-cols-1 md:grid-cols-4 gap-2 bg-slate-50 rounded-xl px-3 py-2">
+                    <div key={`venc-${item.id}`} className="grid grid-cols-1 md:grid-cols-[1.4fr_0.9fr_0.9fr_1fr_0.8fr] gap-2 bg-slate-50 rounded-xl px-3 py-2.5 items-center">
                       <p className="text-xs font-black text-slate-800">{item.contratante || 'Sem contratante'}</p>
                       <p className="text-xs font-bold text-slate-700">NF: {item.numeroNF || '---'}</p>
                       <p className="text-xs font-bold text-slate-700">Carga: {item.numeroCarga || '---'}</p>
                       <p className="text-xs font-black text-amber-600">Vence: {item._vencimentoData.toLocaleDateString('pt-BR')}</p>
+                      <span className={`w-fit px-2 py-1 rounded-full text-[10px] font-black uppercase ${item._diasRestantes < 0 ? 'bg-rose-100 text-rose-700' : item._diasRestantes <= 3 ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                        {item._diasRestantes < 0 ? `${Math.abs(item._diasRestantes)} dias vencido` : item._diasRestantes === 0 ? 'vence hoje' : `${item._diasRestantes} dias`}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -1089,7 +1154,7 @@ function App() {
                           <p className="font-bold text-slate-800">{item.numeroNF || '---'}</p>
                           <p className="text-[10px] font-black text-blue-600 uppercase tracking-tight">{item.contratante || 'Contratante não informado'}</p>
                         </td>
-                        <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.vencimento ? new Date(item.vencimento + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</td>
+                        <td className="px-6 py-4 text-sm font-bold text-slate-700">{(item.dataVencimentoBoleto || item.vencimento) ? new Date(((item.dataVencimentoBoleto || item.vencimento) + 'T12:00:00')).toLocaleDateString('pt-BR') : '---'}</td>
                         <td className="px-6 py-4">
                           <span className={`w-fit px-2 py-0.5 rounded text-[9px] font-black uppercase ${getStatusFinanceiro(item) === 'Pago' ? 'bg-emerald-100 text-emerald-600' : getStatusFinanceiro(item) === 'Vencido' ? 'bg-rose-100 text-rose-600' : 'bg-amber-100 text-amber-600'}`}>
                             {getStatusFinanceiro(item)}
