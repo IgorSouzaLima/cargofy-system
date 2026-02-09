@@ -981,25 +981,25 @@ function App() {
                       {!relatorioPorCarga && <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Lucro</th>}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {relatorioData.map(item => (
-                      <tr key={`rel-${item.id}`} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="px-6 py-4">
-                          <p className="text-[10px] font-black text-indigo-600 uppercase">Carga #{item.numeroCarga || '---'}</p>
-                          <p className="font-bold text-slate-800">{item.numeroNF || '---'}</p>
-                          <p className="text-[10px] font-black text-slate-500">CT-e: {item.numeroCTe || '---'}</p>
-                          <p className="text-[10px] font-black text-blue-600 uppercase tracking-tight">{!relatorioPorCarga ? (item.contratante || 'Sem empresa') : ''}</p>
-                        </td>
-                        <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.dataCTe ? new Date(item.dataCTe + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</td>
-                        <td className="px-6 py-4 text-sm font-bold text-slate-700">{relatorioPorCarga ? ((item.dataVencimentoBoleto || item.vencimento) ? new Date(((item.dataVencimentoBoleto || item.vencimento) + 'T12:00:00')).toLocaleDateString('pt-BR') : '---') : (item.dataSaida || item.dataNF || item.dataEntrega ? new Date((item.dataSaida || item.dataNF || item.dataEntrega) + 'T12:00:00').toLocaleDateString('pt-BR') : '---')}</td>
-                        <td className="px-6 py-4 text-sm font-bold text-slate-700">R$ {(parseFloat(item.valorFrete) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        {relatorioPorCarga && <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.contratante || 'Sem empresa'}</td>}
-                        {relatorioPorCarga && <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.numeroBoleto || '---'}</td>}
-                        {!relatorioPorCarga && <td className="px-6 py-4 text-sm font-bold text-slate-700">R$ {(parseFloat(item.valorDistribuicao) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
-                        {!relatorioPorCarga && <td className="px-6 py-4 text-sm font-black text-emerald-700">R$ {((parseFloat(item.valorFrete) || 0) - (parseFloat(item.valorDistribuicao) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
-                      </tr>
-                    ))}
-                  </tbody>
+                          <p className="text-[10px] font-black text-blue-300 uppercase tracking-tight">{!relatorioPorCarga ? (item.contratante || 'Sem empresa') : ''}</p>
+                        <td className="px-6 py-4 text-sm font-bold text-slate-200">{item.dataCTe ? new Date(item.dataCTe + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</td>
+          <div className={`rounded-3xl border shadow-sm overflow-hidden ${activeTab === 'dashboard' ? 'bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 border-slate-700/70 shadow-xl shadow-slate-900/20 text-white' : 'bg-white border-slate-200'}`}>
+            <div className={`px-6 py-4 border-b flex justify-between items-center ${activeTab === 'dashboard' ? 'border-white/10 bg-transparent' : 'border-slate-100 bg-white'}`}>
+              <h3 className={`text-xs font-black uppercase tracking-widest ${activeTab === 'dashboard' ? 'text-slate-200' : 'text-slate-500'}`}>{activeTab}</h3>
+              <span className={`text-[10px] font-bold ${activeTab === 'dashboard' ? 'text-slate-300' : 'text-slate-400'}`}>{filteredData.length} registros</span>
+              <thead className={`${activeTab === 'dashboard' ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-100'} border-b`}>
+                  <th className={`px-6 py-4 text-[10px] font-black uppercase ${activeTab === 'dashboard' ? 'text-slate-300' : 'text-slate-400'}`}>NF / Contratante</th>
+                  <th className={`px-6 py-4 text-[10px] font-black uppercase ${activeTab === 'dashboard' ? 'text-slate-300' : 'text-slate-400'}`}>Destino / Motorista</th>
+                  <th className={`px-6 py-4 text-[10px] font-black uppercase ${activeTab === 'dashboard' ? 'text-slate-300' : 'text-slate-400'}`}>Status / Financeiro</th>
+                  <th className={`px-6 py-4 text-[10px] font-black uppercase text-right ${activeTab === 'dashboard' ? 'text-slate-300' : 'text-slate-400'}`}>Ações</th>
+              <tbody className={`divide-y ${activeTab === 'dashboard' ? 'divide-white/10' : 'divide-slate-50'}`}>
+                  <tr><td colSpan={4} className={`px-6 py-8 text-center text-xs font-bold uppercase ${activeTab === 'dashboard' ? 'text-slate-300' : 'text-slate-400'}`}>Selecione um card de cargas para visualizar os dados</td></tr>
+                  <tr key={item.id} className={`group transition-colors ${activeTab === 'dashboard' ? 'hover:bg-white/5' : 'hover:bg-slate-50/50'}`}>
+                          <p className={`font-bold ${activeTab === 'dashboard' ? 'text-slate-100' : 'text-slate-800'}`}>{item.numeroNF || item.nome || item.modelo || "---"}</p>
+                          <p className="text-[10px] font-black text-blue-300 uppercase tracking-tight">
+                      <p className={`text-sm font-bold ${activeTab === 'dashboard' ? 'text-slate-200' : 'text-slate-700'}`}>{item.destinatario || item.cidade || item.tipo || '---'}</p>
+                      {(item.destinatario && item.cidade) && <p className={`text-[10px] font-bold ${activeTab === 'dashboard' ? 'text-slate-400' : 'text-slate-500'}`}>{item.cidade}</p>}
+                        <p className={`text-[10px] font-black uppercase ${activeTab === 'dashboard' ? 'text-slate-300' : 'text-slate-400'}`}>{item.motorista || item.telefone || 'Sem Motorista'}</p>
                 </table>
               </div>
             </div>
@@ -1092,13 +1092,13 @@ function App() {
           )}
 
           {activeTab === 'dashboard' && (
-            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-5 mt-6">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Próximos boletos a vencer</h3>
-                <span className="text-[10px] font-black uppercase rounded-full px-2 py-1 bg-rose-50 text-rose-600">{dashboardResumo.boletosEmRisco} críticos (≤ 3 dias)</span>
-              </div>
-              {proximosBoletosVencer.length === 0 ? (
-                <p className="text-xs font-bold text-slate-400 uppercase">Sem boletos pendentes com vencimento</p>
+                      <p className="text-xs font-black text-amber-300">Vence: {item._vencimentoData.toLocaleDateString('pt-BR')}</p>
+                  <button key={b.key} type="button" onClick={() => setBoletoFilter(b.key)} className={`rounded-2xl p-4 border text-left transition-all ${boletoFilter === b.key ? 'bg-slate-900 text-white border-slate-700 shadow-xl shadow-slate-900/20' : 'bg-slate-800/70 text-slate-100 border-slate-700 hover:border-slate-500'}`}>
+                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-300">{b.label}</p>
+                  <div className="px-6 py-8 text-center text-xs font-bold text-slate-300 uppercase">Selecione um card de boletos para visualizar os dados</div>
+                        <td colSpan={4} className="px-6 py-8 text-center text-xs font-bold text-slate-300 uppercase">Sem boletos para o filtro selecionado</td>
+                          <p className="text-[10px] font-black text-blue-300 uppercase tracking-tight">{item.contratante || 'Contratante não informado'}</p>
+                        <td className="px-6 py-4 text-sm font-bold text-slate-200">{(item.dataVencimentoBoleto || item.vencimento) ? new Date(((item.dataVencimentoBoleto || item.vencimento) + 'T12:00:00')).toLocaleDateString('pt-BR') : '---'}</td>
               ) : (
                 <div className="space-y-2">
                   {proximosBoletosVencer.map((item) => (
