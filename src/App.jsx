@@ -36,7 +36,7 @@ function App() {
   const [user, setUser] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [statusFilter, setStatusFilter] = useState('Todos');
-  const [boletoFilter, setBoletoFilter] = useState('Gerados');
+  const [boletoFilter, setBoletoFilter] = useState('');
   const [dashboardMes, setDashboardMes] = useState('');
   const [viagens, setViagens] = useState([]);
   const [financeiro, setFinanceiro] = useState([]);
@@ -197,9 +197,19 @@ function App() {
   }, [financeiroDashboardMes]);
 
   const boletosDashboardFiltrados = useMemo(() => {
-    if (boletoFilter === 'Gerados') return financeiroDashboardMes;
-    return financeiroDashboardMes.filter((f) => getStatusFinanceiro(f) === boletoFilter);
-  }, [financeiroDashboardMes, boletoFilter]);
+    if (!boletoFilter) return [];
+    let lista = boletoFilter === 'Gerados'
+      ? financeiroDashboardMes
+      : financeiroDashboardMes.filter((f) => getStatusFinanceiro(f) === boletoFilter);
+
+    if (!searchNF) return lista;
+    const term = searchNF.toLowerCase();
+    return lista.filter((item) =>
+      (item.numeroNF || '').toLowerCase().includes(term) ||
+      (item.numeroCarga || '').toLowerCase().includes(term) ||
+      (item.contratante || '').toLowerCase().includes(term)
+    );
+  }, [financeiroDashboardMes, boletoFilter, searchNF]);
 
   const empresasRelatorio = useMemo(() => {
     const empresas = [...new Set(viagens.map(v => v.contratante).filter(Boolean))];
@@ -600,7 +610,7 @@ function App() {
     let list = [];
     switch (activeTab) {
       case 'dashboard':
-        list = statusFilter === 'Todos' ? viagensDashboardMes : viagensDashboardMes.filter(v => getStatusViagem(v) === statusFilter);
+        list = statusFilter === 'Todos' ? [] : viagensDashboardMes.filter(v => getStatusViagem(v) === statusFilter);
         break;
       case 'viagens': 
         list = statusFilter === 'Todos' ? viagens : viagens.filter(v => getStatusViagem(v) === statusFilter);
@@ -790,7 +800,7 @@ function App() {
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
               <input 
                 type="text" 
-                placeholder="Pesquisar por NF, Contratante ou Cidade..." 
+                placeholder="Pesquisar por Nº Carga, NF, Contratante ou Cidade..." 
                 value={searchNF}
                 onChange={(e) => setSearchNF(e.target.value)}
                 className="w-full pl-12 pr-4 py-2.5 bg-slate-100 rounded-xl outline-none focus:ring-2 ring-blue-500/20 text-sm font-medium transition-all"
@@ -939,6 +949,9 @@ function App() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
+                {filteredData.length === 0 && activeTab === 'dashboard' && statusFilter === 'Todos' && (
+                  <tr><td colSpan={4} className="px-6 py-8 text-center text-xs font-bold text-slate-400 uppercase">Selecione um card de cargas para visualizar os dados</td></tr>
+                )}
                 {filteredData.map(item => (
                   <tr key={item.id} className="hover:bg-slate-50/50 group transition-colors">
                     <td className="px-6 py-4">
@@ -1019,6 +1032,9 @@ function App() {
                   <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Dashboard Boletos</h3>
                   <span className="text-[10px] font-bold text-slate-400">{boletosDashboardFiltrados.length} registros</span>
                 </div>
+                {!boletoFilter && (
+                  <div className="px-6 py-8 text-center text-xs font-bold text-slate-400 uppercase">Selecione um card de boletos para visualizar os dados</div>
+                )}
                 <table className="w-full text-left border-collapse">
                   <thead className="bg-slate-50 border-b border-slate-100">
                     <tr>
