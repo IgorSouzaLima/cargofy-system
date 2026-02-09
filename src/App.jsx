@@ -428,46 +428,91 @@ function App() {
     };
   };
 
+  const importarConteudoPlanilha = async (conteudo) => {
+    const linhasBrutas = conteudo.split(/\r?\n/).filter(Boolean);
+    if (linhasBrutas.length < 2) {
+      alert('Planilha vazia ou inválida. Use CSV com cabeçalho.');
+      return;
+    }
+
+    const separador = linhasBrutas[0].includes(';') ? ';' : ',';
+    const parseLinha = (linha) => linha.split(separador).map((v) => v.replace(/^"|"$/g, '').trim());
+
+    const headers = parseLinha(linhasBrutas[0]);
+    const linhas = linhasBrutas.slice(1).map(parseLinha);
+
+    let inseridos = 0;
+    let ignorados = 0;
+    for (const valores of linhas) {
+      const payload = mapearLinhaPlanilha(headers, valores);
+      if (!payload.numeroCTe || !payload.dataCTe) {
+        ignorados += 1;
+        continue;
+      }
+
+      if (payload.metodoPagamento.toLowerCase() === 'boleto' && (!payload.numeroBoleto || !payload.dataVencimentoBoleto)) {
+        ignorados += 1;
+        continue;
+      }
+
+      const novoRegistro = await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'viagens'), {
+        ...payload,
+        userId: user.uid,
+        createdAt: serverTimestamp()
+      });
+
+      await syncFinanceiroPorViagem(payload, novoRegistro.id);
+      inseridos += 1;
+    }
+
+    alert(`Importação concluída. Inseridos: ${inseridos}. Ignorados: ${ignorados}.`);
+  };
+
+  const construirUrlCsvGoogleSheets = (urlInformada) => {
+    const url = new URL(urlInformada);
+    if (!url.hostname.includes('docs.google.com')) return '';
+
+    if (url.searchParams.get('output') === 'csv' || url.pathname.includes('/export')) {
+      return url.toString();
+    }
+
+    const match = url.pathname.match(/\/spreadsheets\/d\/([^/]+)/);
+    if (!match) return '';
+
+    const spreadsheetId = match[1];
+    let gid = url.searchParams.get('gid') || '';
+    if (!gid && url.hash.includes('gid=')) {
+      gid = url.hash.split('gid=')[1] || '';
+    }
+
+    return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv${gid ? `&gid=${gid}` : ''}`;
+  };
+
+  const importarGoogleSheets = async () => {
+    const urlInformada = window.prompt('Cole a URL do Google Sheets (aba que deseja importar):');
+    if (!urlInformada) return;
+
+    const urlCsv = construirUrlCsvGoogleSheets(urlInformada.trim());
+    if (!urlCsv) {
+      alert('URL inválida. Use um link do Google Sheets.');
+      return;
+    }
+
+    try {
+      const resp = await fetch(urlCsv);
+      if (!resp.ok) throw new Error('Falha ao baixar CSV do Google Sheets.');
+      const conteudo = await resp.text();
+      await importarConteudoPlanilha(conteudo);
+    } catch (err) {
+      console.error(err);
+      alert('Não foi possível importar do Google Sheets. Verifique se a planilha está publicada/compartilhada e tente novamente.');
+    }
+  };
+
   const importarPlanilhaFretes = async (arquivo) => {
     try {
       const conteudo = await arquivo.text();
-      const linhasBrutas = conteudo.split(/\r?\n/).filter(Boolean);
-      if (linhasBrutas.length < 2) {
-        alert('Planilha vazia ou inválida. Use CSV com cabeçalho.');
-        return;
-      }
-
-      const separador = linhasBrutas[0].includes(';') ? ';' : ',';
-      const parseLinha = (linha) => linha.split(separador).map((v) => v.replace(/^"|"$/g, '').trim());
-
-      const headers = parseLinha(linhasBrutas[0]);
-      const linhas = linhasBrutas.slice(1).map(parseLinha);
-
-      let inseridos = 0;
-      let ignorados = 0;
-      for (const valores of linhas) {
-        const payload = mapearLinhaPlanilha(headers, valores);
-        if (!payload.numeroCTe || !payload.dataCTe) {
-          ignorados += 1;
-          continue;
-        }
-
-        if (payload.metodoPagamento.toLowerCase() === 'boleto' && (!payload.numeroBoleto || !payload.dataVencimentoBoleto)) {
-          ignorados += 1;
-          continue;
-        }
-
-        const novoRegistro = await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'viagens'), {
-          ...payload,
-          userId: user.uid,
-          createdAt: serverTimestamp()
-        });
-
-        await syncFinanceiroPorViagem(payload, novoRegistro.id);
-        inseridos += 1;
-      }
-
-      alert(`Importação concluída. Inseridos: ${inseridos}. Ignorados: ${ignorados}.`);
+      await importarConteudoPlanilha(conteudo);
     } catch (err) {
       console.error(err);
       alert('Erro ao importar planilha. Verifique se o arquivo é CSV válido.');
@@ -790,6 +835,9 @@ function App() {
                   <input ref={planilhaInputRef} type="file" accept=".csv,text/csv" onChange={handleUploadPlanilha} className="hidden" />
                   <button type="button" onClick={() => planilhaInputRef.current?.click()} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-emerald-500/20 transition-all">
                     <Upload size={16} /> Importar Planilha
+                  </button>
+                  <button type="button" onClick={importarGoogleSheets} className="flex items-center gap-2 px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-teal-500/20 transition-all">
+                    <ExternalLink size={16} /> Google Sheets
                   </button>
                 </>
               )}
