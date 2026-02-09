@@ -5,8 +5,7 @@ import { getFirestore, collection, doc, addDoc, onSnapshot, updateDoc, deleteDoc
 import { 
   LayoutDashboard, Truck, Users, DollarSign, Plus, Package, MapPin, X, Trash2, 
   Briefcase, LogOut, Clock, FileText, Search, Calendar, Layers, 
-  CheckCircle2, AlertCircle, Edit3, Download, Camera, Paperclip, ExternalLink, Building2, Eye,
-  TrendingUp, TrendingDown, Target, BadgeDollarSign
+  CheckCircle2, AlertCircle, Edit3, Download, Camera, Paperclip, ExternalLink, Building2, Eye
 } from 'lucide-react';
 import Card from './components/Card';
 import Modal from './components/Modal';
@@ -232,15 +231,8 @@ function App() {
   }, [financeiroDashboardMes]);
 
   const dashboardResumo = useMemo(() => {
-    const total = stats.total || 0;
-    const taxaEntrega = total ? Math.round((stats.entregues / total) * 100) : 0;
-    const taxaEmRota = total ? Math.round((stats.emRota / total) * 100) : 0;
-    const faturamentoMedio = total ? financeiroResumo.faturou / total : 0;
-    const margemLucro = financeiroResumo.faturou > 0
-      ? Math.round((financeiroResumo.lucroTotal / financeiroResumo.faturou) * 100)
-      : 0;
-    const boletosEmRisco = proximosBoletosVencer.filter((b) => b._diasRestantes !== null && b._diasRestantes <= 3).length;
-
+    return { boletosEmRisco };
+  }, [proximosBoletosVencer]);
     return { taxaEntrega, taxaEmRota, faturamentoMedio, margemLucro, boletosEmRisco };
   }, [stats, financeiroResumo, proximosBoletosVencer]);
 
@@ -864,46 +856,6 @@ function App() {
                     <ExternalLink size={16} /> Google Sheets
                   </button>
                 </>
-              )}
-              <button type="button" onClick={() => { resetForm(); setEditingId(null); setModalOpen(true); }} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-blue-500/20 transition-all">
-                <Plus size={16} /> Novo Registro
-              </button>
-            </div>
-          )}
-        </header>
-
-        <div className="p-8 overflow-y-auto">
-          {activeTab === 'dashboard' && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-              <Card title="Cargas Pendentes" value={stats.pendentes} icon={Clock} color="bg-amber-500" active={statusFilter === 'Pendente'} onClick={() => setStatusFilter('Pendente')} />
-              <Card title="Cargas em Rota" value={stats.emRota} icon={MapPin} color="bg-blue-600" active={statusFilter === 'Em rota'} onClick={() => setStatusFilter('Em rota')} />
-              <Card title="Concluídas" value={stats.entregues} icon={CheckCircle2} color="bg-emerald-500" active={statusFilter === 'Entregue'} onClick={() => setStatusFilter('Entregue')} />
-            </div>
-          )}
-
-          {activeTab === 'dashboard' && (
-            <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 rounded-3xl p-6 md:p-7 mb-8 shadow-xl shadow-slate-900/20 border border-slate-700/70 text-white">
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-5">
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-200">Visão executiva</p>
-                  <h3 className="text-xl md:text-2xl font-black tracking-tight">Painel profissional da operação</h3>
-                </div>
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/20 text-[10px] font-black uppercase tracking-wider">
-                  <Target size={13} /> SLA de entrega: {dashboardResumo.taxaEntrega}%
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-                <div className="rounded-2xl bg-white/10 border border-white/15 p-4">
-                  <p className="text-[10px] uppercase font-black text-slate-200">Taxa de entrega</p>
-                  <p className="text-2xl font-black mt-1">{dashboardResumo.taxaEntrega}%</p>
-                  <p className="text-[11px] mt-1 text-emerald-200 font-bold flex items-center gap-1"><TrendingUp size={13} /> desempenho de finalização</p>
-                </div>
-                <div className="rounded-2xl bg-white/10 border border-white/15 p-4">
-                  <p className="text-[10px] uppercase font-black text-slate-200">Cargas em rota</p>
-                  <p className="text-2xl font-black mt-1">{dashboardResumo.taxaEmRota}%</p>
-                  <p className="text-[11px] mt-1 text-blue-200 font-bold">{stats.emRota} viagens ativas no período</p>
-                </div>
                 <div className="rounded-2xl bg-white/10 border border-white/15 p-4">
                   <p className="text-[10px] uppercase font-black text-slate-200">Ticket médio por carga</p>
                   <p className="text-2xl font-black mt-1">R$ {dashboardResumo.faturamentoMedio.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
