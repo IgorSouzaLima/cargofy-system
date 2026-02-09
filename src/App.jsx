@@ -216,63 +216,145 @@ function App() {
 
   const relatorioPorCarga = !!reportNumeroCarga.trim();
 
-  const enviarRelatorioPorEmail = () => {
-    const header = relatorioPorCarga
-      ? ['Carga', 'NF', 'CT-e', 'Data CT-e', 'Empresa', 'Número Boleto', 'Data', 'Frete']
-      : ['Carga', 'NF', 'CT-e', 'Data CT-e', 'Empresa', 'Data', 'Frete', 'Distribuicao', 'Lucro'];
-
-    const rows = relatorioData.map(item => {
-      const base = relatorioPorCarga
-        ? [
-            item.numeroCarga || '',
-            item.numeroNF || '',
-            item.numeroCTe || '',
-            item.dataCTe || '',
-            item.contratante || '',
-            item.numeroBoleto || '',
-            item.dataSaida || item.dataNF || item.dataEntrega || '',
-            (parseFloat(item.valorFrete) || 0).toFixed(2)
-          ]
-        : [
-            item.numeroCarga || '',
-            item.numeroNF || '',
-            item.numeroCTe || '',
-            item.dataCTe || '',
-            item.contratante || '',
-            item.dataSaida || item.dataNF || item.dataEntrega || '',
-            (parseFloat(item.valorFrete) || 0).toFixed(2)
-          ];
-
-      if (relatorioPorCarga) return base;
-
-      return [
-        ...base,
-        (parseFloat(item.valorDistribuicao) || 0).toFixed(2),
-        ((parseFloat(item.valorFrete) || 0) - (parseFloat(item.valorDistribuicao) || 0)).toFixed(2)
-      ];
-    });
-
-    const csv = [header, ...rows].map(r => r.map(c => `"${String(c).replaceAll('"', '""')}"`).join(';')).join('\n');
-
+  const enviarRelatorioPorEmail = async () => {
     const emailDestino = window.prompt('Informe o e-mail de destino para envio do relatório:');
     if (!emailDestino) return;
 
     const assunto = `Relatório CargoFy${reportNumeroCarga ? ` - Carga ${reportNumeroCarga}` : ''}`;
-    const resumo = [
-      `Empresa: ${reportEmpresa}`,
-      `Carga: ${reportNumeroCarga || 'Todas'}`,
-      `Período: ${reportInicio || 'Início'} até ${reportFim || 'Hoje'}`,
-      `Registros: ${relatorioData.length}`
-    ].join('\n');
+
+    const colunas = relatorioPorCarga
+      ? ['Carga', 'NF', 'CT-e', 'Data', 'Empresa', 'Número Boleto', 'Frete']
+      : ['Carga', 'NF', 'CT-e', 'Data', 'Empresa', 'Frete', 'Distribuição', 'Lucro'];
+
+    const linhas = relatorioData.map((item) => {
+      const data = item.dataSaida || item.dataNF || item.dataEntrega;
+      const dataFmt = data ? new Date(`${data}T12:00:00`).toLocaleDateString('pt-BR') : '---';
+      const frete = `R$ ${(parseFloat(item.valorFrete) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+
+      if (relatorioPorCarga) {
+        return [
+          item.numeroCarga || '---',
+          item.numeroNF || '---',
+          item.numeroCTe || '---',
+          dataFmt,
+          item.contratante || 'Sem empresa',
+          item.numeroBoleto || '---',
+          frete
+        ];
+      }
+
+      return [
+        item.numeroCarga || '---',
+        item.numeroNF || '---',
+        item.numeroCTe || '---',
+        dataFmt,
+        item.contratante || 'Sem empresa',
+        frete,
+        `R$ ${(parseFloat(item.valorDistribuicao) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+        `R$ ${((parseFloat(item.valorFrete) || 0) - (parseFloat(item.valorDistribuicao) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+      ];
+    });
+
+    const largura = 1600;
+    const alturaLinha = 38;
+    const alturaCabecalho = 180;
+    const alturaRodape = 36;
+    const altura = Math.max(420, alturaCabecalho + (linhas.length + 1) * alturaLinha + alturaRodape);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = largura;
+    canvas.height = altura;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      alert('Não foi possível gerar a imagem do relatório.');
+      return;
+    }
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, largura, altura);
+
+    const logo = new Image();
+    logo.src = `${window.location.origin}/logo-cargofy.svg`;
+    await new Promise((resolve) => {
+      logo.onload = resolve;
+      logo.onerror = resolve;
+    });
+
+    if (logo.complete && logo.naturalWidth) {
+      ctx.drawImage(logo, 40, 28, 72, 72);
+    }
+
+    ctx.fillStyle = '#0f172a';
+    ctx.font = '900 34px Arial';
+    ctx.fillText('Relatório CargoFy', 130, 66);
+    ctx.font = '600 18px Arial';
+    ctx.fillStyle = '#475569';
+    ctx.fillText(`Empresa: ${reportEmpresa} | Carga: ${reportNumeroCarga || 'Todas'} | Registros: ${relatorioData.length}`, 130, 98);
+
+    ctx.fillStyle = '#f1f5f9';
+    ctx.fillRect(30, 128, largura - 60, alturaLinha);
+
+    const colWidth = (largura - 60) / colunas.length;
+    ctx.strokeStyle = '#cbd5e1';
+    ctx.lineWidth = 1;
+
+    ctx.fillStyle = '#334155';
+    ctx.font = '700 14px Arial';
+    colunas.forEach((col, i) => {
+      const x = 35 + i * colWidth;
+      ctx.fillText(col, x, 152);
+      ctx.beginPath();
+      ctx.moveTo(30 + (i + 1) * colWidth, 128);
+      ctx.lineTo(30 + (i + 1) * colWidth, altura - alturaRodape);
+      ctx.stroke();
+    });
+
+    ctx.beginPath();
+    ctx.moveTo(30, 128);
+    ctx.lineTo(30, altura - alturaRodape);
+    ctx.lineTo(largura - 30, altura - alturaRodape);
+    ctx.lineTo(largura - 30, 128);
+    ctx.closePath();
+    ctx.stroke();
+
+    ctx.font = '600 13px Arial';
+    linhas.forEach((linha, idx) => {
+      const yTop = 128 + alturaLinha * (idx + 1);
+      if (idx % 2 === 0) {
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillRect(30, yTop, largura - 60, alturaLinha);
+      }
+
+      ctx.fillStyle = '#0f172a';
+      linha.forEach((valor, i) => {
+        const x = 35 + i * colWidth;
+        const texto = String(valor);
+        ctx.fillText(texto.length > 28 ? `${texto.slice(0, 28)}...` : texto, x, yTop + 24);
+      });
+
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.beginPath();
+      ctx.moveTo(30, yTop + alturaLinha);
+      ctx.lineTo(largura - 30, yTop + alturaLinha);
+      ctx.stroke();
+    });
+
+    const dataURL = canvas.toDataURL('image/png');
+    const download = document.createElement('a');
+    download.href = dataURL;
+    download.download = `relatorio_cargofy_${reportNumeroCarga || 'geral'}.png`;
+    download.click();
 
     const corpo = [
       'Olá,',
       '',
-      'Segue relatório gerado no CargoFy:',
-      resumo,
+      'Segue o relatório CargoFy.',
+      'A imagem do relatório foi gerada e baixada automaticamente para anexar neste e-mail.',
       '',
-      'CSV:',
-      csv
+      `Empresa: ${reportEmpresa}`,
+      `Carga: ${reportNumeroCarga || 'Todas'}`,
+      `Período: ${reportInicio || 'Início'} até ${reportFim || 'Hoje'}`,
+      `Registros: ${relatorioData.length}`
     ].join('\n');
 
     const mailto = `mailto:${encodeURIComponent(emailDestino)}?subject=${encodeURIComponent(assunto)}&body=${encodeURIComponent(corpo)}`;
@@ -324,7 +406,7 @@ function App() {
       const dist = (parseFloat(item.valorDistribuicao) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
       const lucro = ((parseFloat(item.valorFrete) || 0) - (parseFloat(item.valorDistribuicao) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
       return relatorioPorCarga
-        ? `<tr><td>${item.numeroCarga || '---'}</td><td>${item.numeroNF || '---'}</td><td>${item.numeroCTe || '---'}</td><td>${item.dataCTe ? new Date(item.dataCTe + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</td><td>${item.contratante || 'Sem empresa'}${item.numeroBoleto ? ` / Boleto ${item.numeroBoleto}` : ''}</td><td>${dataFmt}</td><td>R$ ${frete}</td></tr>`
+        ? `<tr><td>${item.numeroCarga || '---'}</td><td>${item.numeroNF || '---'}</td><td>${item.numeroCTe || '---'}</td><td>${item.dataCTe ? new Date(item.dataCTe + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</td><td>${item.contratante || 'Sem empresa'}</td><td>${item.numeroBoleto || '---'}</td><td>${dataFmt}</td><td>R$ ${frete}</td></tr>`
         : `<tr><td>${item.numeroCarga || '---'}</td><td>${item.numeroNF || '---'}</td><td>${item.numeroCTe || '---'}</td><td>${item.dataCTe ? new Date(item.dataCTe + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</td><td>${item.contratante || 'Sem empresa'}</td><td>${dataFmt}</td><td>R$ ${frete}</td><td>R$ ${dist}</td><td>R$ ${lucro}</td></tr>`;
     }).join('');
 
@@ -354,9 +436,9 @@ function App() {
           </div>
           <table>
             <thead>
-              ${relatorioPorCarga ? '<tr><th>Carga</th><th>NF</th><th>CT-e</th><th>Data CT-e</th><th>Empresa / Boleto</th><th>Data</th><th>Frete</th></tr>' : '<tr><th>Carga</th><th>NF</th><th>CT-e</th><th>Data CT-e</th><th>Empresa</th><th>Data</th><th>Frete</th><th>Distribuição</th><th>Lucro</th></tr>'}
+              ${relatorioPorCarga ? '<tr><th>Carga</th><th>NF</th><th>CT-e</th><th>Data CT-e</th><th>Empresa</th><th>Número Boleto</th><th>Data</th><th>Frete</th></tr>' : '<tr><th>Carga</th><th>NF</th><th>CT-e</th><th>Data CT-e</th><th>Empresa</th><th>Data</th><th>Frete</th><th>Distribuição</th><th>Lucro</th></tr>'}
             </thead>
-            <tbody>${linhas || `<tr><td colspan="${relatorioPorCarga ? 7 : 9}">Sem registros para o filtro.</td></tr>`}</tbody>
+            <tbody>${linhas || `<tr><td colspan="${relatorioPorCarga ? 8 : 9}">Sem registros para o filtro.</td></tr>`}</tbody>
           </table>
         </body>
       </html>
@@ -639,10 +721,12 @@ function App() {
                 <table className="w-full text-left border-collapse">
                   <thead className="bg-slate-50 border-b border-slate-100">
                     <tr>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Carga / NF / Empresa</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Carga / NF</th>
                       <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">CT-e</th>
                       <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Data</th>
                       <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Frete</th>
+                      {relatorioPorCarga && <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Empresa</th>}
+                      {relatorioPorCarga && <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Número Boleto</th>}
                       {!relatorioPorCarga && <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Distribuição</th>}
                       {!relatorioPorCarga && <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Lucro</th>}
                     </tr>
@@ -654,11 +738,13 @@ function App() {
                           <p className="text-[10px] font-black text-indigo-600 uppercase">Carga #{item.numeroCarga || '---'}</p>
                           <p className="font-bold text-slate-800">{item.numeroNF || '---'}</p>
                           <p className="text-[10px] font-black text-slate-500">CT-e: {item.numeroCTe || '---'}</p>
-                          <p className="text-[10px] font-black text-blue-600 uppercase tracking-tight">{item.contratante || 'Sem empresa'}{relatorioPorCarga && item.numeroBoleto ? ` / Boleto ${item.numeroBoleto}` : ''}</p>
+                          <p className="text-[10px] font-black text-blue-600 uppercase tracking-tight">{!relatorioPorCarga ? (item.contratante || 'Sem empresa') : ''}</p>
                         </td>
                         <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.dataCTe ? new Date(item.dataCTe + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</td>
                         <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.dataSaida || item.dataNF || item.dataEntrega ? new Date((item.dataSaida || item.dataNF || item.dataEntrega) + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</td>
                         <td className="px-6 py-4 text-sm font-bold text-slate-700">R$ {(parseFloat(item.valorFrete) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        {relatorioPorCarga && <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.contratante || 'Sem empresa'}</td>}
+                        {relatorioPorCarga && <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.numeroBoleto || '---'}</td>}
                         {!relatorioPorCarga && <td className="px-6 py-4 text-sm font-bold text-slate-700">R$ {(parseFloat(item.valorDistribuicao) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
                         {!relatorioPorCarga && <td className="px-6 py-4 text-sm font-black text-emerald-700">R$ {((parseFloat(item.valorFrete) || 0) - (parseFloat(item.valorDistribuicao) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
                       </tr>
