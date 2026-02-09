@@ -822,7 +822,7 @@ function App() {
           <NavItem icon={Briefcase} label="Motoristas" active={activeTab === 'motoristas'} onClick={() => setActiveTab('motoristas')} />
           <NavItem icon={Layers} label="Veículos" active={activeTab === 'veiculos'} onClick={() => setActiveTab('veiculos')} />
         </nav>
-        <button onClick={() => signOut(auth)} className="mt-auto flex items-center gap-2 text-slate-400 hover:text-white text-xs font-bold uppercase py-4 border-t border-white/10"><LogOut size={16}/> Sair</button>
+        <button type="button" onClick={() => signOut(auth)} className="mt-auto flex items-center gap-2 text-slate-400 hover:text-white text-xs font-bold uppercase py-4 border-t border-white/10"><LogOut size={16}/> Sair</button>
       </aside>
 
       <main className="flex-1 flex flex-col overflow-hidden">
@@ -843,12 +843,12 @@ function App() {
                 <Calendar size={16} className="text-slate-400" />
                 <input type="month" value={dashboardMes} onChange={(e) => setDashboardMes(e.target.value)} className="px-3 py-2 bg-slate-100 rounded-xl outline-none text-xs font-bold text-slate-700" />
                 {dashboardMes && (
-                  <button onClick={() => setDashboardMes('')} className="bg-slate-100 text-slate-600 px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase">Limpar</button>
+                  <button type="button" onClick={() => setDashboardMes('')} className="bg-slate-100 text-slate-600 px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase">Limpar</button>
                 )}
               </div>
             )}
             {statusFilter !== 'Todos' && (
-              <button onClick={() => setStatusFilter('Todos')} className="bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase flex items-center gap-2">
+              <button type="button" onClick={() => setStatusFilter('Todos')} className="bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase flex items-center gap-2">
                 Filtro: {statusFilter} <X size={12}/>
               </button>
             )}
@@ -862,7 +862,7 @@ function App() {
                   </button>
                 </>
               )}
-              <button onClick={() => { resetForm(); setEditingId(null); setModalOpen(true); }} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-blue-500/20 transition-all">
+              <button type="button" onClick={() => { resetForm(); setEditingId(null); setModalOpen(true); }} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-blue-500/20 transition-all">
                 <Plus size={16} /> Novo Registro
               </button>
             </div>
@@ -946,12 +946,12 @@ function App() {
                 <Input label="Data Inicial" type="date" value={reportInicio} onChange={setReportInicio} />
                 <Input label="Data Final" type="date" value={reportFim} onChange={setReportFim} />
                 <div className="flex items-end">
-                  <button onClick={enviarRelatorioPorEmail} className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase transition-all">
+                  <button type="button" onClick={enviarRelatorioPorEmail} className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase transition-all">
                     <Download size={16} /> Enviar Relatório por E-mail
                   </button>
                 </div>
                 <div className="flex items-end">
-                  <button onClick={gerarRelatorioPDF} className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-slate-700 hover:bg-slate-800 text-white rounded-xl text-xs font-black uppercase transition-all">
+                  <button type="button" onClick={gerarRelatorioPDF} className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-slate-700 hover:bg-slate-800 text-white rounded-xl text-xs font-black uppercase transition-all">
                     <FileText size={16} /> Gerar Relatório PDF
                   </button>
                 </div>
@@ -1076,10 +1076,10 @@ function App() {
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         {(activeTab === 'dashboard' || activeTab === 'viagens' || activeTab === 'financeiro') && (
-                          <button onClick={() => setDetailItem(item)} className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg" title="Ver detalhes"><Eye size={16}/></button>
+                          <button type="button" onClick={() => setDetailItem(item)} className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg" title="Ver detalhes"><Eye size={16}/></button>
                         )}
-                        <button onClick={() => handleOpenEdit(item)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg"><Edit3 size={16}/></button>
-                        <button onClick={async () => { 
+                        <button type="button" onClick={() => handleOpenEdit(item)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg"><Edit3 size={16}/></button>
+                        <button type="button" onClick={async () => { 
                           if(confirm('Deseja realmente excluir este registro?')) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', (activeTab === 'dashboard' || activeTab === 'viagens' ? 'viagens' : activeTab), item.id));
                         }} className="p-2 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 size={16}/></button>
                       </div>

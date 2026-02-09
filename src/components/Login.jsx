@@ -54,7 +54,7 @@ export default function Login({ auth }) {
               <Input label="E-mail corporativo" value={email} onChange={setEmail} placeholder="seuemail@empresa.com" />
               <Input label="Senha" type="password" value={pass} onChange={setPass} placeholder="••••••••" />
 
-              <button className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black uppercase tracking-widest shadow-xl shadow-blue-500/20 transition-all">
+              <button type="submit" className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black uppercase tracking-widest shadow-xl shadow-blue-500/20 transition-all">
                 {isReg ? 'Criar Conta' : 'Entrar no TMS'}
               </button>
 
