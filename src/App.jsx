@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, onAuthStateChanged, signOut } from 'firebase/auth';
 import { getFirestore, collection, doc, addDoc, onSnapshot, updateDoc, deleteDoc, serverTimestamp, query } from 'firebase/firestore';
 import { 
   LayoutDashboard, Truck, Users, DollarSign, Plus, Package, MapPin, X, Trash2, 
   Briefcase, LogOut, Clock, FileText, Search, Calendar, Layers, 
-  CheckCircle2, AlertCircle, Edit3, Download, Camera, Paperclip, ExternalLink, Building2, Eye, Upload
+  CheckCircle2, AlertCircle, Edit3, Download, Camera, Paperclip, ExternalLink, Building2, Eye
 } from 'lucide-react';
 import Card from './components/Card';
 import Modal from './components/Modal';
@@ -54,7 +54,6 @@ function App() {
   const [reportNumeroCarga, setReportNumeroCarga] = useState('');
   const [detailItem, setDetailItem] = useState(null);
   const [comprovantePreview, setComprovantePreview] = useState('');
-  const planilhaInputRef = useRef(null);
 
   const [formData, setFormData] = useState({
     numeroNF: '', 
@@ -525,23 +524,6 @@ function App() {
     }
   };
 
-  const importarPlanilhaFretes = async (arquivo) => {
-    try {
-      const conteudo = await arquivo.text();
-      await importarConteudoPlanilha(conteudo);
-    } catch (err) {
-      console.error(err);
-      alert('Erro ao importar planilha. Verifique se o arquivo é CSV válido.');
-    }
-  };
-
-  const handleUploadPlanilha = async (e) => {
-    const arquivo = e.target.files?.[0];
-    if (!arquivo) return;
-    await importarPlanilhaFretes(arquivo);
-    e.target.value = '';
-  };
-
   const processarFotoComprovante = (file) => new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(new Error('Falha ao ler imagem.'));
@@ -859,10 +841,6 @@ function App() {
             <div className="flex items-center gap-2">
               {(activeTab === 'dashboard' || activeTab === 'viagens') && (
                 <>
-                  <input ref={planilhaInputRef} type="file" accept=".csv,text/csv" onChange={handleUploadPlanilha} className="hidden" />
-                  <button type="button" onClick={() => planilhaInputRef.current?.click()} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-emerald-500/20 transition-all">
-                    <Upload size={16} /> Importar Planilha
-                  </button>
                   <button type="button" onClick={importarGoogleSheets} className="flex items-center gap-2 px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-teal-500/20 transition-all">
                     <ExternalLink size={16} /> Google Sheets
                   </button>
