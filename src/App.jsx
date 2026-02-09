@@ -50,6 +50,7 @@ function App() {
   const [reportFim, setReportFim] = useState('');
   const [reportNumeroCarga, setReportNumeroCarga] = useState('');
   const [detailItem, setDetailItem] = useState(null);
+  const [comprovantePreview, setComprovantePreview] = useState('');
 
   const [formData, setFormData] = useState({
     numeroNF: '', 
@@ -779,9 +780,9 @@ function App() {
                           <p className="font-bold text-slate-800">{item.numeroNF || item.nome || item.modelo || "---"}</p>
                           {item.numeroCarga && <p className="text-[10px] font-black text-indigo-600 uppercase">Carga #{item.numeroCarga}</p>}
                           {(item.boleto || item.urlBoleto || item.urlComprovante) && (
-                            <a href={item.boleto || item.urlBoleto || item.urlComprovante} target="_blank" rel="noreferrer" title="Ver Comprovante" className="text-emerald-500 hover:scale-110 transition-transform">
+                            <button type="button" onClick={() => setComprovantePreview(item.boleto || item.urlBoleto || item.urlComprovante)} title="Ver Comprovante" className="text-emerald-500 hover:scale-110 transition-transform">
                               <Paperclip size={14} />
-                            </a>
+                            </button>
                           )}
                         </div>
                         <div className="flex items-center gap-1 mt-0.5">
@@ -880,7 +881,7 @@ function App() {
                         </td>
                         <td className="px-6 py-4 text-right">
                           {(item.boleto || item.urlBoleto || item.urlComprovante) ? (
-                            <a href={item.boleto || item.urlBoleto || item.urlComprovante} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase">Abrir <ExternalLink size={12} /></a>
+                            <button type="button" onClick={() => setComprovantePreview(item.boleto || item.urlBoleto || item.urlComprovante)} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase">Abrir <ExternalLink size={12} /></button>
                           ) : <span className="text-[10px] font-bold text-slate-400">Sem link</span>}
                         </td>
                       </tr>
@@ -1103,6 +1104,17 @@ function App() {
         </form>
       </Modal>
 
+
+      <Modal isOpen={!!comprovantePreview} onClose={() => setComprovantePreview('')} title="Comprovante">
+        <div className="space-y-4">
+          <img src={comprovantePreview} alt="Comprovante" className="max-h-[70vh] w-auto max-w-full mx-auto rounded-xl border border-slate-200 object-contain" />
+          <div className="flex justify-end">
+            <a href={comprovantePreview} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 text-white text-xs font-black uppercase">
+              Abrir em nova aba <ExternalLink size={12} />
+            </a>
+          </div>
+        </div>
+      </Modal>
       <Modal isOpen={!!detailItem} onClose={() => setDetailItem(null)} title="Detalhes da Carga">
         {detailItem && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
@@ -1125,9 +1137,9 @@ function App() {
               <Info label="Comprovante" value={detailItem.urlComprovante ? 'Foto anexada' : 'Sem comprovante'} />
               {detailItem.urlComprovante && (
                 <div className="mt-2">
-                  <a href={detailItem.urlComprovante} target="_blank" rel="noreferrer" title="Abrir comprovante em nova aba" className="inline-block">
+                  <button type="button" onClick={() => setComprovantePreview(detailItem.urlComprovante)} title="Abrir comprovante" className="inline-block">
                     <img src={detailItem.urlComprovante} alt="Comprovante da carga" className="h-28 w-28 object-cover rounded-lg border border-slate-200 hover:opacity-90 transition-opacity cursor-pointer" />
-                  </a>
+                  </button>
                 </div>
               )}
             </div>
