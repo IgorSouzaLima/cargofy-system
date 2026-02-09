@@ -4,6 +4,7 @@ import { ArrowRight } from 'lucide-react';
 export default function Card({ title, value, icon: Icon, color, onClick, active }) {
   return (
     <button
+      type="button"
       onClick={onClick}
       className={`w-full text-left bg-white p-6 rounded-2xl shadow-sm border ${active ? 'border-blue-500 ring-2 ring-blue-500/10' : 'border-slate-100'} flex items-start justify-between transition-all hover:shadow-md hover:scale-[1.02] active:scale-95`}
     >

@@ -211,6 +211,19 @@ function App() {
     );
   }, [financeiroDashboardMes, boletoFilter, searchNF]);
 
+  const proximosBoletosVencer = useMemo(() => {
+    return financeiroDashboardMes
+      .filter((item) => getStatusFinanceiro(item) !== 'Pago')
+      .map((item) => {
+        const venc = item.dataVencimentoBoleto || item.vencimento || '';
+        const data = venc ? new Date(`${venc}T12:00:00`) : null;
+        return { ...item, _vencimentoData: data && !Number.isNaN(data.getTime()) ? data : null };
+      })
+      .filter((item) => item._vencimentoData)
+      .sort((a, b) => a._vencimentoData - b._vencimentoData)
+      .slice(0, 8);
+  }, [financeiroDashboardMes]);
+
   const empresasRelatorio = useMemo(() => {
     const empresas = [...new Set(viagens.map(v => v.contratante).filter(Boolean))];
     return ['Todas', ...empresas];
@@ -264,7 +277,7 @@ function App() {
           item.numeroCarga || '---',
           item.numeroNF || '---',
           item.numeroCTe || '---',
-          dataFmt,
+          (item.dataVencimentoBoleto || item.vencimento) ? new Date(((item.dataVencimentoBoleto || item.vencimento) + 'T12:00:00')).toLocaleDateString('pt-BR') : '---',
           item.contratante || 'Sem empresa',
           item.numeroBoleto || '---',
           frete
@@ -564,7 +577,7 @@ function App() {
       const dist = (parseFloat(item.valorDistribuicao) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
       const lucro = ((parseFloat(item.valorFrete) || 0) - (parseFloat(item.valorDistribuicao) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
       return relatorioPorCarga
-        ? `<tr><td>${item.numeroCarga || '---'}</td><td>${item.numeroNF || '---'}</td><td>${item.numeroCTe || '---'}</td><td>${item.dataCTe ? new Date(item.dataCTe + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</td><td>${item.contratante || 'Sem empresa'}</td><td>${item.numeroBoleto || '---'}</td><td>${dataFmt}</td><td>R$ ${frete}</td></tr>`
+        ? `<tr><td>${item.numeroCarga || '---'}</td><td>${item.numeroNF || '---'}</td><td>${item.numeroCTe || '---'}</td><td>${item.dataCTe ? new Date(item.dataCTe + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</td><td>${item.contratante || 'Sem empresa'}</td><td>${item.numeroBoleto || '---'}</td><td>${(item.dataVencimentoBoleto || item.vencimento) ? new Date(((item.dataVencimentoBoleto || item.vencimento) + 'T12:00:00')).toLocaleDateString('pt-BR') : '---'}</td><td>R$ ${frete}</td></tr>`
         : `<tr><td>${item.numeroCarga || '---'}</td><td>${item.numeroNF || '---'}</td><td>${item.numeroCTe || '---'}</td><td>${item.dataCTe ? new Date(item.dataCTe + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</td><td>${item.contratante || 'Sem empresa'}</td><td>${dataFmt}</td><td>R$ ${frete}</td><td>R$ ${dist}</td><td>R$ ${lucro}</td></tr>`;
     }).join('');
 
@@ -800,7 +813,7 @@ function App() {
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
               <input 
                 type="text" 
-                placeholder="Pesquisar por Nº Carga, NF, Contratante ou Cidade..." 
+                placeholder="Pesquisar por NF, Contratante ou Cidade..." 
                 value={searchNF}
                 onChange={(e) => setSearchNF(e.target.value)}
                 className="w-full pl-12 pr-4 py-2.5 bg-slate-100 rounded-xl outline-none focus:ring-2 ring-blue-500/20 text-sm font-medium transition-all"
@@ -919,7 +932,7 @@ function App() {
                           <p className="text-[10px] font-black text-blue-600 uppercase tracking-tight">{!relatorioPorCarga ? (item.contratante || 'Sem empresa') : ''}</p>
                         </td>
                         <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.dataCTe ? new Date(item.dataCTe + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</td>
-                        <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.dataSaida || item.dataNF || item.dataEntrega ? new Date((item.dataSaida || item.dataNF || item.dataEntrega) + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</td>
+                        <td className="px-6 py-4 text-sm font-bold text-slate-700">{relatorioPorCarga ? ((item.dataVencimentoBoleto || item.vencimento) ? new Date(((item.dataVencimentoBoleto || item.vencimento) + 'T12:00:00')).toLocaleDateString('pt-BR') : '---') : (item.dataSaida || item.dataNF || item.dataEntrega ? new Date((item.dataSaida || item.dataNF || item.dataEntrega) + 'T12:00:00').toLocaleDateString('pt-BR') : '---')}</td>
                         <td className="px-6 py-4 text-sm font-bold text-slate-700">R$ {(parseFloat(item.valorFrete) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                         {relatorioPorCarga && <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.contratante || 'Sem empresa'}</td>}
                         {relatorioPorCarga && <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.numeroBoleto || '---'}</td>}
@@ -1017,6 +1030,26 @@ function App() {
               </tbody>
             </table>
           </div>
+          )}
+
+          {activeTab === 'dashboard' && (
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-5 mt-6">
+              <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3">Próximos boletos a vencer</h3>
+              {proximosBoletosVencer.length === 0 ? (
+                <p className="text-xs font-bold text-slate-400 uppercase">Sem boletos pendentes com vencimento</p>
+              ) : (
+                <div className="space-y-2">
+                  {proximosBoletosVencer.map((item) => (
+                    <div key={`venc-${item.id}`} className="grid grid-cols-1 md:grid-cols-4 gap-2 bg-slate-50 rounded-xl px-3 py-2">
+                      <p className="text-xs font-black text-slate-800">{item.contratante || 'Sem contratante'}</p>
+                      <p className="text-xs font-bold text-slate-700">NF: {item.numeroNF || '---'}</p>
+                      <p className="text-xs font-bold text-slate-700">Carga: {item.numeroCarga || '---'}</p>
+                      <p className="text-xs font-black text-amber-600">Vence: {item._vencimentoData.toLocaleDateString('pt-BR')}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
 
           {activeTab === 'dashboard' && (
