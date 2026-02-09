@@ -37,6 +37,7 @@ function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [statusFilter, setStatusFilter] = useState('Todos');
   const [boletoFilter, setBoletoFilter] = useState('Gerados');
+  const [dashboardMes, setDashboardMes] = useState('');
   const [viagens, setViagens] = useState([]);
   const [financeiro, setFinanceiro] = useState([]);
   const [clientes, setClientes] = useState([]);
@@ -139,11 +140,11 @@ function App() {
   };
 
   const stats = useMemo(() => {
-    const pendentes = viagens.filter(v => getStatusViagem(v) === 'Pendente').length;
-    const emRota = viagens.filter(v => getStatusViagem(v) === 'Em rota').length;
-    const entregues = viagens.filter(v => getStatusViagem(v) === 'Entregue').length;
-    return { pendentes, emRota, entregues, total: viagens.length };
-  }, [viagens]);
+    const pendentes = viagensDashboardMes.filter(v => getStatusViagem(v) === 'Pendente').length;
+    const emRota = viagensDashboardMes.filter(v => getStatusViagem(v) === 'Em rota').length;
+    const entregues = viagensDashboardMes.filter(v => getStatusViagem(v) === 'Entregue').length;
+    return { pendentes, emRota, entregues, total: viagensDashboardMes.length };
+  }, [viagensDashboardMes]);
 
   const financeiroResumo = useMemo(() => {
     const faturou = viagens.reduce((acc, curr) => acc + (parseFloat(curr.valorFrete) || 0), 0);
@@ -170,19 +171,35 @@ function App() {
     return 'Pendente';
   };
 
+  const viagensDashboardMes = useMemo(() => {
+    if (!dashboardMes) return viagens;
+    return viagens.filter((v) => {
+      const dataBase = v.dataSaida || v.dataNF || v.dataEntrega || v.dataCTe || '';
+      return dataBase.startsWith(dashboardMes);
+    });
+  }, [viagens, dashboardMes]);
+
+  const financeiroDashboardMes = useMemo(() => {
+    if (!dashboardMes) return financeiro;
+    return financeiro.filter((f) => {
+      const dataBase = f.dataVencimentoBoleto || f.vencimento || '';
+      return dataBase.startsWith(dashboardMes);
+    });
+  }, [financeiro, dashboardMes]);
+
   const boletoStats = useMemo(() => {
-    const boletosGerados = financeiro.length;
-    const boletosPagos = financeiro.filter(f => getStatusFinanceiro(f) === 'Pago').length;
-    const boletosAtrasados = financeiro.filter(f => getStatusFinanceiro(f) === 'Vencido').length;
-    const boletosPendentes = financeiro.filter(f => getStatusFinanceiro(f) === 'Pendente').length;
+    const boletosGerados = financeiroDashboardMes.length;
+    const boletosPagos = financeiroDashboardMes.filter(f => getStatusFinanceiro(f) === 'Pago').length;
+    const boletosAtrasados = financeiroDashboardMes.filter(f => getStatusFinanceiro(f) === 'Vencido').length;
+    const boletosPendentes = financeiroDashboardMes.filter(f => getStatusFinanceiro(f) === 'Pendente').length;
 
     return { boletosGerados, boletosPendentes, boletosAtrasados, boletosPagos };
-  }, [financeiro]);
+  }, [financeiroDashboardMes]);
 
   const boletosDashboardFiltrados = useMemo(() => {
-    if (boletoFilter === 'Gerados') return financeiro;
-    return financeiro.filter((f) => getStatusFinanceiro(f) === boletoFilter);
-  }, [financeiro, boletoFilter]);
+    if (boletoFilter === 'Gerados') return financeiroDashboardMes;
+    return financeiroDashboardMes.filter((f) => getStatusFinanceiro(f) === boletoFilter);
+  }, [financeiroDashboardMes, boletoFilter]);
 
   const empresasRelatorio = useMemo(() => {
     const empresas = [...new Set(viagens.map(v => v.contratante).filter(Boolean))];
@@ -453,6 +470,8 @@ function App() {
     let list = [];
     switch (activeTab) {
       case 'dashboard':
+        list = statusFilter === 'Todos' ? viagensDashboardMes : viagensDashboardMes.filter(v => getStatusViagem(v) === statusFilter);
+        break;
       case 'viagens': 
         list = statusFilter === 'Todos' ? viagens : viagens.filter(v => getStatusViagem(v) === statusFilter);
         break;
@@ -475,7 +494,7 @@ function App() {
       (item.cidade?.toLowerCase().includes(term)) ||
       (item.motorista?.toLowerCase().includes(term))
     );
-  }, [activeTab, statusFilter, viagens, financeiro, clientes, motoristas, veiculos, searchNF]);
+  }, [activeTab, statusFilter, viagensDashboardMes, viagens, financeiro, clientes, motoristas, veiculos, searchNF]);
 
   const handleOpenEdit = (item) => {
     setFormData({
@@ -647,6 +666,15 @@ function App() {
                 className="w-full pl-12 pr-4 py-2.5 bg-slate-100 rounded-xl outline-none focus:ring-2 ring-blue-500/20 text-sm font-medium transition-all"
               />
             </div>
+            {activeTab === 'dashboard' && (
+              <div className="flex items-center gap-2">
+                <Calendar size={16} className="text-slate-400" />
+                <input type="month" value={dashboardMes} onChange={(e) => setDashboardMes(e.target.value)} className="px-3 py-2 bg-slate-100 rounded-xl outline-none text-xs font-bold text-slate-700" />
+                {dashboardMes && (
+                  <button onClick={() => setDashboardMes('')} className="bg-slate-100 text-slate-600 px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase">Limpar</button>
+                )}
+              </div>
+            )}
             {statusFilter !== 'Todos' && (
               <button onClick={() => setStatusFilter('Todos')} className="bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase flex items-center gap-2">
                 Filtro: {statusFilter} <X size={12}/>
