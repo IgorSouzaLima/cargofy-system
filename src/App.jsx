@@ -63,8 +63,6 @@ function App() {
   const [statusFilter, setStatusFilter] = useState('Todos');
   const [dashboardCargaFilter, setDashboardCargaFilter] = useState('');
   const [dashboardBoletoFilter, setDashboardBoletoFilter] = useState('');
-  const [dashboardDateInicio, setDashboardDateInicio] = useState('');
-  const [dashboardDateFim, setDashboardDateFim] = useState('');
   const [viagens, setViagens] = useState([]);
   const [financeiro, setFinanceiro] = useState([]);
   const [clientes, setClientes] = useState([]);
@@ -193,30 +191,14 @@ function App() {
     return viagem.status || 'Pendente';
   };
 
-  const estaNoPeriodo = (dataBase, inicio, fim) => {
-    if (!dataBase) return !inicio && !fim;
-    const data = new Date(`${dataBase}T12:00:00`);
-    if (Number.isNaN(data.getTime())) return false;
-
-    if (inicio) {
-      const dataInicio = new Date(`${inicio}T00:00:00`);
-      if (data < dataInicio) return false;
-    }
-
-    if (fim) {
-      const dataFim = new Date(`${fim}T23:59:59`);
-      if (data > dataFim) return false;
-    }
-
-    return true;
-  };
 
   const dashboardViagensBase = useMemo(() => {
+    if (!monthFilter) return viagens;
     return viagens.filter(v => {
       const dataBase = v.dataSaida || v.dataNF || v.dataEntrega || v.dataCTe;
-      return estaNoPeriodo(dataBase, dashboardDateInicio, dashboardDateFim);
+      return (dataBase || '').slice(0, 7) === monthFilter;
     });
-  }, [viagens, dashboardDateInicio, dashboardDateFim]);
+  }, [viagens, monthFilter]);
 
   const stats = useMemo(() => {
     const pendentes = dashboardViagensBase.filter(v => getStatusViagem(v) === 'Pendente').length;
@@ -251,11 +233,12 @@ function App() {
   };
 
   const dashboardFinanceiroBase = useMemo(() => {
+    if (!monthFilter) return financeiro;
     return financeiro.filter(item => {
       const dataBase = item.dataVencimentoBoleto || item.vencimento;
-      return estaNoPeriodo(dataBase, dashboardDateInicio, dashboardDateFim);
+      return (dataBase || '').slice(0, 7) === monthFilter;
     });
-  }, [financeiro, dashboardDateInicio, dashboardDateFim]);
+  }, [financeiro, monthFilter]);
 
   const boletoStats = useMemo(() => {
     const boletosGerados = dashboardFinanceiroBase.length;
@@ -436,7 +419,7 @@ function App() {
       default: list = [];
     }
 
-    if ((activeTab === 'viagens' || activeTab === 'financeiro') && monthFilter) {
+    if ((activeTab === 'dashboard' || activeTab === 'viagens' || activeTab === 'financeiro') && monthFilter) {
       list = list.filter(item => {
         const dataBase = activeTab === 'financeiro'
           ? (item.dataVencimentoBoleto || item.vencimento)
@@ -729,7 +712,7 @@ function App() {
                 Filtro: {statusFilter} <X size={12}/>
               </button>
             )}
-            {(activeTab === 'viagens' || activeTab === 'financeiro') && (
+            {(activeTab === 'dashboard' || activeTab === 'viagens' || activeTab === 'financeiro') && (
               <label className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-100 text-slate-600 text-[10px] font-black uppercase">
                 <Calendar size={14} />
                 <span>Mês</span>
@@ -744,32 +727,13 @@ function App() {
           </div>
           <div className="flex items-center gap-2">
             {activeTab === 'dashboard' && (
-              <>
-                <div className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-100 text-slate-600 text-[10px] font-black uppercase">
-                  <Calendar size={14} />
-                  <span>De</span>
-                  <input
-                    type="date"
-                    value={dashboardDateInicio}
-                    onChange={(e) => setDashboardDateInicio(e.target.value)}
-                    className="bg-transparent outline-none text-[11px] font-bold"
-                  />
-                  <span>Até</span>
-                  <input
-                    type="date"
-                    value={dashboardDateFim}
-                    onChange={(e) => setDashboardDateFim(e.target.value)}
-                    className="bg-transparent outline-none text-[11px] font-bold"
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={handleOpenSheetUrl}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-emerald-500/20 transition-all"
-                >
-                  <Upload size={14} /> Upload Sheets
-                </button>
-              </>
+              <button
+                type="button"
+                onClick={handleOpenSheetUrl}
+                className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-emerald-500/20 transition-all"
+              >
+                <Upload size={14} /> Upload Sheets
+              </button>
             )}
             {(activeTab === 'dashboard' || activeTab === 'viagens' || activeTab === 'clientes' || activeTab === 'motoristas' || activeTab === 'veiculos') && (
               <button onClick={() => { resetForm(); setEditingId(null); setModalOpen(true); }} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-blue-500/20 transition-all">
