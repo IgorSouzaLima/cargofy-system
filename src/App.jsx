@@ -429,18 +429,35 @@ function App() {
 
     const logoUrl = `${window.location.origin}/logo-cargofy.svg`;
 
-    const linhas = relatorioData.map(item => {
-      const data = item.dataSaida || item.dataNF || item.dataEntrega;
-      const dataFmt = data ? new Date(`${data}T12:00:00`).toLocaleDateString('pt-BR') : '---';
-      const vencBoleto = item.dataVencimentoBoleto || item.vencimento;
-      const vencFmt = vencBoleto ? new Date(`${vencBoleto}T12:00:00`).toLocaleDateString('pt-BR') : '---';
-      const frete = (parseFloat(item.valorFrete) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-      const dist = (parseFloat(item.valorDistribuicao) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-      const lucro = ((parseFloat(item.valorFrete) || 0) - (parseFloat(item.valorDistribuicao) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-      return relatorioPorCarga
-        ? `<tr><td>${item.numeroCarga || '---'}</td><td>${item.numeroNF || '---'}</td><td>${item.numeroCTe || '---'}</td><td>${item.dataCTe ? new Date(item.dataCTe + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</td><td>${item.contratante || 'Sem empresa'}</td><td>${item.numeroBoleto || '---'}</td><td>${vencFmt}</td><td>R$ ${frete}</td></tr>`
-        : `<tr><td>${item.numeroCarga || '---'}</td><td>${item.numeroNF || '---'}</td><td>${item.numeroCTe || '---'}</td><td>${item.dataCTe ? new Date(item.dataCTe + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</td><td>${item.contratante || 'Sem empresa'}</td><td>${dataFmt}</td><td>R$ ${frete}</td><td>R$ ${dist}</td><td>R$ ${lucro}</td></tr>`;
-    }).join('');
+    const gruposPorCarga = relatorioData.reduce((acc, item) => {
+      const chave = (item.numeroCarga || 'Sem carga').trim() || 'Sem carga';
+      if (!acc[chave]) acc[chave] = [];
+      acc[chave].push(item);
+      return acc;
+    }, {});
+
+    const linhas = Object.entries(gruposPorCarga)
+      .sort((a, b) => a[0].localeCompare(b[0], 'pt-BR', { numeric: true }))
+      .map(([carga, itens]) => {
+        const linhaTitulo = `<tr class="grupo"><td colspan="${relatorioPorCarga ? 8 : 9}">Carga ${carga} · ${itens.length} registro(s)</td></tr>`;
+
+        const linhasItens = itens.map(item => {
+          const data = item.dataSaida || item.dataNF || item.dataEntrega;
+          const dataFmt = data ? new Date(`${data}T12:00:00`).toLocaleDateString('pt-BR') : '---';
+          const vencBoleto = item.dataVencimentoBoleto || item.vencimento;
+          const vencFmt = vencBoleto ? new Date(`${vencBoleto}T12:00:00`).toLocaleDateString('pt-BR') : '---';
+          const frete = (parseFloat(item.valorFrete) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+          const dist = (parseFloat(item.valorDistribuicao) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+          const lucro = ((parseFloat(item.valorFrete) || 0) - (parseFloat(item.valorDistribuicao) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+
+          return relatorioPorCarga
+            ? `<tr><td>${item.numeroCarga || '---'}</td><td>${item.numeroNF || '---'}</td><td>${item.numeroCTe || '---'}</td><td>${item.dataCTe ? new Date(item.dataCTe + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</td><td>${item.contratante || 'Sem empresa'}</td><td>${item.numeroBoleto || '---'}</td><td>${vencFmt}</td><td>R$ ${frete}</td></tr>`
+            : `<tr><td>${item.numeroCarga || '---'}</td><td>${item.numeroNF || '---'}</td><td>${item.numeroCTe || '---'}</td><td>${item.dataCTe ? new Date(item.dataCTe + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</td><td>${item.contratante || 'Sem empresa'}</td><td>${dataFmt}</td><td>R$ ${frete}</td><td>R$ ${dist}</td><td>R$ ${lucro}</td></tr>`;
+        }).join('');
+
+        return `${linhaTitulo}${linhasItens}`;
+      })
+      .join('');
 
     janela.document.write(`
       <html>
@@ -456,6 +473,7 @@ function App() {
             th, td { border: 1px solid #cbd5e1; padding: 8px; font-size: 12px; text-align: left; }
             th { background: #f1f5f9; text-transform: uppercase; font-size: 11px; }
             .resumo { display: flex; gap: 16px; margin: 12px 0; font-weight: bold; }
+            .grupo td { background: #e2e8f0; font-weight: 700; text-transform: uppercase; font-size: 11px; }
           </style>
         </head>
         <body>
