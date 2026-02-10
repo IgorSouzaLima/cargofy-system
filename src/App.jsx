@@ -997,6 +997,7 @@ function App() {
                     <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">CT-e</th>
                     <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Destino / Motorista</th>
                     <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Status</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase text-right">Dados</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
@@ -1015,6 +1016,11 @@ function App() {
                         <span className={`w-fit px-2 py-0.5 rounded text-[9px] font-black uppercase ${getStatusViagem(item) === 'Em rota' ? 'bg-blue-100 text-blue-600' : getStatusViagem(item) === 'Entregue' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
                           {getStatusViagem(item)}
                         </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button onClick={() => setDetailItem(item)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase hover:bg-indigo-100">
+                          <Eye size={12}/> Ver dados
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -1043,6 +1049,7 @@ function App() {
                       <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">NF / Contratante</th>
                       <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Vencimento</th>
                       <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Status</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase text-right">Dados</th>
                       <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase text-right">Boleto</th>
                     </tr>
                   </thead>
