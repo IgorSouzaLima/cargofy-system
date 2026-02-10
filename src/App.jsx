@@ -78,7 +78,6 @@ function App() {
   const [reportFim, setReportFim] = useState('');
   const [reportNumeroCarga, setReportNumeroCarga] = useState('');
   const [detailItem, setDetailItem] = useState(null);
-  const [sheetUrl, setSheetUrl] = useState('');
 
   const [formData, setFormData] = useState({
     numeroNF: '', 
@@ -665,11 +664,9 @@ function App() {
   const lucroViagem = (parseFloat(formData.valorFrete) || 0) - (parseFloat(formData.valorDistribuicao) || 0);
 
   const handleOpenSheetUrl = () => {
-    const url = (sheetUrl || '').trim();
-    if (!url) {
-      alert('Informe o link da planilha para abrir.');
-      return;
-    }
+    const input = window.prompt('Cole o link da planilha para abrir no Sheets:');
+    const url = (input || '').trim();
+    if (!url) return;
 
     window.open(url, '_blank', 'noopener,noreferrer');
   };
@@ -735,19 +732,12 @@ function App() {
                     className="bg-transparent outline-none text-[11px] font-bold"
                   />
                 </div>
-                <input
-                  type="url"
-                  value={sheetUrl}
-                  onChange={(e) => setSheetUrl(e.target.value)}
-                  placeholder="Cole o link da planilha"
-                  className="w-60 px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:border-emerald-400"
-                />
                 <button
                   type="button"
                   onClick={handleOpenSheetUrl}
                   className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-emerald-500/20 transition-all"
                 >
-                  <Upload size={14} /> Abrir Sheets
+                  <Upload size={14} /> Upload Sheets
                 </button>
               </>
             )}
