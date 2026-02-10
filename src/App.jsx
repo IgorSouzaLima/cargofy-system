@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { getFirestore, collection, doc, addDoc, onSnapshot, updateDoc, deleteDoc, serverTimestamp, query } from 'firebase/firestore';
@@ -78,6 +78,7 @@ function App() {
   const [reportFim, setReportFim] = useState('');
   const [reportNumeroCarga, setReportNumeroCarga] = useState('');
   const [detailItem, setDetailItem] = useState(null);
+  const [sheetUrl, setSheetUrl] = useState('');
 
   const [formData, setFormData] = useState({
     numeroNF: '', 
@@ -662,13 +663,15 @@ function App() {
   };
 
   const lucroViagem = (parseFloat(formData.valorFrete) || 0) - (parseFloat(formData.valorDistribuicao) || 0);
-  const uploadSheetsRef = useRef(null);
 
-  const handleUploadSheets = (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    alert(`Arquivo selecionado: ${file.name}. Integração de importação em planilha será aplicada nesta tela sem remover os botões do cabeçalho.`);
-    event.target.value = '';
+  const handleOpenSheetUrl = () => {
+    const url = (sheetUrl || '').trim();
+    if (!url) {
+      alert('Informe o link da planilha para abrir.');
+      return;
+    }
+
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   if (!user) return <Login />;
@@ -732,20 +735,20 @@ function App() {
                     className="bg-transparent outline-none text-[11px] font-bold"
                   />
                 </div>
+                <input
+                  type="url"
+                  value={sheetUrl}
+                  onChange={(e) => setSheetUrl(e.target.value)}
+                  placeholder="Cole o link da planilha"
+                  className="w-60 px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:border-emerald-400"
+                />
                 <button
                   type="button"
-                  onClick={() => uploadSheetsRef.current?.click()}
+                  onClick={handleOpenSheetUrl}
                   className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-emerald-500/20 transition-all"
                 >
-                  <Upload size={14} /> Upload Sheets
+                  <Upload size={14} /> Abrir Sheets
                 </button>
-                <input
-                  ref={uploadSheetsRef}
-                  type="file"
-                  accept=".xlsx,.xls,.csv"
-                  className="hidden"
-                  onChange={handleUploadSheets}
-                />
               </>
             )}
             {(activeTab === 'dashboard' || activeTab === 'viagens') && (
@@ -1083,6 +1086,7 @@ function App() {
                 <table className="w-full text-left border-collapse">
                   <thead className="bg-slate-50 border-b border-slate-100">
                     <tr>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Carga</th>
                       <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">NF</th>
                       <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">CT-e</th>
                       <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Contratante</th>
@@ -1092,6 +1096,7 @@ function App() {
                   <tbody className="divide-y divide-slate-50">
                     {proximosBoletos.map(item => (
                       <tr key={`prox-${item.id}`} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.numeroCarga || '---'}</td>
                         <td className="px-6 py-4 text-sm font-bold text-slate-800">{item.numeroNF || '---'}</td>
                         <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.numeroCTeResolvido || '---'}</td>
                         <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.contratante || '---'}</td>
