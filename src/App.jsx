@@ -148,10 +148,18 @@ function App() {
 
     const mapa = {};
     Object.entries(agrupado).forEach(([chave, itens]) => {
+      const pendentes = itens.filter(i => (i.status || 'Pendente') === 'Pendente').length;
+      const emRota = itens.filter(i => (i.status || 'Pendente') === 'Em rota').length;
+      const entregues = itens.filter(i => (i.status || 'Pendente') === 'Entregue').length;
+
       mapa[chave] = {
         total: itens.length,
-        entregues: itens.filter(i => i.status === 'Entregue').length,
-        allEntregues: itens.every(i => i.status === 'Entregue')
+        pendentes,
+        emRota,
+        entregues,
+        allEntregues: entregues === itens.length,
+        allPendentes: pendentes === itens.length,
+        hasEmRota: emRota > 0
       };
     });
     return mapa;
@@ -170,6 +178,22 @@ function App() {
     return mapa;
   }, [viagens]);
 
+  const getViagemRelacionada = (item) => {
+    const nf = (item?.numeroNF || '').trim();
+    if (nf) {
+      const porNf = viagens.find(v => (v.numeroNF || '').trim() === nf);
+      if (porNf) return porNf;
+    }
+
+    const carga = (item?.numeroCarga || '').trim();
+    if (carga) {
+      const porCarga = viagens.find(v => (v.numeroCarga || '').trim() === carga);
+      if (porCarga) return porCarga;
+    }
+
+    return null;
+  };
+
   const getNumeroCTeResolvido = (item) => {
     const cteAtual = (item?.numeroCTe || '').trim();
     if (cteAtual) return cteAtual;
@@ -183,24 +207,34 @@ function App() {
     return '';
   };
 
-  const getVeiculoResolvido = (item) => {
-    const ref = (item?.veiculo || '').trim();
-    if (!ref) return item?.placa || '';
+  const getDataCTeResolvida = (item) => item?.dataCTe || getViagemRelacionada(item)?.dataCTe || '';
 
-    const encontrado = veiculos.find(v => v.id === ref || v.placa === ref || v.modelo === ref);
+  const getVeiculoResolvido = (item) => {
+    const viagemRelacionada = getViagemRelacionada(item);
+    const ref = (item?.veiculo || viagemRelacionada?.veiculo || '').trim();
+    const placaItem = (item?.placa || viagemRelacionada?.placa || '').trim();
+
+    if (!ref && placaItem) return placaItem;
+    if (!ref) return '';
+
+    const encontrado = veiculos.find(v => v.id === ref || v.placa === ref || v.modelo === ref || v.placa === placaItem);
     if (encontrado) {
       const modelo = encontrado.modelo || 'Veículo';
       const placa = encontrado.placa ? ` - ${encontrado.placa}` : '';
       return `${modelo}${placa}`;
     }
 
-    return ref;
+    return placaItem || ref;
   };
 
   const getStatusViagem = (viagem) => {
     const chave = (viagem.numeroCarga || '').trim();
     if (chave && cargaStatusMap[chave]) {
-      return cargaStatusMap[chave].allEntregues ? 'Entregue' : 'Em rota';
+      const resumo = cargaStatusMap[chave];
+      if (resumo.allEntregues) return 'Entregue';
+      if (resumo.hasEmRota) return 'Em rota';
+      if (resumo.allPendentes) return 'Pendente';
+      return 'Em rota';
     }
     return viagem.status || 'Pendente';
   };
@@ -1364,7 +1398,7 @@ function App() {
             <Info label="Número da Carga" value={detailItem.numeroCarga} />
             <Info label="NF" value={detailItem.numeroNF} />
             <Info label="Número do CT-e" value={getNumeroCTeResolvido(detailItem)} />
-            <Info label="Data do CT-e" value={detailItem.dataCTe ? new Date(detailItem.dataCTe + 'T12:00:00').toLocaleDateString('pt-BR') : ''} />
+            <Info label="Data do CT-e" value={getDataCTeResolvida(detailItem) ? new Date(getDataCTeResolvida(detailItem) + 'T12:00:00').toLocaleDateString('pt-BR') : ''} />
             <Info label="Contratante" value={detailItem.contratante} />
             <Info label="Destinatário" value={detailItem.destinatario} />
             <Info label="Cidade" value={detailItem.cidade} />
