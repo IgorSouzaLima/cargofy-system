@@ -258,11 +258,18 @@ function App() {
   }, [dashboardViagensBase, getStatusViagem]);
 
   const financeiroResumo = useMemo(() => {
-    const faturou = viagens.reduce((acc, curr) => acc + (parseFloat(curr.valorFrete) || 0), 0);
-    const gastouDistribuicao = viagens.reduce((acc, curr) => acc + (parseFloat(curr.valorDistribuicao) || 0), 0);
+    const baseFinanceiro = monthFilter
+      ? financeiro.filter(item => {
+          const dataBase = item.dataVencimentoBoleto || item.vencimento;
+          return (dataBase || '').slice(0, 7) === monthFilter;
+        })
+      : financeiro;
+
+    const faturou = baseFinanceiro.reduce((acc, curr) => acc + (parseFloat(curr.valorFrete) || 0), 0);
+    const gastouDistribuicao = baseFinanceiro.reduce((acc, curr) => acc + (parseFloat(curr.valorDistribuicao) || 0), 0);
     const lucroTotal = faturou - gastouDistribuicao;
     return { faturou, gastouDistribuicao, lucroTotal };
-  }, [viagens]);
+  }, [financeiro, monthFilter]);
 
   const normalizarStatusFinanceiro = (status) => (status || 'pendente').trim().toLowerCase();
 
