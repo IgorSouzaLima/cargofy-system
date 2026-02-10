@@ -776,6 +776,32 @@ function App() {
   const openInNewWindow = (url) => {
     const link = (url || '').trim();
     if (!link) return;
+
+    const isImagemInline = link.startsWith('data:image/');
+    if (isImagemInline) {
+      const novaJanela = window.open('', '_blank');
+      if (!novaJanela) return;
+      novaJanela.document.write(`
+        <!doctype html>
+        <html lang="pt-BR">
+          <head>
+            <meta charset="utf-8" />
+            <title>Comprovante</title>
+            <style>
+              html, body { margin: 0; padding: 0; background: #0f172a; height: 100%; }
+              body { display: flex; align-items: center; justify-content: center; }
+              img { max-width: 100%; max-height: 100%; object-fit: contain; }
+            </style>
+          </head>
+          <body>
+            <img src="${link}" alt="Comprovante" />
+          </body>
+        </html>
+      `);
+      novaJanela.document.close();
+      return;
+    }
+
     window.open(link, '_blank', 'noopener,noreferrer');
   };
 
