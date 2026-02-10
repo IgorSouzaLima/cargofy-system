@@ -209,6 +209,8 @@ function App() {
 
   const getDataCTeResolvida = (item) => item?.dataCTe || getViagemRelacionada(item)?.dataCTe || '';
 
+  const getDataEntregaResolvida = (item) => item?.dataEntrega || getViagemRelacionada(item)?.dataEntrega || '';
+
   const getVeiculoResolvido = (item) => {
     const viagemRelacionada = getViagemRelacionada(item);
     const ref = (item?.veiculo || viagemRelacionada?.veiculo || '').trim();
@@ -1419,7 +1421,7 @@ function App() {
             <Info label="NF" value={detailItem.numeroNF} />
             <Info label="Número do CT-e" value={getNumeroCTeResolvido(detailItem)} />
             <Info label="Data do CT-e" value={getDataCTeResolvida(detailItem) ? new Date(getDataCTeResolvida(detailItem) + 'T12:00:00').toLocaleDateString('pt-BR') : ''} />
-            <Info label="Data da Entrega" value={detailItem.dataEntrega ? new Date(`${detailItem.dataEntrega}T12:00:00`).toLocaleDateString('pt-BR') : ''} />
+            <Info label="Data da Entrega" value={getDataEntregaResolvida(detailItem) ? new Date(`${getDataEntregaResolvida(detailItem)}T12:00:00`).toLocaleDateString('pt-BR') : ''} />
             <Info label="Contratante" value={detailItem.contratante} />
             <Info label="Destinatário" value={detailItem.destinatario} />
             <Info label="Cidade" value={detailItem.cidade} />
