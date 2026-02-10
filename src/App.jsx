@@ -766,6 +766,12 @@ function App() {
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
+  const openInNewWindow = (url) => {
+    const link = (url || '').trim();
+    if (!link) return;
+    window.open(link, '_blank', 'noopener,noreferrer');
+  };
+
   const novoRegistroLabel = activeTab === 'clientes'
     ? 'Adicionar Cliente'
     : activeTab === 'motoristas'
@@ -993,7 +999,7 @@ function App() {
                           <p className="font-bold text-slate-800">{item.numeroNF || item.nome || item.modelo || "---"}</p>
                           {item.numeroCarga && <p className="text-[10px] font-black text-indigo-600 uppercase">Carga #{item.numeroCarga}</p>}
                           {(item.boleto || item.urlBoleto || item.urlComprovante) && (
-                            <a href={item.boleto || item.urlBoleto || item.urlComprovante} target="_blank" rel="noreferrer" title="Ver Comprovante" className="text-emerald-500 hover:scale-110 transition-transform">
+                            <a href={item.boleto || item.urlBoleto || item.urlComprovante} target="_blank" rel="noreferrer" title="Ver Comprovante" onClick={(e) => { e.preventDefault(); openInNewWindow(item.boleto || item.urlBoleto || item.urlComprovante); }} className="text-emerald-500 hover:scale-110 transition-transform">
                               <Paperclip size={14} />
                             </a>
                           )}
@@ -1179,7 +1185,7 @@ function App() {
                         </td>
                         <td className="px-6 py-4 text-right">
                           {(item.boleto || item.urlBoleto || item.urlComprovante) ? (
-                            <a href={item.boleto || item.urlBoleto || item.urlComprovante} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase">Abrir <ExternalLink size={12} /></a>
+                            <a href={item.boleto || item.urlBoleto || item.urlComprovante} target="_blank" rel="noreferrer" onClick={(e) => { e.preventDefault(); openInNewWindow(item.boleto || item.urlBoleto || item.urlComprovante); }} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase">Abrir <ExternalLink size={12} /></a>
                           ) : <span className="text-[10px] font-bold text-slate-400">Sem link</span>}
                         </td>
                       </tr>
@@ -1352,13 +1358,13 @@ function App() {
                           className="flex-1 px-4 py-2.5 bg-white border border-emerald-200 rounded-xl text-xs font-semibold outline-none file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-emerald-100 file:text-emerald-700"
                         />
                         {formData.urlComprovante && (
-                          <a href={formData.urlComprovante} target="_blank" rel="noreferrer" className="p-2.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors">
+                          <a href={formData.urlComprovante} target="_blank" rel="noreferrer" onClick={(e) => { e.preventDefault(); openInNewWindow(formData.urlComprovante); }} className="p-2.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors">
                             <ExternalLink size={18} />
                           </a>
                         )}
                       </div>
                       {formData.urlComprovante && (
-                        <a href={formData.urlComprovante} target="_blank" rel="noreferrer" title="Abrir comprovante em nova aba" className="inline-block mt-2">
+                        <a href={formData.urlComprovante} target="_blank" rel="noreferrer" onClick={(e) => { e.preventDefault(); openInNewWindow(formData.urlComprovante); }} title="Abrir comprovante em nova aba" className="inline-block mt-2">
                           <img src={formData.urlComprovante} alt="Pré-visualização do comprovante" className="h-20 w-20 object-cover rounded-lg border border-emerald-200 hover:opacity-90 transition-opacity cursor-pointer" />
                         </a>
                       )}
@@ -1470,7 +1476,7 @@ function App() {
               <Info label="Comprovante" value={detailItem.urlComprovante ? 'Foto anexada' : 'Sem comprovante'} />
               {detailItem.urlComprovante && (
                 <div className="mt-2">
-                  <a href={detailItem.urlComprovante} target="_blank" rel="noreferrer" title="Abrir comprovante em nova aba" className="inline-block">
+                  <a href={detailItem.urlComprovante} target="_blank" rel="noreferrer" onClick={(e) => { e.preventDefault(); openInNewWindow(detailItem.urlComprovante); }} title="Abrir comprovante em nova aba" className="inline-block">
                     <img src={detailItem.urlComprovante} alt="Comprovante da carga" className="h-28 w-28 object-cover rounded-lg border border-slate-200 hover:opacity-90 transition-opacity cursor-pointer" />
                   </a>
                 </div>
