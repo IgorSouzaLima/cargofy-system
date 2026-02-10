@@ -1419,6 +1419,7 @@ function App() {
             <Info label="NF" value={detailItem.numeroNF} />
             <Info label="Número do CT-e" value={getNumeroCTeResolvido(detailItem)} />
             <Info label="Data do CT-e" value={getDataCTeResolvida(detailItem) ? new Date(getDataCTeResolvida(detailItem) + 'T12:00:00').toLocaleDateString('pt-BR') : ''} />
+            <Info label="Data da Entrega" value={detailItem.dataEntrega ? new Date(`${detailItem.dataEntrega}T12:00:00`).toLocaleDateString('pt-BR') : ''} />
             <Info label="Contratante" value={detailItem.contratante} />
             <Info label="Destinatário" value={detailItem.destinatario} />
             <Info label="Cidade" value={detailItem.cidade} />
