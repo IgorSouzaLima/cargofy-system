@@ -63,6 +63,7 @@ function App() {
   const [statusFilter, setStatusFilter] = useState('Todos');
   const [dashboardCargaFilter, setDashboardCargaFilter] = useState('');
   const [dashboardBoletoFilter, setDashboardBoletoFilter] = useState('');
+  const [dashboardDateFilter, setDashboardDateFilter] = useState('');
   const [viagens, setViagens] = useState([]);
   const [financeiro, setFinanceiro] = useState([]);
   const [clientes, setClientes] = useState([]);
@@ -163,12 +164,20 @@ function App() {
     return viagem.status || 'Pendente';
   };
 
+  const dashboardViagensBase = useMemo(() => {
+    if (!dashboardDateFilter) return viagens;
+    return viagens.filter(v => {
+      const dataBase = v.dataSaida || v.dataNF || v.dataEntrega || v.dataCTe;
+      return dataBase === dashboardDateFilter;
+    });
+  }, [viagens, dashboardDateFilter]);
+
   const stats = useMemo(() => {
-    const pendentes = viagens.filter(v => getStatusViagem(v) === 'Pendente').length;
-    const emRota = viagens.filter(v => getStatusViagem(v) === 'Em rota').length;
-    const entregues = viagens.filter(v => getStatusViagem(v) === 'Entregue').length;
-    return { pendentes, emRota, entregues, total: viagens.length };
-  }, [viagens]);
+    const pendentes = dashboardViagensBase.filter(v => getStatusViagem(v) === 'Pendente').length;
+    const emRota = dashboardViagensBase.filter(v => getStatusViagem(v) === 'Em rota').length;
+    const entregues = dashboardViagensBase.filter(v => getStatusViagem(v) === 'Entregue').length;
+    return { pendentes, emRota, entregues, total: dashboardViagensBase.length };
+  }, [dashboardViagensBase, getStatusViagem]);
 
   const financeiroResumo = useMemo(() => {
     const faturou = viagens.reduce((acc, curr) => acc + (parseFloat(curr.valorFrete) || 0), 0);
@@ -195,14 +204,22 @@ function App() {
     return 'Pendente';
   };
 
+  const dashboardFinanceiroBase = useMemo(() => {
+    if (!dashboardDateFilter) return financeiro;
+    return financeiro.filter(item => {
+      const dataBase = item.dataVencimentoBoleto || item.vencimento;
+      return dataBase === dashboardDateFilter;
+    });
+  }, [financeiro, dashboardDateFilter]);
+
   const boletoStats = useMemo(() => {
-    const boletosGerados = financeiro.length;
-    const boletosPagos = financeiro.filter(f => getStatusFinanceiro(f) === 'Pago').length;
-    const boletosAtrasados = financeiro.filter(f => getStatusFinanceiro(f) === 'Vencido').length;
-    const boletosPendentes = financeiro.filter(f => getStatusFinanceiro(f) === 'Pendente').length;
+    const boletosGerados = dashboardFinanceiroBase.length;
+    const boletosPagos = dashboardFinanceiroBase.filter(f => getStatusFinanceiro(f) === 'Pago').length;
+    const boletosAtrasados = dashboardFinanceiroBase.filter(f => getStatusFinanceiro(f) === 'Vencido').length;
+    const boletosPendentes = dashboardFinanceiroBase.filter(f => getStatusFinanceiro(f) === 'Pendente').length;
 
     return { boletosGerados, boletosPendentes, boletosAtrasados, boletosPagos };
-  }, [financeiro]);
+  }, [dashboardFinanceiroBase]);
 
   const empresasRelatorio = useMemo(() => {
     const empresas = [...new Set(viagens.map(v => v.contratante).filter(Boolean))];
@@ -390,14 +407,38 @@ function App() {
 
   const dashboardViagensFiltradas = useMemo(() => {
     if (!dashboardCargaFilter) return [];
-    return filteredData.filter(item => getStatusViagem(item) === dashboardCargaFilter);
-  }, [filteredData, dashboardCargaFilter]);
+    const termo = (searchNF || '').toLowerCase();
+    return dashboardViagensBase
+      .filter(item => getStatusViagem(item) === dashboardCargaFilter)
+      .filter(item => {
+        if (!termo) return true;
+        return (
+          (item.numeroNF?.toLowerCase().includes(termo)) ||
+          (item.numeroCTe?.toLowerCase().includes(termo)) ||
+          (item.numeroCarga?.toLowerCase().includes(termo)) ||
+          (item.contratante?.toLowerCase().includes(termo)) ||
+          (item.cidade?.toLowerCase().includes(termo)) ||
+          (item.motorista?.toLowerCase().includes(termo))
+        );
+      });
+  }, [dashboardViagensBase, dashboardCargaFilter, searchNF, getStatusViagem]);
 
   const dashboardBoletosFiltrados = useMemo(() => {
     if (!dashboardBoletoFilter) return [];
-    if (dashboardBoletoFilter === 'Todos') return financeiro;
-    return financeiro.filter(item => getStatusFinanceiro(item) === dashboardBoletoFilter);
-  }, [financeiro, dashboardBoletoFilter]);
+    const termo = (searchNF || '').toLowerCase();
+    const base = dashboardBoletoFilter === 'Todos'
+      ? dashboardFinanceiroBase
+      : dashboardFinanceiroBase.filter(item => getStatusFinanceiro(item) === dashboardBoletoFilter);
+
+    if (!termo) return base;
+    return base.filter(item => (
+      (item.numeroNF?.toLowerCase().includes(termo)) ||
+      (item.numeroCarga?.toLowerCase().includes(termo)) ||
+      (item.contratante?.toLowerCase().includes(termo)) ||
+      (item.cidade?.toLowerCase().includes(termo)) ||
+      (item.motorista?.toLowerCase().includes(termo))
+    ));
+  }, [dashboardFinanceiroBase, dashboardBoletoFilter, searchNF]);
 
   const viagensAgrupadasPorCarga = useMemo(() => {
     if (activeTab !== 'viagens') return [];
@@ -533,7 +574,6 @@ function App() {
 
   const lucroViagem = (parseFloat(formData.valorFrete) || 0) - (parseFloat(formData.valorDistribuicao) || 0);
   const uploadSheetsRef = useRef(null);
-  const todayLabel = new Date().toLocaleDateString('pt-BR');
 
   const handleUploadSheets = (event) => {
     const file = event.target.files?.[0];
@@ -584,28 +624,38 @@ function App() {
             )}
           </div>
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 text-slate-600 text-[10px] font-black uppercase">
-              <Calendar size={14} /> {todayLabel}
-            </span>
-            <button
-              type="button"
-              onClick={() => uploadSheetsRef.current?.click()}
-              className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-emerald-500/20 transition-all"
-            >
-              <Upload size={14} /> Upload Sheets
-            </button>
-            {activeTab !== 'relatorios' && (
+            {activeTab === 'dashboard' && (
+              <>
+                <label className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-100 text-slate-600 text-[10px] font-black uppercase">
+                  <Calendar size={14} />
+                  <input
+                    type="date"
+                    value={dashboardDateFilter}
+                    onChange={(e) => setDashboardDateFilter(e.target.value)}
+                    className="bg-transparent outline-none text-[11px] font-bold"
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => uploadSheetsRef.current?.click()}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-emerald-500/20 transition-all"
+                >
+                  <Upload size={14} /> Upload Sheets
+                </button>
+                <input
+                  ref={uploadSheetsRef}
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  className="hidden"
+                  onChange={handleUploadSheets}
+                />
+              </>
+            )}
+            {(activeTab === 'dashboard' || activeTab === 'viagens') && (
               <button onClick={() => { resetForm(); setEditingId(null); setModalOpen(true); }} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-blue-500/20 transition-all">
                 <Plus size={16} /> Novo Registro
               </button>
             )}
-            <input
-              ref={uploadSheetsRef}
-              type="file"
-              accept=".xlsx,.xls,.csv"
-              className="hidden"
-              onChange={handleUploadSheets}
-            />
           </div>
         </header>
 
