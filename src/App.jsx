@@ -183,6 +183,20 @@ function App() {
     return '';
   };
 
+  const getVeiculoResolvido = (item) => {
+    const ref = (item?.veiculo || '').trim();
+    if (!ref) return item?.placa || '';
+
+    const encontrado = veiculos.find(v => v.id === ref || v.placa === ref || v.modelo === ref);
+    if (encontrado) {
+      const modelo = encontrado.modelo || 'Veículo';
+      const placa = encontrado.placa ? ` - ${encontrado.placa}` : '';
+      return `${modelo}${placa}`;
+    }
+
+    return ref;
+  };
+
   const getStatusViagem = (viagem) => {
     const chave = (viagem.numeroCarga || '').trim();
     if (chave && cargaStatusMap[chave]) {
@@ -954,11 +968,19 @@ function App() {
 
           {activeTab === 'financeiro' && (
             <div className="space-y-4 mt-8">
-              {financeiroAgrupadoPorCarga.map(grupo => (
+              {financeiroAgrupadoPorCarga.map(grupo => {
+                const resumoFrete = grupo.itens.reduce((acc, curr) => acc + (parseFloat(curr.valorFrete) || 0), 0);
+                const resumoCusto = grupo.itens.reduce((acc, curr) => acc + (parseFloat(curr.valorDistribuicao) || 0), 0);
+                const resumoLucro = resumoFrete - resumoCusto;
+
+                return (
                 <div key={`fin-grupo-${grupo.numeroCarga}`} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                   <div className="px-6 py-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
                     <h3 className="text-xs font-black text-slate-600 uppercase tracking-widest">Carga {grupo.numeroCarga}</h3>
-                    <span className="text-[10px] font-bold text-slate-400">{grupo.itens.length} boletos</span>
+                    <div className="text-right">
+                      <span className="text-[10px] font-bold text-slate-400 block">{grupo.itens.length} boletos</span>
+                      <span className="text-[10px] font-semibold text-slate-500 block">Fechado: R$ {resumoFrete.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} · Gasto: R$ {resumoCusto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} · Lucro: R$ {resumoLucro.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                    </div>
                   </div>
                   <div className="divide-y divide-slate-100">
                     {grupo.itens.map(item => (
@@ -980,7 +1002,8 @@ function App() {
                     ))}
                   </div>
                 </div>
-              ))}
+              );
+              })}
             </div>
           )}
 
@@ -1346,7 +1369,7 @@ function App() {
             <Info label="Destinatário" value={detailItem.destinatario} />
             <Info label="Cidade" value={detailItem.cidade} />
             <Info label="Motorista" value={detailItem.motorista} />
-            <Info label="Veículo" value={detailItem.veiculo} />
+            <Info label="Veículo" value={getVeiculoResolvido(detailItem)} />
             <Info label="Status" value={detailItem.status || (detailItem.statusFinanceiro || detailItem.vencimento || detailItem.dataVencimentoBoleto ? getStatusFinanceiro(detailItem) : getStatusViagem(detailItem))} />
             <Info label="Valor Frete" value={detailItem.valorFrete ? `R$ ${parseFloat(detailItem.valorFrete).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : ''} />
             <Info label="Valor Distribuição" value={detailItem.valorDistribuicao ? `R$ ${parseFloat(detailItem.valorDistribuicao).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : ''} />
