@@ -112,7 +112,8 @@ function App() {
     email: '', 
     telefone: '', 
     modelo: '', 
-    tipo: ''
+    tipo: '',
+    observacao: ''
   });
 
   useEffect(() => {
@@ -466,7 +467,12 @@ function App() {
       .map(item => {
         const dataVencimento = item.dataVencimentoBoleto || item.vencimento;
         const dataObj = dataVencimento ? new Date(`${dataVencimento}T12:00:00`) : null;
-        return { ...item, dataVencimento, dataObj };
+        const viagemRelacionada = viagens.find(v =>
+          ((item.numeroNF || '').trim() && (v.numeroNF || '').trim() === (item.numeroNF || '').trim()) ||
+          ((item.numeroCarga || '').trim() && (v.numeroCarga || '').trim() === (item.numeroCarga || '').trim())
+        );
+        const numeroCTeResolvido = item.numeroCTe || viagemRelacionada?.numeroCTe || '';
+        return { ...item, dataVencimento, dataObj, numeroCTeResolvido };
       })
       .filter(item => item.dataObj && !Number.isNaN(item.dataObj.getTime()));
 
@@ -476,7 +482,7 @@ function App() {
       .slice(0, 10);
 
     return baseOrdenada;
-  }, [dashboardFinanceiroBase]);
+  }, [dashboardFinanceiroBase, viagens]);
 
   const financeiroAgrupadoPorCarga = useMemo(() => {
     if (activeTab !== 'financeiro') return [];
@@ -629,7 +635,7 @@ function App() {
       volume: '', peso: '', valorNF: '', chaveID: '', status: 'Pendente', 
       valorFrete: '', valorDistribuicao: '', lucro: '', metodoPagamento: '', numeroBoleto: '', dataVencimentoBoleto: '', motorista: '', veiculo: '', placa: '', urlComprovante: '', boleto: '', vencimento: '', 
       statusFinanceiro: 'Pendente', nome: '', email: '', telefone: '', 
-      modelo: '', tipo: ''
+      modelo: '', tipo: '', observacao: ''
     });
   };
 
@@ -1065,7 +1071,7 @@ function App() {
                     {proximosBoletos.map(item => (
                       <tr key={`prox-${item.id}`} className="hover:bg-slate-50/50 transition-colors">
                         <td className="px-6 py-4 text-sm font-bold text-slate-800">{item.numeroNF || '---'}</td>
-                        <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.numeroCTe || '---'}</td>
+                        <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.numeroCTeResolvido || '---'}</td>
                         <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.contratante || '---'}</td>
                         <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.dataVencimento ? new Date(`${item.dataVencimento}T12:00:00`).toLocaleDateString('pt-BR') : '---'}</td>
                       </tr>
@@ -1279,6 +1285,19 @@ function App() {
             </div>
           )}
 
+          {(activeTab === 'dashboard' || activeTab === 'viagens' || activeTab === 'financeiro') && (
+            <div className="space-y-1">
+              <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Observação</label>
+              <textarea
+                value={formData.observacao || ''}
+                onChange={e => setFormData({...formData, observacao: e.target.value})}
+                placeholder="Digite uma observação adicional..."
+                rows={3}
+                className="w-full p-3 bg-slate-100 rounded-xl text-sm font-medium outline-none border border-transparent focus:border-blue-400"
+              />
+            </div>
+          )}
+
           <div className="flex gap-3 pt-8 border-t">
             <button type="button" onClick={() => setModalOpen(false)} className="flex-1 py-4 text-xs font-black uppercase text-slate-400 hover:text-slate-600 transition-colors">Descartar</button>
             <button type="submit" className="flex-[2] py-4 bg-blue-600 text-white rounded-2xl text-xs font-black uppercase shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all">
@@ -1306,6 +1325,7 @@ function App() {
             <Info label="Lucro" value={`R$ ${((parseFloat(detailItem.valorFrete) || 0) - (parseFloat(detailItem.valorDistribuicao) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} />
             <Info label="Número do Boleto" value={detailItem.numeroBoleto || ''} />
             <Info label="Data de Vencimento" value={(detailItem.dataVencimentoBoleto || detailItem.vencimento) ? new Date(((detailItem.dataVencimentoBoleto || detailItem.vencimento) + 'T12:00:00')).toLocaleDateString('pt-BR') : ''} />
+            <Info label="Observação" value={detailItem.observacao || ''} />
             <div className="md:col-span-2">
               <Info label="Comprovante" value={detailItem.urlComprovante ? 'Foto anexada' : 'Sem comprovante'} />
               {detailItem.urlComprovante && (
