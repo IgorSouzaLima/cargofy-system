@@ -61,6 +61,8 @@ function App() {
   const [user, setUser] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [statusFilter, setStatusFilter] = useState('Todos');
+  const [dashboardCargaFilter, setDashboardCargaFilter] = useState('');
+  const [dashboardBoletoFilter, setDashboardBoletoFilter] = useState('');
   const [viagens, setViagens] = useState([]);
   const [financeiro, setFinanceiro] = useState([]);
   const [clientes, setClientes] = useState([]);
@@ -361,7 +363,7 @@ function App() {
     let list = [];
     switch (activeTab) {
       case 'dashboard':
-      case 'viagens': 
+      case 'viagens':
         list = statusFilter === 'Todos' ? viagens : viagens.filter(v => getStatusViagem(v) === statusFilter);
         break;
       case 'financeiro': list = financeiro; break;
@@ -374,7 +376,7 @@ function App() {
 
     if (!searchNF) return list;
     const term = searchNF.toLowerCase();
-    return list.filter(item => 
+    return list.filter(item =>
       (item.numeroNF?.toLowerCase().includes(term)) ||
       (item.numeroCTe?.toLowerCase().includes(term)) ||
       (item.numeroCarga?.toLowerCase().includes(term)) ||
@@ -385,6 +387,34 @@ function App() {
       (item.motorista?.toLowerCase().includes(term))
     );
   }, [activeTab, statusFilter, viagens, financeiro, clientes, motoristas, veiculos, searchNF]);
+
+  const dashboardViagensFiltradas = useMemo(() => {
+    if (!dashboardCargaFilter) return [];
+    return filteredData.filter(item => getStatusViagem(item) === dashboardCargaFilter);
+  }, [filteredData, dashboardCargaFilter]);
+
+  const dashboardBoletosFiltrados = useMemo(() => {
+    if (!dashboardBoletoFilter) return [];
+    if (dashboardBoletoFilter === 'Todos') return financeiro;
+    return financeiro.filter(item => getStatusFinanceiro(item) === dashboardBoletoFilter);
+  }, [financeiro, dashboardBoletoFilter]);
+
+  const viagensAgrupadasPorCarga = useMemo(() => {
+    if (activeTab !== 'viagens') return [];
+    const grupos = {};
+    filteredData.forEach(item => {
+      const chave = (item.numeroCarga || 'Sem carga').trim() || 'Sem carga';
+      if (!grupos[chave]) grupos[chave] = [];
+      grupos[chave].push(item);
+    });
+
+    return Object.entries(grupos)
+      .sort((a, b) => a[0].localeCompare(b[0], 'pt-BR', { numeric: true }))
+      .map(([numeroCarga, itens]) => ({
+        numeroCarga,
+        itens: itens.sort((a, b) => (a.numeroNF || '').localeCompare(b.numeroNF || '', 'pt-BR', { numeric: true }))
+      }));
+  }, [activeTab, filteredData]);
 
   const handleOpenEdit = (item) => {
     setFormData({
@@ -508,12 +538,12 @@ function App() {
   return (
     <div className="flex h-screen bg-[#f1f5f9] text-slate-900 font-sans">
       <aside className="w-64 bg-[#0f172a] text-white flex flex-col p-6 shadow-2xl shrink-0">
-        <div className="flex items-center gap-3 mb-10 px-2 cursor-pointer" onClick={() => {setActiveTab('dashboard'); setStatusFilter('Todos');}}>
+        <div className="flex items-center gap-3 mb-10 px-2 cursor-pointer" onClick={() => {setActiveTab('dashboard'); setStatusFilter('Todos'); setDashboardCargaFilter(''); setDashboardBoletoFilter('');}}>
           <Truck className="text-blue-500" size={28} />
           <h1 className="text-xl font-black tracking-tighter uppercase">CargoFy</h1>
         </div>
         <nav className="flex-1 space-y-1 overflow-y-auto">
-          <NavItem icon={LayoutDashboard} label="Painel" active={activeTab === 'dashboard'} onClick={() => {setActiveTab('dashboard'); setStatusFilter('Todos');}} />
+          <NavItem icon={LayoutDashboard} label="Painel" active={activeTab === 'dashboard'} onClick={() => {setActiveTab('dashboard'); setStatusFilter('Todos'); setDashboardCargaFilter(''); setDashboardBoletoFilter('');}} />
           <NavItem icon={Package} label="Viagens" active={activeTab === 'viagens'} onClick={() => {setActiveTab('viagens'); setStatusFilter('Todos');}} />
           <NavItem icon={DollarSign} label="Financeiro" active={activeTab === 'financeiro'} onClick={() => setActiveTab('financeiro')} />
           <NavItem icon={FileText} label="Relatórios" active={activeTab === 'relatorios'} onClick={() => setActiveTab('relatorios')} />
@@ -544,7 +574,7 @@ function App() {
               </button>
             )}
           </div>
-          {activeTab !== 'relatorios' && (
+          {activeTab !== 'relatorios' && activeTab !== 'dashboard' && activeTab !== 'viagens' && (
             <button onClick={() => { resetForm(); setEditingId(null); setModalOpen(true); }} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-blue-500/20 transition-all">
               <Plus size={16} /> Novo Registro
             </button>
@@ -552,11 +582,38 @@ function App() {
         </header>
 
         <div className="p-8 overflow-y-auto">
+
+          {activeTab === 'viagens' && (
+            <div className="space-y-4 mt-8">
+              {viagensAgrupadasPorCarga.map(grupo => (
+                <div key={`grupo-${grupo.numeroCarga}`} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                  <div className="px-6 py-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                    <h3 className="text-xs font-black text-slate-600 uppercase tracking-widest">Carga {grupo.numeroCarga}</h3>
+                    <span className="text-[10px] font-bold text-slate-400">{grupo.itens.length} NFs</span>
+                  </div>
+                  <div className="p-4 space-y-2">
+                    {grupo.itens.map(item => (
+                      <div key={`item-${item.id}`} className="p-3 rounded-xl border border-slate-100 bg-white flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-black text-slate-800">NF {item.numeroNF || '---'} · CT-e {item.numeroCTe || '---'}</p>
+                          <p className="text-[10px] font-bold text-slate-500 uppercase">{item.contratante || 'Sem contratante'} · {item.cidade || 'Sem destino'}</p>
+                        </div>
+                        <span className={`w-fit px-2 py-0.5 rounded text-[9px] font-black uppercase ${getStatusViagem(item) === 'Em rota' ? 'bg-blue-100 text-blue-600' : getStatusViagem(item) === 'Entregue' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
+                          {getStatusViagem(item)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           {activeTab === 'dashboard' && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-              <Card title="Cargas Pendentes" value={stats.pendentes} icon={Clock} color="bg-amber-500" active={statusFilter === 'Pendente'} onClick={() => setStatusFilter('Pendente')} />
-              <Card title="Cargas em Rota" value={stats.emRota} icon={MapPin} color="bg-blue-600" active={statusFilter === 'Em rota'} onClick={() => setStatusFilter('Em rota')} />
-              <Card title="Concluídas" value={stats.entregues} icon={CheckCircle2} color="bg-emerald-500" active={statusFilter === 'Entregue'} onClick={() => setStatusFilter('Entregue')} />
+              <Card title="Cargas Pendentes" value={stats.pendentes} icon={Clock} color="bg-amber-500" active={dashboardCargaFilter === 'Pendente'} onClick={() => setDashboardCargaFilter(prev => prev === 'Pendente' ? '' : 'Pendente')} />
+              <Card title="Cargas em Rota" value={stats.emRota} icon={MapPin} color="bg-blue-600" active={dashboardCargaFilter === 'Em rota'} onClick={() => setDashboardCargaFilter(prev => prev === 'Em rota' ? '' : 'Em rota')} />
+              <Card title="Concluídas" value={stats.entregues} icon={CheckCircle2} color="bg-emerald-500" active={dashboardCargaFilter === 'Entregue'} onClick={() => setDashboardCargaFilter(prev => prev === 'Entregue' ? '' : 'Entregue')} />
             </div>
           )}
 
@@ -643,7 +700,7 @@ function App() {
             </div>
           )}
 
-          {activeTab !== 'relatorios' && (
+          {activeTab !== 'relatorios' && activeTab !== 'dashboard' && activeTab !== 'viagens' && (
           <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white">
               <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">{activeTab}</h3>
@@ -726,18 +783,59 @@ function App() {
           </div>
           )}
 
+
+          {activeTab === 'dashboard' && dashboardCargaFilter && (
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden mb-8">
+              <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white">
+                <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Dashboard Cargas - {dashboardCargaFilter}</h3>
+                <span className="text-[10px] font-bold text-slate-400">{dashboardViagensFiltradas.length} registros</span>
+              </div>
+              <table className="w-full text-left border-collapse">
+                <thead className="bg-slate-50 border-b border-slate-100">
+                  <tr>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Carga / NF / Empresa</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">CT-e</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Destino / Motorista</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {dashboardViagensFiltradas.map(item => (
+                    <tr key={`dash-v-${item.id}`} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="px-6 py-4">
+                        <p className="font-bold text-slate-800">Carga {item.numeroCarga || '---'} · NF {item.numeroNF || '---'}</p>
+                        <p className="text-[10px] font-black text-blue-600 uppercase tracking-tight">{item.contratante || 'Contratante não informado'}</p>
+                      </td>
+                      <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.numeroCTe || '---'}</td>
+                      <td className="px-6 py-4">
+                        <p className="text-sm font-bold text-slate-800">{item.cidade || 'Destino não informado'}</p>
+                        <p className="text-[10px] font-black text-slate-500 uppercase">{item.motorista || 'Sem motorista'}</p>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`w-fit px-2 py-0.5 rounded text-[9px] font-black uppercase ${getStatusViagem(item) === 'Em rota' ? 'bg-blue-100 text-blue-600' : getStatusViagem(item) === 'Entregue' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
+                          {getStatusViagem(item)}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
           {activeTab === 'dashboard' && (
             <div className="space-y-6 mt-8">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Card title="Boletos Gerados" value={boletoStats.boletosGerados} icon={FileText} color="bg-indigo-600" />
-                <Card title="Boletos Pendentes" value={boletoStats.boletosPendentes} icon={Clock} color="bg-amber-500" />
-                <Card title="Boletos Atrasados" value={boletoStats.boletosAtrasados} icon={AlertCircle} color="bg-rose-600" />
-                <Card title="Boletos Pagos" value={boletoStats.boletosPagos} icon={CheckCircle2} color="bg-emerald-600" />
+                <Card title="Boletos Gerados" value={boletoStats.boletosGerados} icon={FileText} color="bg-indigo-600" active={dashboardBoletoFilter === 'Todos'} onClick={() => setDashboardBoletoFilter(prev => prev === 'Todos' ? '' : 'Todos')} />
+                <Card title="Boletos Pendentes" value={boletoStats.boletosPendentes} icon={Clock} color="bg-amber-500" active={dashboardBoletoFilter === 'Pendente'} onClick={() => setDashboardBoletoFilter(prev => prev === 'Pendente' ? '' : 'Pendente')} />
+                <Card title="Boletos Atrasados" value={boletoStats.boletosAtrasados} icon={AlertCircle} color="bg-rose-600" active={dashboardBoletoFilter === 'Vencido'} onClick={() => setDashboardBoletoFilter(prev => prev === 'Vencido' ? '' : 'Vencido')} />
+                <Card title="Boletos Pagos" value={boletoStats.boletosPagos} icon={CheckCircle2} color="bg-emerald-600" active={dashboardBoletoFilter === 'Pago'} onClick={() => setDashboardBoletoFilter(prev => prev === 'Pago' ? '' : 'Pago')} />
               </div>
+              {dashboardBoletoFilter && (
               <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white">
-                  <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Dashboard Boletos</h3>
-                  <span className="text-[10px] font-bold text-slate-400">{financeiro.length} registros</span>
+                  <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Dashboard Boletos - {dashboardBoletoFilter === 'Todos' ? 'Gerados' : dashboardBoletoFilter}</h3>
+                  <span className="text-[10px] font-bold text-slate-400">{dashboardBoletosFiltrados.length} registros</span>
                 </div>
                 <table className="w-full text-left border-collapse">
                   <thead className="bg-slate-50 border-b border-slate-100">
@@ -749,7 +847,7 @@ function App() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
-                    {financeiro.map(item => (
+                    {dashboardBoletosFiltrados.map(item => (
                       <tr key={`dash-fin-${item.id}`} className="hover:bg-slate-50/50 transition-colors">
                         <td className="px-6 py-4">
                           <p className="font-bold text-slate-800">{item.numeroNF || '---'}</p>
@@ -771,6 +869,7 @@ function App() {
                   </tbody>
                 </table>
               </div>
+              )}
             </div>
           )}
         </div>
