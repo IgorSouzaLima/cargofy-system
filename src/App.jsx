@@ -158,6 +158,32 @@ function App() {
     return mapa;
   }, [viagens]);
 
+  const mapaCTePorReferencia = useMemo(() => {
+    const mapa = {};
+    viagens.forEach(v => {
+      const cte = (v.numeroCTe || '').trim();
+      if (!cte) return;
+      const nf = (v.numeroNF || '').trim();
+      const carga = (v.numeroCarga || '').trim();
+      if (nf && !mapa[`nf:${nf}`]) mapa[`nf:${nf}`] = cte;
+      if (carga && !mapa[`carga:${carga}`]) mapa[`carga:${carga}`] = cte;
+    });
+    return mapa;
+  }, [viagens]);
+
+  const getNumeroCTeResolvido = (item) => {
+    const cteAtual = (item?.numeroCTe || '').trim();
+    if (cteAtual) return cteAtual;
+
+    const nf = (item?.numeroNF || '').trim();
+    if (nf && mapaCTePorReferencia[`nf:${nf}`]) return mapaCTePorReferencia[`nf:${nf}`];
+
+    const carga = (item?.numeroCarga || '').trim();
+    if (carga && mapaCTePorReferencia[`carga:${carga}`]) return mapaCTePorReferencia[`carga:${carga}`];
+
+    return '';
+  };
+
   const getStatusViagem = (viagem) => {
     const chave = (viagem.numeroCarga || '').trim();
     if (chave && cargaStatusMap[chave]) {
@@ -467,11 +493,7 @@ function App() {
       .map(item => {
         const dataVencimento = item.dataVencimentoBoleto || item.vencimento;
         const dataObj = dataVencimento ? new Date(`${dataVencimento}T12:00:00`) : null;
-        const viagemRelacionada = viagens.find(v =>
-          ((item.numeroNF || '').trim() && (v.numeroNF || '').trim() === (item.numeroNF || '').trim()) ||
-          ((item.numeroCarga || '').trim() && (v.numeroCarga || '').trim() === (item.numeroCarga || '').trim())
-        );
-        const numeroCTeResolvido = item.numeroCTe || viagemRelacionada?.numeroCTe || '';
+        const numeroCTeResolvido = getNumeroCTeResolvido(item);
         return { ...item, dataVencimento, dataObj, numeroCTeResolvido };
       })
       .filter(item => item.dataObj && !Number.isNaN(item.dataObj.getTime()));
@@ -482,7 +504,7 @@ function App() {
       .slice(0, 10);
 
     return baseOrdenada;
-  }, [dashboardFinanceiroBase, viagens]);
+  }, [dashboardFinanceiroBase, getNumeroCTeResolvido]);
 
   const financeiroAgrupadoPorCarga = useMemo(() => {
     if (activeTab !== 'financeiro') return [];
@@ -748,7 +770,7 @@ function App() {
                     {grupo.itens.map(item => (
                       <div key={`item-${item.id}`} className="p-3 rounded-xl border border-slate-100 bg-white flex flex-col md:flex-row md:items-center md:justify-between gap-2">
                         <div>
-                          <p className="text-sm font-black text-slate-800">NF {item.numeroNF || '---'} · CT-e {item.numeroCTe || '---'}</p>
+                          <p className="text-sm font-black text-slate-800">NF {item.numeroNF || '---'} · CT-e {getNumeroCTeResolvido(item) || '---'}</p>
                           <p className="text-[10px] font-bold text-slate-500 uppercase">{item.contratante || 'Sem contratante'} · Destino: {item.destinatario || item.cidade || 'Sem destino'} · Motorista: {item.motorista || 'Sem motorista'}</p>
                         </div>
                         <span className={`w-fit px-2 py-0.5 rounded text-[9px] font-black uppercase ${getStatusViagem(item) === 'Em rota' ? 'bg-blue-100 text-blue-600' : getStatusViagem(item) === 'Entregue' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
@@ -950,7 +972,7 @@ function App() {
                     {grupo.itens.map(item => (
                       <div key={`fin-item-${item.id}`} className="px-6 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
                         <div>
-                          <p className="text-sm font-black text-slate-800">NF {item.numeroNF || '---'} · CT-e {item.numeroCTe || '---'}</p>
+                          <p className="text-sm font-black text-slate-800">NF {item.numeroNF || '---'} · CT-e {getNumeroCTeResolvido(item) || '---'}</p>
                           <p className="text-[10px] font-bold text-slate-500 uppercase">{item.contratante || 'Sem contratante'} · Motorista: {item.motorista || 'Sem motorista'}</p>
                         </div>
                         <div className="text-right">
@@ -1312,7 +1334,7 @@ function App() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
             <Info label="Número da Carga" value={detailItem.numeroCarga} />
             <Info label="NF" value={detailItem.numeroNF} />
-            <Info label="Número do CT-e" value={detailItem.numeroCTe} />
+            <Info label="Número do CT-e" value={getNumeroCTeResolvido(detailItem)} />
             <Info label="Data do CT-e" value={detailItem.dataCTe ? new Date(detailItem.dataCTe + 'T12:00:00').toLocaleDateString('pt-BR') : ''} />
             <Info label="Contratante" value={detailItem.contratante} />
             <Info label="Destinatário" value={detailItem.destinatario} />
