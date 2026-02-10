@@ -63,7 +63,8 @@ function App() {
   const [statusFilter, setStatusFilter] = useState('Todos');
   const [dashboardCargaFilter, setDashboardCargaFilter] = useState('');
   const [dashboardBoletoFilter, setDashboardBoletoFilter] = useState('');
-  const [dashboardDateFilter, setDashboardDateFilter] = useState('');
+  const [dashboardDateInicio, setDashboardDateInicio] = useState('');
+  const [dashboardDateFim, setDashboardDateFim] = useState('');
   const [viagens, setViagens] = useState([]);
   const [financeiro, setFinanceiro] = useState([]);
   const [clientes, setClientes] = useState([]);
@@ -164,13 +165,30 @@ function App() {
     return viagem.status || 'Pendente';
   };
 
+  const estaNoPeriodo = (dataBase, inicio, fim) => {
+    if (!dataBase) return !inicio && !fim;
+    const data = new Date(`${dataBase}T12:00:00`);
+    if (Number.isNaN(data.getTime())) return false;
+
+    if (inicio) {
+      const dataInicio = new Date(`${inicio}T00:00:00`);
+      if (data < dataInicio) return false;
+    }
+
+    if (fim) {
+      const dataFim = new Date(`${fim}T23:59:59`);
+      if (data > dataFim) return false;
+    }
+
+    return true;
+  };
+
   const dashboardViagensBase = useMemo(() => {
-    if (!dashboardDateFilter) return viagens;
     return viagens.filter(v => {
       const dataBase = v.dataSaida || v.dataNF || v.dataEntrega || v.dataCTe;
-      return dataBase === dashboardDateFilter;
+      return estaNoPeriodo(dataBase, dashboardDateInicio, dashboardDateFim);
     });
-  }, [viagens, dashboardDateFilter]);
+  }, [viagens, dashboardDateInicio, dashboardDateFim]);
 
   const stats = useMemo(() => {
     const pendentes = dashboardViagensBase.filter(v => getStatusViagem(v) === 'Pendente').length;
@@ -205,12 +223,11 @@ function App() {
   };
 
   const dashboardFinanceiroBase = useMemo(() => {
-    if (!dashboardDateFilter) return financeiro;
     return financeiro.filter(item => {
       const dataBase = item.dataVencimentoBoleto || item.vencimento;
-      return dataBase === dashboardDateFilter;
+      return estaNoPeriodo(dataBase, dashboardDateInicio, dashboardDateFim);
     });
-  }, [financeiro, dashboardDateFilter]);
+  }, [financeiro, dashboardDateInicio, dashboardDateFim]);
 
   const boletoStats = useMemo(() => {
     const boletosGerados = dashboardFinanceiroBase.length;
@@ -440,6 +457,49 @@ function App() {
     ));
   }, [dashboardFinanceiroBase, dashboardBoletoFilter, searchNF]);
 
+
+  const proximosBoletos = useMemo(() => {
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+
+    const itensComData = dashboardFinanceiroBase
+      .map(item => {
+        const dataVencimento = item.dataVencimentoBoleto || item.vencimento;
+        const dataObj = dataVencimento ? new Date(`${dataVencimento}T12:00:00`) : null;
+        return { ...item, dataVencimento, dataObj };
+      })
+      .filter(item => item.dataObj && !Number.isNaN(item.dataObj.getTime()));
+
+    const futuros = itensComData.filter(item => item.dataObj >= hoje);
+    const baseOrdenada = (futuros.length ? futuros : itensComData)
+      .sort((a, b) => a.dataObj - b.dataObj)
+      .slice(0, 10);
+
+    return baseOrdenada;
+  }, [dashboardFinanceiroBase]);
+
+  const financeiroAgrupadoPorCarga = useMemo(() => {
+    if (activeTab !== 'financeiro') return [];
+    const grupos = {};
+
+    filteredData.forEach(item => {
+      const chave = (item.numeroCarga || 'Sem carga').trim() || 'Sem carga';
+      if (!grupos[chave]) grupos[chave] = [];
+      grupos[chave].push(item);
+    });
+
+    return Object.entries(grupos)
+      .sort((a, b) => a[0].localeCompare(b[0], 'pt-BR', { numeric: true }))
+      .map(([numeroCarga, itens]) => ({
+        numeroCarga,
+        itens: itens.sort((a, b) => {
+          const da = (a.dataVencimentoBoleto || a.vencimento || '9999-12-31');
+          const db = (b.dataVencimentoBoleto || b.vencimento || '9999-12-31');
+          return da.localeCompare(db);
+        })
+      }));
+  }, [activeTab, filteredData]);
+
   const viagensAgrupadasPorCarga = useMemo(() => {
     if (activeTab !== 'viagens') return [];
     const grupos = {};
@@ -482,6 +542,7 @@ function App() {
     const payloadFinanceiro = {
       numeroNF: viagemData.numeroNF || '',
       numeroCarga: viagemData.numeroCarga || '',
+      numeroCTe: viagemData.numeroCTe || '',
       contratante: viagemData.contratante || '',
       destinatario: viagemData.destinatario || '',
       cidade: viagemData.cidade || '',
@@ -626,15 +687,23 @@ function App() {
           <div className="flex items-center gap-2">
             {activeTab === 'dashboard' && (
               <>
-                <label className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-100 text-slate-600 text-[10px] font-black uppercase">
+                <div className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-100 text-slate-600 text-[10px] font-black uppercase">
                   <Calendar size={14} />
+                  <span>De</span>
                   <input
                     type="date"
-                    value={dashboardDateFilter}
-                    onChange={(e) => setDashboardDateFilter(e.target.value)}
+                    value={dashboardDateInicio}
+                    onChange={(e) => setDashboardDateInicio(e.target.value)}
                     className="bg-transparent outline-none text-[11px] font-bold"
                   />
-                </label>
+                  <span>Até</span>
+                  <input
+                    type="date"
+                    value={dashboardDateFim}
+                    onChange={(e) => setDashboardDateFim(e.target.value)}
+                    className="bg-transparent outline-none text-[11px] font-bold"
+                  />
+                </div>
                 <button
                   type="button"
                   onClick={() => uploadSheetsRef.current?.click()}
@@ -674,7 +743,7 @@ function App() {
                       <div key={`item-${item.id}`} className="p-3 rounded-xl border border-slate-100 bg-white flex flex-col md:flex-row md:items-center md:justify-between gap-2">
                         <div>
                           <p className="text-sm font-black text-slate-800">NF {item.numeroNF || '---'} · CT-e {item.numeroCTe || '---'}</p>
-                          <p className="text-[10px] font-bold text-slate-500 uppercase">{item.contratante || 'Sem contratante'} · {item.cidade || 'Sem destino'}</p>
+                          <p className="text-[10px] font-bold text-slate-500 uppercase">{item.contratante || 'Sem contratante'} · Destino: {item.destinatario || item.cidade || 'Sem destino'} · Motorista: {item.motorista || 'Sem motorista'}</p>
                         </div>
                         <span className={`w-fit px-2 py-0.5 rounded text-[9px] font-black uppercase ${getStatusViagem(item) === 'Em rota' ? 'bg-blue-100 text-blue-600' : getStatusViagem(item) === 'Entregue' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
                           {getStatusViagem(item)}
@@ -778,7 +847,7 @@ function App() {
             </div>
           )}
 
-          {activeTab !== 'relatorios' && activeTab !== 'dashboard' && activeTab !== 'viagens' && (
+          {activeTab !== 'relatorios' && activeTab !== 'dashboard' && activeTab !== 'viagens' && activeTab !== 'financeiro' && (
           <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white">
               <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">{activeTab}</h3>
@@ -861,6 +930,34 @@ function App() {
           </div>
           )}
 
+
+
+          {activeTab === 'financeiro' && (
+            <div className="space-y-4 mt-8">
+              {financeiroAgrupadoPorCarga.map(grupo => (
+                <div key={`fin-grupo-${grupo.numeroCarga}`} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                  <div className="px-6 py-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                    <h3 className="text-xs font-black text-slate-600 uppercase tracking-widest">Carga {grupo.numeroCarga}</h3>
+                    <span className="text-[10px] font-bold text-slate-400">{grupo.itens.length} boletos</span>
+                  </div>
+                  <div className="divide-y divide-slate-100">
+                    {grupo.itens.map(item => (
+                      <div key={`fin-item-${item.id}`} className="px-6 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-black text-slate-800">NF {item.numeroNF || '---'} · CT-e {item.numeroCTe || '---'}</p>
+                          <p className="text-[10px] font-bold text-slate-500 uppercase">{item.contratante || 'Sem contratante'} · Motorista: {item.motorista || 'Sem motorista'}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs font-bold text-slate-700">Venc: {(item.dataVencimentoBoleto || item.vencimento) ? new Date(((item.dataVencimentoBoleto || item.vencimento) + 'T12:00:00')).toLocaleDateString('pt-BR') : '---'}</p>
+                          <span className={`w-fit ml-auto px-2 py-0.5 rounded text-[9px] font-black uppercase ${getStatusFinanceiro(item) === 'Pago' ? 'bg-emerald-100 text-emerald-600' : getStatusFinanceiro(item) === 'Vencido' ? 'bg-rose-100 text-rose-600' : 'bg-amber-100 text-amber-600'}`}>{getStatusFinanceiro(item)}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
           {activeTab === 'dashboard' && dashboardCargaFilter && (
             <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden mb-8">
@@ -948,6 +1045,34 @@ function App() {
                 </table>
               </div>
               )}
+
+
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white">
+                  <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Próximos boletos por vencimento</h3>
+                  <span className="text-[10px] font-bold text-slate-400">{proximosBoletos.length} registros</span>
+                </div>
+                <table className="w-full text-left border-collapse">
+                  <thead className="bg-slate-50 border-b border-slate-100">
+                    <tr>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">NF</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">CT-e</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Contratante</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Vencimento</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {proximosBoletos.map(item => (
+                      <tr key={`prox-${item.id}`} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="px-6 py-4 text-sm font-bold text-slate-800">{item.numeroNF || '---'}</td>
+                        <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.numeroCTe || '---'}</td>
+                        <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.contratante || '---'}</td>
+                        <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.dataVencimento ? new Date(`${item.dataVencimento}T12:00:00`).toLocaleDateString('pt-BR') : '---'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </div>
