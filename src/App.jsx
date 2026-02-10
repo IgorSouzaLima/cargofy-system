@@ -611,7 +611,8 @@ function App() {
       ...item,
       boleto: item.boleto || item.urlBoleto || item.urlComprovante || '',
       statusFinanceiro: item.statusFinanceiro || 'Pendente',
-      dataVencimentoBoleto: item.dataVencimentoBoleto || item.vencimento || ''
+      dataVencimentoBoleto: item.dataVencimentoBoleto || item.vencimento || '',
+      vencimento: item.vencimento || item.dataVencimentoBoleto || ''
     });
     setEditingId(item.id);
     setModalOpen(true);
@@ -680,8 +681,8 @@ function App() {
     const payload = colName === 'financeiro'
       ? {
           ...formData,
-          dataVencimentoBoleto: formData.dataVencimentoBoleto || formData.vencimento || '',
-          vencimento: formData.dataVencimentoBoleto || formData.vencimento || '',
+          dataVencimentoBoleto: formData.vencimento || formData.dataVencimentoBoleto || '',
+          vencimento: formData.vencimento || formData.dataVencimentoBoleto || '',
           lucro: ((parseFloat(formData.valorFrete) || 0) - (parseFloat(formData.valorDistribuicao) || 0)).toFixed(2),
           urlBoleto: formData.boleto || '',
           urlComprovante: formData.boleto || formData.urlComprovante || ''
