@@ -592,7 +592,7 @@ function App() {
       ...item,
       boleto: item.boleto || item.urlBoleto || item.urlComprovante || '',
       statusFinanceiro: item.statusFinanceiro || 'Pendente',
-      dataVencimentoBoleto: item.dataVencimentoBoleto || item.diaVencimento || ''
+      dataVencimentoBoleto: item.dataVencimentoBoleto || item.vencimento || ''
     });
     setEditingId(item.id);
     setModalOpen(true);
@@ -661,6 +661,8 @@ function App() {
     const payload = colName === 'financeiro'
       ? {
           ...formData,
+          dataVencimentoBoleto: formData.dataVencimentoBoleto || formData.vencimento || '',
+          vencimento: formData.dataVencimentoBoleto || formData.vencimento || '',
           lucro: ((parseFloat(formData.valorFrete) || 0) - (parseFloat(formData.valorDistribuicao) || 0)).toFixed(2),
           urlBoleto: formData.boleto || '',
           urlComprovante: formData.boleto || formData.urlComprovante || ''
@@ -1118,7 +1120,7 @@ function App() {
                           <p className="font-bold text-slate-800">{item.numeroNF || '---'}</p>
                           <p className="text-[10px] font-black text-blue-600 uppercase tracking-tight">{item.contratante || 'Contratante não informado'}</p>
                         </td>
-                        <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.vencimento ? new Date(item.vencimento + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</td>
+                        <td className="px-6 py-4 text-sm font-bold text-slate-700">{(item.dataVencimentoBoleto || item.vencimento) ? new Date(((item.dataVencimentoBoleto || item.vencimento) + 'T12:00:00')).toLocaleDateString('pt-BR') : '---'}</td>
                         <td className="px-6 py-4">
                           <span className={`w-fit px-2 py-0.5 rounded text-[9px] font-black uppercase ${getStatusFinanceiro(item) === 'Pago' ? 'bg-emerald-100 text-emerald-600' : getStatusFinanceiro(item) === 'Vencido' ? 'bg-rose-100 text-rose-600' : 'bg-amber-100 text-amber-600'}`}>
                             {getStatusFinanceiro(item)}
