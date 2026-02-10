@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { getFirestore, collection, doc, addDoc, onSnapshot, updateDoc, deleteDoc, serverTimestamp, query } from 'firebase/firestore';
 import { 
   LayoutDashboard, Truck, Users, DollarSign, Plus, Package, MapPin, X, Trash2, 
   Briefcase, LogOut, Lock, Mail, Clock, FileText, Search, Calendar, Layers, 
-  CheckCircle2, AlertCircle, Edit3, Download, ArrowRight, Camera, Paperclip, ExternalLink, Building2, Eye
+  CheckCircle2, AlertCircle, Edit3, Download, ArrowRight, Camera, Paperclip, ExternalLink, Building2, Eye, Upload
 } from 'lucide-react';
 
 // --- CONFIGURAÇÃO ---
@@ -532,6 +532,15 @@ function App() {
   };
 
   const lucroViagem = (parseFloat(formData.valorFrete) || 0) - (parseFloat(formData.valorDistribuicao) || 0);
+  const uploadSheetsRef = useRef(null);
+  const todayLabel = new Date().toLocaleDateString('pt-BR');
+
+  const handleUploadSheets = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    alert(`Arquivo selecionado: ${file.name}. Integração de importação em planilha será aplicada nesta tela sem remover os botões do cabeçalho.`);
+    event.target.value = '';
+  };
 
   if (!user) return <Login />;
 
@@ -574,11 +583,30 @@ function App() {
               </button>
             )}
           </div>
-          {activeTab !== 'relatorios' && activeTab !== 'dashboard' && activeTab !== 'viagens' && (
-            <button onClick={() => { resetForm(); setEditingId(null); setModalOpen(true); }} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-blue-500/20 transition-all">
-              <Plus size={16} /> Novo Registro
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 text-slate-600 text-[10px] font-black uppercase">
+              <Calendar size={14} /> {todayLabel}
+            </span>
+            <button
+              type="button"
+              onClick={() => uploadSheetsRef.current?.click()}
+              className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-emerald-500/20 transition-all"
+            >
+              <Upload size={14} /> Upload Sheets
             </button>
-          )}
+            {activeTab !== 'relatorios' && (
+              <button onClick={() => { resetForm(); setEditingId(null); setModalOpen(true); }} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-blue-500/20 transition-all">
+                <Plus size={16} /> Novo Registro
+              </button>
+            )}
+            <input
+              ref={uploadSheetsRef}
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              className="hidden"
+              onChange={handleUploadSheets}
+            />
+          </div>
         </header>
 
         <div className="p-8 overflow-y-auto">
