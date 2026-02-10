@@ -759,10 +759,15 @@ function App() {
                         <div>
                           <p className="text-sm font-black text-slate-800">NF {item.numeroNF || '---'} · CT-e {getNumeroCTeResolvido(item) || '---'}</p>
                           <p className="text-[10px] font-bold text-slate-500 uppercase">{item.contratante || 'Sem contratante'} · Destino: {item.destinatario || item.cidade || 'Sem destino'} · Motorista: {item.motorista || 'Sem motorista'}</p>
+                          <p className="text-[10px] font-semibold text-slate-400 mt-1">Resumo da carga: Volume {item.volume || '---'} | Peso {item.peso || '---'} kg | Frete R$ {(parseFloat(item.valorFrete) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                         </div>
-                        <span className={`w-fit px-2 py-0.5 rounded text-[9px] font-black uppercase ${getStatusViagem(item) === 'Em rota' ? 'bg-blue-100 text-blue-600' : getStatusViagem(item) === 'Entregue' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
-                          {getStatusViagem(item)}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className={`w-fit px-2 py-0.5 rounded text-[9px] font-black uppercase ${getStatusViagem(item) === 'Em rota' ? 'bg-blue-100 text-blue-600' : getStatusViagem(item) === 'Entregue' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
+                            {getStatusViagem(item)}
+                          </span>
+                          <button onClick={() => handleOpenEdit(item)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg" title="Editar"><Edit3 size={16}/></button>
+                          <button onClick={async () => { if (confirm('Deseja realmente excluir este registro?')) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'viagens', item.id)); }} className="p-2 text-red-400 hover:bg-red-50 rounded-lg" title="Excluir"><Trash2 size={16}/></button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -961,10 +966,15 @@ function App() {
                         <div>
                           <p className="text-sm font-black text-slate-800">NF {item.numeroNF || '---'} · CT-e {getNumeroCTeResolvido(item) || '---'}</p>
                           <p className="text-[10px] font-bold text-slate-500 uppercase">{item.contratante || 'Sem contratante'} · Motorista: {item.motorista || 'Sem motorista'}</p>
+                          <p className="text-[10px] font-semibold text-slate-400 mt-1">Resumo da carga: Carga {item.numeroCarga || '---'} | Custo R$ {(parseFloat(item.valorDistribuicao) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} | Frete R$ {(parseFloat(item.valorFrete) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                         </div>
-                        <div className="text-right">
-                          <p className="text-xs font-bold text-slate-700">Venc: {(item.dataVencimentoBoleto || item.vencimento) ? new Date(((item.dataVencimentoBoleto || item.vencimento) + 'T12:00:00')).toLocaleDateString('pt-BR') : '---'}</p>
-                          <span className={`w-fit ml-auto px-2 py-0.5 rounded text-[9px] font-black uppercase ${getStatusFinanceiro(item) === 'Pago' ? 'bg-emerald-100 text-emerald-600' : getStatusFinanceiro(item) === 'Vencido' ? 'bg-rose-100 text-rose-600' : 'bg-amber-100 text-amber-600'}`}>{getStatusFinanceiro(item)}</span>
+                        <div className="flex items-center gap-2">
+                          <div className="text-right">
+                            <p className="text-xs font-bold text-slate-700">Venc: {(item.dataVencimentoBoleto || item.vencimento) ? new Date(((item.dataVencimentoBoleto || item.vencimento) + 'T12:00:00')).toLocaleDateString('pt-BR') : '---'}</p>
+                            <span className={`w-fit ml-auto px-2 py-0.5 rounded text-[9px] font-black uppercase ${getStatusFinanceiro(item) === 'Pago' ? 'bg-emerald-100 text-emerald-600' : getStatusFinanceiro(item) === 'Vencido' ? 'bg-rose-100 text-rose-600' : 'bg-amber-100 text-amber-600'}`}>{getStatusFinanceiro(item)}</span>
+                          </div>
+                          <button onClick={() => handleOpenEdit(item)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg" title="Editar"><Edit3 size={16}/></button>
+                          <button onClick={async () => { if (confirm('Deseja realmente excluir este registro?')) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'financeiro', item.id)); }} className="p-2 text-red-400 hover:bg-red-50 rounded-lg" title="Excluir"><Trash2 size={16}/></button>
                         </div>
                       </div>
                     ))}
