@@ -376,6 +376,7 @@ function App() {
     const term = searchNF.toLowerCase();
     return list.filter(item => 
       (item.numeroNF?.toLowerCase().includes(term)) ||
+      (item.numeroCTe?.toLowerCase().includes(term)) ||
       (item.numeroCarga?.toLowerCase().includes(term)) ||
       (item.contratante?.toLowerCase().includes(term)) ||
       (item.nome?.toLowerCase().includes(term)) ||
@@ -531,7 +532,7 @@ function App() {
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
               <input 
                 type="text" 
-                placeholder="Pesquisar por NF, Contratante ou Cidade..." 
+                placeholder="Pesquisar por NF, CT-e, Contratante ou Cidade..." 
                 value={searchNF}
                 onChange={(e) => setSearchNF(e.target.value)}
                 className="w-full pl-12 pr-4 py-2.5 bg-slate-100 rounded-xl outline-none focus:ring-2 ring-blue-500/20 text-sm font-medium transition-all"
