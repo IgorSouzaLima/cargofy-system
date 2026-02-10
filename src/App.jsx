@@ -73,6 +73,7 @@ function App() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [searchNF, setSearchNF] = useState('');
+  const [monthFilter, setMonthFilter] = useState('');
   const [reportEmpresa, setReportEmpresa] = useState('Todas');
   const [reportInicio, setReportInicio] = useState('');
   const [reportFim, setReportFim] = useState('');
@@ -435,6 +436,15 @@ function App() {
       default: list = [];
     }
 
+    if ((activeTab === 'viagens' || activeTab === 'financeiro') && monthFilter) {
+      list = list.filter(item => {
+        const dataBase = activeTab === 'financeiro'
+          ? (item.dataVencimentoBoleto || item.vencimento)
+          : (item.dataSaida || item.dataNF || item.dataEntrega || item.dataCTe);
+        return (dataBase || '').slice(0, 7) === monthFilter;
+      });
+    }
+
     if (!searchNF) return list;
     const term = searchNF.toLowerCase();
     return list.filter(item =>
@@ -447,7 +457,7 @@ function App() {
       (item.cidade?.toLowerCase().includes(term)) ||
       (item.motorista?.toLowerCase().includes(term))
     );
-  }, [activeTab, statusFilter, viagens, financeiro, clientes, motoristas, veiculos, searchNF]);
+  }, [activeTab, statusFilter, viagens, financeiro, clientes, motoristas, veiculos, searchNF, monthFilter]);
 
   const dashboardViagensFiltradas = useMemo(() => {
     if (!dashboardCargaFilter) return [];
@@ -718,6 +728,18 @@ function App() {
               <button onClick={() => setStatusFilter('Todos')} className="bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase flex items-center gap-2">
                 Filtro: {statusFilter} <X size={12}/>
               </button>
+            )}
+            {(activeTab === 'viagens' || activeTab === 'financeiro') && (
+              <label className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-100 text-slate-600 text-[10px] font-black uppercase">
+                <Calendar size={14} />
+                <span>Mês</span>
+                <input
+                  type="month"
+                  value={monthFilter}
+                  onChange={(e) => setMonthFilter(e.target.value)}
+                  className="bg-transparent outline-none text-[11px] font-bold"
+                />
+              </label>
             )}
           </div>
           <div className="flex items-center gap-2">
