@@ -303,24 +303,33 @@ function App() {
   }, [viagens]);
 
   const relatorioData = useMemo(() => {
-    return viagens.filter(v => {
-      if (reportEmpresa !== 'Todas' && v.contratante !== reportEmpresa) return false;
-      if (reportNumeroCarga && (v.numeroCarga || '').trim() !== reportNumeroCarga.trim()) return false;
-      const dataBase = v.dataSaida || v.dataNF || v.dataEntrega;
-      if (!dataBase) return !reportInicio && !reportFim;
-      const data = new Date(`${dataBase}T12:00:00`);
-      if (Number.isNaN(data.getTime())) return false;
-      if (reportInicio) {
-        const ini = new Date(`${reportInicio}T00:00:00`);
-        if (data < ini) return false;
-      }
-      if (reportFim) {
-        const fim = new Date(`${reportFim}T23:59:59`);
-        if (data > fim) return false;
-      }
-      return true;
-    });
-  }, [viagens, reportEmpresa, reportNumeroCarga, reportInicio, reportFim]);
+    return viagens
+      .filter(v => {
+        if (reportEmpresa !== 'Todas' && v.contratante !== reportEmpresa) return false;
+        if (reportNumeroCarga && (v.numeroCarga || '').trim() !== reportNumeroCarga.trim()) return false;
+        const dataBase = v.dataSaida || v.dataNF || v.dataEntrega;
+        if (!dataBase) return !reportInicio && !reportFim;
+        const data = new Date(`${dataBase}T12:00:00`);
+        if (Number.isNaN(data.getTime())) return false;
+        if (reportInicio) {
+          const ini = new Date(`${reportInicio}T00:00:00`);
+          if (data < ini) return false;
+        }
+        if (reportFim) {
+          const fim = new Date(`${reportFim}T23:59:59`);
+          if (data > fim) return false;
+        }
+        return true;
+      })
+      .map(v => {
+        const nf = (v.numeroNF || '').trim();
+        const carga = (v.numeroCarga || '').trim();
+        return {
+          ...v,
+          numeroCTe: (v.numeroCTe || '').trim() || mapaCTePorReferencia[`nf:${nf}`] || mapaCTePorReferencia[`carga:${carga}`] || ''
+        };
+      });
+  }, [viagens, reportEmpresa, reportNumeroCarga, reportInicio, reportFim, mapaCTePorReferencia]);
 
   const resumoRelatorio = useMemo(() => {
     const faturou = relatorioData.reduce((acc, curr) => acc + (parseFloat(curr.valorFrete) || 0), 0);
@@ -332,24 +341,32 @@ function App() {
 
   const downloadRelatorioCSV = () => {
     const header = relatorioPorCarga
-      ? ['Carga', 'NF', 'CT-e', 'Data CT-e', 'Empresa', 'Data', 'Frete']
+      ? ['Carga', 'NF', 'CT-e', 'Data CT-e', 'Empresa', 'Boleto', 'Vencimento Boleto', 'Frete']
       : ['Carga', 'NF', 'CT-e', 'Data CT-e', 'Empresa', 'Data', 'Frete', 'Distribuicao', 'Lucro'];
 
     const rows = relatorioData.map(item => {
+      const vencBoleto = item.dataVencimentoBoleto || item.vencimento || '';
       const base = [
         item.numeroCarga || '',
         item.numeroNF || '',
         item.numeroCTe || '',
         item.dataCTe || '',
         item.contratante || '',
-        item.dataSaida || item.dataNF || item.dataEntrega || '',
+        item.numeroBoleto || '',
+        vencBoleto,
         (parseFloat(item.valorFrete) || 0).toFixed(2)
       ];
 
       if (relatorioPorCarga) return base;
 
       return [
-        ...base,
+        item.numeroCarga || '',
+        item.numeroNF || '',
+        item.numeroCTe || '',
+        item.dataCTe || '',
+        item.contratante || '',
+        item.dataSaida || item.dataNF || item.dataEntrega || '',
+        (parseFloat(item.valorFrete) || 0).toFixed(2),
         (parseFloat(item.valorDistribuicao) || 0).toFixed(2),
         ((parseFloat(item.valorFrete) || 0) - (parseFloat(item.valorDistribuicao) || 0)).toFixed(2)
       ];
@@ -412,7 +429,7 @@ function App() {
       const dist = (parseFloat(item.valorDistribuicao) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
       const lucro = ((parseFloat(item.valorFrete) || 0) - (parseFloat(item.valorDistribuicao) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
       return relatorioPorCarga
-        ? `<tr><td>${item.numeroCarga || '---'}</td><td>${item.numeroNF || '---'}</td><td>${item.numeroCTe || '---'}</td><td>${item.dataCTe ? new Date(item.dataCTe + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</td><td>${item.contratante || 'Sem empresa'} | Boleto: ${item.numeroBoleto || '---'}</td><td>${vencFmt}</td><td>R$ ${frete}</td></tr>`
+        ? `<tr><td>${item.numeroCarga || '---'}</td><td>${item.numeroNF || '---'}</td><td>${item.numeroCTe || '---'}</td><td>${item.dataCTe ? new Date(item.dataCTe + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</td><td>${item.contratante || 'Sem empresa'}</td><td>${item.numeroBoleto || '---'}</td><td>${vencFmt}</td><td>R$ ${frete}</td></tr>`
         : `<tr><td>${item.numeroCarga || '---'}</td><td>${item.numeroNF || '---'}</td><td>${item.numeroCTe || '---'}</td><td>${item.dataCTe ? new Date(item.dataCTe + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</td><td>${item.contratante || 'Sem empresa'}</td><td>${dataFmt}</td><td>R$ ${frete}</td><td>R$ ${dist}</td><td>R$ ${lucro}</td></tr>`;
     }).join('');
 
@@ -441,9 +458,9 @@ function App() {
           </div>
           <table>
             <thead>
-              ${relatorioPorCarga ? '<tr><th>Carga</th><th>NF</th><th>CT-e</th><th>Data CT-e</th><th>Empresa / Boleto</th><th>Vencimento do Boleto</th><th>Frete</th></tr>' : '<tr><th>Carga</th><th>NF</th><th>CT-e</th><th>Data CT-e</th><th>Empresa</th><th>Data</th><th>Frete</th><th>Distribuição</th><th>Lucro</th></tr>'}
+              ${relatorioPorCarga ? '<tr><th>Carga</th><th>NF</th><th>CT-e</th><th>Data CT-e</th><th>Empresa</th><th>Boleto</th><th>Vencimento do Boleto</th><th>Frete</th></tr>' : '<tr><th>Carga</th><th>NF</th><th>CT-e</th><th>Data CT-e</th><th>Empresa</th><th>Data</th><th>Frete</th><th>Distribuição</th><th>Lucro</th></tr>'}
             </thead>
-            <tbody>${linhas || `<tr><td colspan="${relatorioPorCarga ? 7 : 9}">Sem registros para o filtro.</td></tr>`}</tbody>
+            <tbody>${linhas || `<tr><td colspan="${relatorioPorCarga ? 8 : 9}">Sem registros para o filtro.</td></tr>`}</tbody>
           </table>
         </body>
       </html>
