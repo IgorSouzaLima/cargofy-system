@@ -671,6 +671,14 @@ function App() {
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
+  const novoRegistroLabel = activeTab === 'clientes'
+    ? 'Adicionar Cliente'
+    : activeTab === 'motoristas'
+      ? 'Adicionar Motorista'
+      : activeTab === 'veiculos'
+        ? 'Adicionar Veículo'
+        : 'Novo Registro';
+
   if (!user) return <Login />;
 
   return (
@@ -741,9 +749,9 @@ function App() {
                 </button>
               </>
             )}
-            {(activeTab === 'dashboard' || activeTab === 'viagens') && (
+            {(activeTab === 'dashboard' || activeTab === 'viagens' || activeTab === 'clientes' || activeTab === 'motoristas' || activeTab === 'veiculos') && (
               <button onClick={() => { resetForm(); setEditingId(null); setModalOpen(true); }} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-blue-500/20 transition-all">
-                <Plus size={16} /> Novo Registro
+                <Plus size={16} /> {novoRegistroLabel}
               </button>
             )}
           </div>
