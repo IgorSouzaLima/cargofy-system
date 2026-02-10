@@ -620,18 +620,19 @@ function App() {
 
   const syncFinanceiroPorViagem = async (viagemData) => {
     const numeroNF = (viagemData.numeroNF || '').trim();
-    const numeroCarga = (viagemData.numeroCarga || '').trim();
-    if (!numeroNF && !numeroCarga) return;
+    const origemViagemId = (viagemData.id || '').trim();
+    if (!numeroNF && !origemViagemId) return;
 
     const registroExistente = financeiro.find(f =>
-      (numeroNF && (f.numeroNF || '').trim() === numeroNF) ||
-      (numeroCarga && (f.numeroCarga || '').trim() === numeroCarga && (f.contratante || '') === (viagemData.contratante || ''))
+      (origemViagemId && (f.origemViagemId || '').trim() === origemViagemId) ||
+      (numeroNF && (f.numeroNF || '').trim() === numeroNF)
     );
 
     const statusInformado = (viagemData.statusFinanceiro || '').trim();
     const payloadFinanceiro = {
       numeroNF: viagemData.numeroNF || '',
       numeroCarga: viagemData.numeroCarga || '',
+      origemViagemId: origemViagemId,
       numeroCTe: viagemData.numeroCTe || '',
       contratante: viagemData.contratante || '',
       destinatario: viagemData.destinatario || '',
@@ -663,6 +664,36 @@ function App() {
       });
     }
   };
+
+  useEffect(() => {
+    if (!user || !viagens.length) return;
+
+    const sincronizarPendentes = async () => {
+      try {
+        const pendentes = viagens.filter(v => {
+          const viagemId = (v.id || '').trim();
+          const numeroNF = (v.numeroNF || '').trim();
+
+          if (!viagemId && !numeroNF) return false;
+
+          const jaExiste = financeiro.some(f =>
+            (viagemId && (f.origemViagemId || '').trim() === viagemId) ||
+            (numeroNF && (f.numeroNF || '').trim() === numeroNF)
+          );
+
+          return !jaExiste;
+        });
+
+        for (const viagem of pendentes) {
+          await syncFinanceiroPorViagem(viagem);
+        }
+      } catch (error) {
+        console.error('Erro ao sincronizar viagens pendentes no financeiro:', error);
+      }
+    };
+
+    sincronizarPendentes();
+  }, [user, viagens, financeiro]);
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -705,7 +736,7 @@ function App() {
       }
 
       if (colName === 'viagens') {
-        await syncFinanceiroPorViagem(payload);
+        await syncFinanceiroPorViagem({ ...payload, id: editingId || '' });
       }
 
       setModalOpen(false);
