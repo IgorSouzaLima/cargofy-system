@@ -629,6 +629,26 @@ function App() {
       });
   }, [dashboardBoletosFiltrados, dashboardBoletoFilter]);
 
+  const viagensPainelResumo = useMemo(() => {
+    const base = activeTab === 'viagens' ? filteredData : dashboardViagensBase;
+    const totalViagens = base.length;
+    const semComprovante = base.filter(item => !(item.urlComprovante || '').trim()).length;
+    const semMotorista = base.filter(item => !(item.motorista || '').trim()).length;
+    const ctePendente = base.filter(item => !((item.numeroCTe || '').trim()) || !((item.dataCTe || '').trim())).length;
+
+    const contagemPorMotorista = {};
+    base.forEach(item => {
+      const nome = (item.motorista || '').trim();
+      if (!nome) return;
+      contagemPorMotorista[nome] = (contagemPorMotorista[nome] || 0) + 1;
+    });
+
+    const [motoristaMaiorVolume, totalMaiorVolume] = Object.entries(contagemPorMotorista)
+      .sort((a, b) => b[1] - a[1])[0] || ['Sem motorista definido', 0];
+
+    return { totalViagens, semComprovante, semMotorista, ctePendente, motoristaMaiorVolume, totalMaiorVolume };
+  }, [activeTab, filteredData, dashboardViagensBase]);
+
 
   const financeiroAgrupadoPorCarga = useMemo(() => {
     if (activeTab !== 'financeiro') return [];
@@ -950,6 +970,29 @@ function App() {
 
           {activeTab === 'viagens' && (
             <div className="space-y-4 mt-8">
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Controle de viagens</h3>
+                    <p className="text-xs font-semibold text-slate-500">Qualidade operacional e pendências de documentação</p>
+                  </div>
+                  <div className="p-3 rounded-2xl bg-slate-900 text-white"><Package size={20} /></div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                  <Card title="Total de viagens" value={viagensPainelResumo.totalViagens} icon={Package} color="bg-slate-700" />
+                  <Card title="Sem comprovante" value={viagensPainelResumo.semComprovante} icon={Paperclip} color="bg-amber-500" />
+                  <Card title="Sem motorista" value={viagensPainelResumo.semMotorista} icon={Users} color="bg-rose-500" />
+                  <Card title="CT-e pendente" value={viagensPainelResumo.ctePendente} icon={FileText} color="bg-indigo-600" />
+                </div>
+
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4">
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Motorista com maior volume</p>
+                  <p className="text-2xl font-black text-slate-900 mt-1">{viagensPainelResumo.motoristaMaiorVolume}</p>
+                  <p className="text-sm font-bold text-slate-500 mt-1">{viagensPainelResumo.totalMaiorVolume} viagem(ns) no período carregado</p>
+                </div>
+              </div>
+
               {viagensAgrupadasPorCarga.map(grupo => (
                 <div key={`grupo-${grupo.numeroCarga}`} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                   <div className="px-6 py-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
