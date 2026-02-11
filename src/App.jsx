@@ -299,28 +299,6 @@ function App() {
     return { faturou, gastouDistribuicao, lucroTotal };
   }, [dashboardFinanceiroBase]);
 
-  const financeiroMenuResumo = useMemo(() => {
-    const carteiraTotal = dashboardFinanceiroBase.length;
-    const recebido = dashboardFinanceiroBase
-      .filter(item => getStatusFinanceiro(item) === 'Pago')
-      .reduce((acc, curr) => acc + (parseFloat(curr.valorFrete) || 0), 0);
-
-    const aReceber = dashboardFinanceiroBase
-      .filter(item => getStatusFinanceiro(item) === 'Pendente')
-      .reduce((acc, curr) => acc + (parseFloat(curr.valorFrete) || 0), 0);
-
-    const vencido = dashboardFinanceiroBase
-      .filter(item => getStatusFinanceiro(item) === 'Vencido')
-      .reduce((acc, curr) => acc + (parseFloat(curr.valorFrete) || 0), 0);
-
-    const totalCarteiraValor = recebido + aReceber + vencido;
-    const percentualRecebido = totalCarteiraValor > 0
-      ? Math.round((recebido / totalCarteiraValor) * 100)
-      : 0;
-
-    return { carteiraTotal, recebido, aReceber, vencido, percentualRecebido };
-  }, [dashboardFinanceiroBase]);
-
   const empresasRelatorio = useMemo(() => {
     const empresas = [...new Set(viagens.map(v => v.contratante).filter(Boolean))];
     return ['Todas', ...empresas];
@@ -1038,12 +1016,6 @@ function App() {
                 <Card title="Lucro" value={`R$ ${financeiroResumo.lucroTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={CheckCircle2} color="bg-emerald-600" />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-                <Card title="Recebido" value={`R$ ${financeiroMenuResumo.recebido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={CheckCircle2} color="bg-emerald-600" />
-                <Card title="A Receber" value={`R$ ${financeiroMenuResumo.aReceber.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={Clock} color="bg-amber-500" />
-                <Card title="Vencido" value={`R$ ${financeiroMenuResumo.vencido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={AlertCircle} color="bg-rose-600" />
-                <Card title="Carteira Total" value={financeiroMenuResumo.carteiraTotal} icon={FileText} color="bg-indigo-600" />
-              </div>
             </div>
           )}
 
