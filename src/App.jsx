@@ -553,6 +553,22 @@ function App() {
       });
   }, [dashboardViagensBase, dashboardCargaFilter, searchNF, getStatusViagem]);
 
+  const dashboardViagensFiltradasPorCarga = useMemo(() => {
+    const grupos = {};
+    dashboardViagensFiltradas.forEach(item => {
+      const chave = (item.numeroCarga || 'Sem carga').trim() || 'Sem carga';
+      if (!grupos[chave]) grupos[chave] = [];
+      grupos[chave].push(item);
+    });
+
+    return Object.entries(grupos)
+      .sort((a, b) => a[0].localeCompare(b[0], 'pt-BR', { numeric: true }))
+      .map(([numeroCarga, itens]) => ({
+        numeroCarga,
+        itens: itens.sort((a, b) => (a.numeroNF || '').localeCompare((b.numeroNF || ''), 'pt-BR', { numeric: true }))
+      }));
+  }, [dashboardViagensFiltradas]);
+
   const dashboardBoletosFiltrados = useMemo(() => {
     if (!dashboardBoletoFilter) return [];
     const termo = (searchNF || '').toLowerCase();
@@ -1171,6 +1187,35 @@ function App() {
                 <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Dashboard Cargas - {dashboardCargaFilter}</h3>
                 <span className="text-[10px] font-bold text-slate-400">{dashboardViagensFiltradas.length} registros</span>
               </div>
+              {dashboardCargaFilter === 'Entregue' ? (
+                <div className="p-4 space-y-3">
+                  {dashboardViagensFiltradasPorCarga.map(grupo => (
+                    <div key={`dash-carga-entregue-${grupo.numeroCarga}`} className="rounded-2xl border border-slate-100 overflow-hidden">
+                      <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                        <h4 className="text-[11px] font-black text-slate-600 uppercase tracking-widest">Carga {grupo.numeroCarga}</h4>
+                        <span className="text-[10px] font-bold text-slate-400">{grupo.itens.length} NF(s)</span>
+                      </div>
+                      <div className="divide-y divide-slate-50">
+                        {grupo.itens.map(item => (
+                          <div key={`dash-v-${item.id}`} className="px-4 py-3 hover:bg-slate-50/60 transition-colors flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                            <div>
+                              <p className="font-bold text-slate-800">NF {item.numeroNF || '---'} · CT-e {getNumeroCTeResolvido(item) || '---'}</p>
+                              <p className="text-[10px] font-black text-blue-600 uppercase tracking-tight">{item.contratante || 'Contratante não informado'}</p>
+                              <p className="text-[10px] font-black text-slate-500 uppercase">{item.cidade || 'Destino não informado'} · {item.motorista || 'Sem motorista'}</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="w-fit px-2 py-0.5 rounded text-[9px] font-black uppercase bg-emerald-100 text-emerald-600">Entregue</span>
+                              <button onClick={() => setDetailItem(item)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase hover:bg-indigo-100">
+                                <Eye size={12}/> Ver dados
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
               <table className="w-full text-left border-collapse">
                 <thead className="bg-slate-50 border-b border-slate-100">
                   <tr>
@@ -1207,6 +1252,7 @@ function App() {
                   ))}
                 </tbody>
               </table>
+              )}
             </div>
           )}
 
