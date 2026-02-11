@@ -570,12 +570,33 @@ function App() {
     ));
   }, [dashboardFinanceiroBase, dashboardBoletoFilter, searchNF]);
 
+  const dashboardBoletosFiltradosPorCarga = useMemo(() => {
+    const grupos = {};
+    dashboardBoletosFiltrados.forEach(item => {
+      const chave = (item.numeroCarga || 'Sem carga').trim() || 'Sem carga';
+      if (!grupos[chave]) grupos[chave] = [];
+      grupos[chave].push(item);
+    });
+
+    return Object.entries(grupos)
+      .sort((a, b) => a[0].localeCompare(b[0], 'pt-BR', { numeric: true }))
+      .map(([numeroCarga, itens]) => ({
+        numeroCarga,
+        itens: itens.sort((a, b) => {
+          const da = (a.dataVencimentoBoleto || a.vencimento || '9999-12-31');
+          const db = (b.dataVencimentoBoleto || b.vencimento || '9999-12-31');
+          return da.localeCompare(db);
+        })
+      }));
+  }, [dashboardBoletosFiltrados]);
+
 
   const proximosBoletos = useMemo(() => {
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
 
     const itensComData = dashboardFinanceiroBase
+      .filter(item => getStatusFinanceiro(item) !== 'Pago')
       .map(item => {
         const dataVencimento = item.dataVencimentoBoleto || item.vencimento;
         const dataObj = dataVencimento ? new Date(`${dataVencimento}T12:00:00`) : null;
@@ -590,7 +611,20 @@ function App() {
       .slice(0, 10);
 
     return baseOrdenada;
-  }, [dashboardFinanceiroBase, getNumeroCTeResolvido]);
+  }, [dashboardFinanceiroBase, getNumeroCTeResolvido, getStatusFinanceiro]);
+
+  const proximosBoletosPorCarga = useMemo(() => {
+    const grupos = {};
+    proximosBoletos.forEach(item => {
+      const chave = (item.numeroCarga || 'Sem carga').trim() || 'Sem carga';
+      if (!grupos[chave]) grupos[chave] = [];
+      grupos[chave].push(item);
+    });
+
+    return Object.entries(grupos)
+      .sort((a, b) => a[0].localeCompare(b[0], 'pt-BR', { numeric: true }))
+      .map(([numeroCarga, itens]) => ({ numeroCarga, itens }));
+  }, [proximosBoletos]);
 
   const financeiroAgrupadoPorCarga = useMemo(() => {
     if (activeTab !== 'financeiro') return [];
@@ -1211,38 +1245,35 @@ function App() {
                   <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Dashboard Boletos - {dashboardBoletoFilter === 'Todos' ? 'Gerados' : dashboardBoletoFilter}</h3>
                   <span className="text-[10px] font-bold text-slate-400">{dashboardBoletosFiltrados.length} registros</span>
                 </div>
-                <table className="w-full text-left border-collapse">
-                  <thead className="bg-slate-50 border-b border-slate-100">
-                    <tr>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">NF / Contratante</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Vencimento</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Status</th>
-                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase text-right">Dados</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase text-right">Boleto</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {dashboardBoletosFiltrados.map(item => (
-                      <tr key={`dash-fin-${item.id}`} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="px-6 py-4">
-                          <p className="font-bold text-slate-800">{item.numeroNF || '---'}</p>
-                          <p className="text-[10px] font-black text-blue-600 uppercase tracking-tight">{item.contratante || 'Contratante não informado'}</p>
-                        </td>
-                        <td className="px-6 py-4 text-sm font-bold text-slate-700">{(item.dataVencimentoBoleto || item.vencimento) ? new Date(((item.dataVencimentoBoleto || item.vencimento) + 'T12:00:00')).toLocaleDateString('pt-BR') : '---'}</td>
-                        <td className="px-6 py-4">
-                          <span className={`w-fit px-2 py-0.5 rounded text-[9px] font-black uppercase ${getStatusFinanceiro(item) === 'Pago' ? 'bg-emerald-100 text-emerald-600' : getStatusFinanceiro(item) === 'Vencido' ? 'bg-rose-100 text-rose-600' : 'bg-amber-100 text-amber-600'}`}>
-                            {getStatusFinanceiro(item)}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          {(item.boleto || item.urlBoleto || item.urlComprovante) ? (
-                            <a href={item.boleto || item.urlBoleto || item.urlComprovante} target="_blank" rel="noreferrer" onClick={(e) => { e.preventDefault(); openInNewWindow(item.boleto || item.urlBoleto || item.urlComprovante); }} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase">Abrir <ExternalLink size={12} /></a>
-                          ) : <span className="text-[10px] font-bold text-slate-400">Sem link</span>}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <div className="p-4 space-y-3">
+                  {dashboardBoletosFiltradosPorCarga.map(grupo => (
+                    <div key={`dash-boleto-carga-${grupo.numeroCarga}`} className="rounded-2xl border border-slate-100 overflow-hidden">
+                      <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                        <h4 className="text-[11px] font-black text-slate-600 uppercase tracking-widest">Carga {grupo.numeroCarga}</h4>
+                        <span className="text-[10px] font-bold text-slate-400">{grupo.itens.length} boletos</span>
+                      </div>
+                      <div className="divide-y divide-slate-50">
+                        {grupo.itens.map(item => (
+                          <div key={`dash-fin-${item.id}`} className="px-4 py-3 hover:bg-slate-50/60 transition-colors flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                            <div>
+                              <p className="font-bold text-slate-800">NF {item.numeroNF || '---'} · {item.contratante || 'Contratante não informado'}</p>
+                              <p className="text-[10px] font-black text-slate-500 uppercase">Vencimento: {(item.dataVencimentoBoleto || item.vencimento) ? new Date(((item.dataVencimentoBoleto || item.vencimento) + 'T12:00:00')).toLocaleDateString('pt-BR') : '---'}</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className={`w-fit px-2 py-0.5 rounded text-[9px] font-black uppercase ${getStatusFinanceiro(item) === 'Pago' ? 'bg-emerald-100 text-emerald-600' : getStatusFinanceiro(item) === 'Vencido' ? 'bg-rose-100 text-rose-600' : 'bg-amber-100 text-amber-600'}`}>
+                                {getStatusFinanceiro(item)}
+                              </span>
+                              <button onClick={() => setDetailItem(item)} className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg" title="Ver dados"><Eye size={16}/></button>
+                              {(item.boleto || item.urlBoleto || item.urlComprovante) ? (
+                                <a href={item.boleto || item.urlBoleto || item.urlComprovante} target="_blank" rel="noreferrer" onClick={(e) => { e.preventDefault(); openInNewWindow(item.boleto || item.urlBoleto || item.urlComprovante); }} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase">Abrir <ExternalLink size={12} /></a>
+                              ) : <span className="text-[10px] font-bold text-slate-400">Sem link</span>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
               )}
 
@@ -1252,28 +1283,36 @@ function App() {
                   <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Próximos boletos por vencimento</h3>
                   <span className="text-[10px] font-bold text-slate-400">{proximosBoletos.length} registros</span>
                 </div>
-                <table className="w-full text-left border-collapse">
-                  <thead className="bg-slate-50 border-b border-slate-100">
-                    <tr>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Carga</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">NF</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">CT-e</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Contratante</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Vencimento</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {proximosBoletos.map(item => (
-                      <tr key={`prox-${item.id}`} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.numeroCarga || '---'}</td>
-                        <td className="px-6 py-4 text-sm font-bold text-slate-800">{item.numeroNF || '---'}</td>
-                        <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.numeroCTeResolvido || '---'}</td>
-                        <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.contratante || '---'}</td>
-                        <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.dataVencimento ? new Date(`${item.dataVencimento}T12:00:00`).toLocaleDateString('pt-BR') : '---'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <div className="p-4 space-y-3">
+                  {proximosBoletosPorCarga.map(grupo => (
+                    <div key={`prox-carga-${grupo.numeroCarga}`} className="rounded-2xl border border-slate-100 overflow-hidden">
+                      <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                        <h4 className="text-[11px] font-black text-slate-600 uppercase tracking-widest">Carga {grupo.numeroCarga}</h4>
+                        <span className="text-[10px] font-bold text-slate-400">{grupo.itens.length} boleto(s)</span>
+                      </div>
+                      <table className="w-full text-left border-collapse">
+                        <thead className="bg-slate-50 border-b border-slate-100">
+                          <tr>
+                            <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase">NF</th>
+                            <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase">CT-e</th>
+                            <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase">Contratante</th>
+                            <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase">Vencimento</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                          {grupo.itens.map(item => (
+                            <tr key={`prox-${item.id}`} className="hover:bg-slate-50/50 transition-colors">
+                              <td className="px-4 py-3 text-sm font-bold text-slate-800">{item.numeroNF || '---'}</td>
+                              <td className="px-4 py-3 text-sm font-bold text-slate-700">{item.numeroCTeResolvido || '---'}</td>
+                              <td className="px-4 py-3 text-sm font-bold text-slate-700">{item.contratante || '---'}</td>
+                              <td className="px-4 py-3 text-sm font-bold text-slate-700">{item.dataVencimento ? new Date(`${item.dataVencimento}T12:00:00`).toLocaleDateString('pt-BR') : '---'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           )}
