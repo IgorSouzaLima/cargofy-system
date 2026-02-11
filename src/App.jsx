@@ -915,7 +915,7 @@ function App() {
                     {grupo.itens.map(item => (
                       <div key={`item-${item.id}`} className="p-3 rounded-xl border border-slate-100 bg-white flex flex-col md:flex-row md:items-center md:justify-between gap-2">
                         <div>
-                          <p className="text-sm font-black text-slate-800">NF {item.numeroNF || '---'} · CT-e {getNumeroCTeResolvido(item) || '---'}</p>
+                          <p className="text-sm font-black text-slate-800">NF {item.numeroNF || '---'} · Boleto {item.numeroBoleto || '---'} · CT-e {getNumeroCTeResolvido(item) || '---'}</p>
                           <p className="text-[10px] font-bold text-slate-500 uppercase">{item.contratante || 'Sem contratante'} · Destino: {item.destinatario || item.cidade || 'Sem destino'} · Motorista: {item.motorista || 'Sem motorista'}</p>
                         </div>
                         <div className="flex items-center gap-2">
@@ -1130,7 +1130,7 @@ function App() {
                     {grupo.itens.map(item => (
                       <div key={`fin-item-${item.id}`} className="px-6 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
                         <div>
-                          <p className="text-sm font-black text-slate-800">NF {item.numeroNF || '---'} · CT-e {getNumeroCTeResolvido(item) || '---'}</p>
+                          <p className="text-sm font-black text-slate-800">NF {item.numeroNF || '---'} · Boleto {item.numeroBoleto || '---'} · CT-e {getNumeroCTeResolvido(item) || '---'}</p>
                           <p className="text-[10px] font-bold text-slate-500 uppercase">{item.contratante || 'Sem contratante'} · Motorista: {item.motorista || 'Sem motorista'}</p>
                         </div>
                         <div className="flex items-center gap-2">
