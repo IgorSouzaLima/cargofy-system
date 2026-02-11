@@ -5,7 +5,8 @@ import { getFirestore, collection, doc, addDoc, onSnapshot, updateDoc, deleteDoc
 import { 
   LayoutDashboard, Truck, Users, DollarSign, Plus, Package, MapPin, X, Trash2, 
   Briefcase, LogOut, Lock, Mail, Clock, FileText, Search, Calendar, Layers, 
-  CheckCircle2, AlertCircle, Edit3, Download, ArrowRight, Camera, Paperclip, ExternalLink, Building2, Eye
+  CheckCircle2, AlertCircle, Edit3, Download, ArrowRight, Camera, Paperclip, ExternalLink, Building2, Eye,
+  TrendingUp, Wallet, Target, ShieldAlert, Route, TimerReset, BellRing
 } from 'lucide-react';
 
 // --- CONFIGURAÇÃO ---
@@ -56,6 +57,59 @@ const Modal = ({ isOpen, onClose, title, children }) => {
 };
 
 // --- APP PRINCIPAL ---
+
+const moedaBR = (value) => `R$ ${(Number(value) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+
+const formatarDataBR = (value) => {
+  if (!value) return '---';
+  const data = new Date(`${value}T12:00:00`);
+  if (Number.isNaN(data.getTime())) return '---';
+  return data.toLocaleDateString('pt-BR');
+};
+
+const calcularDiasParaData = (value) => {
+  if (!value) return null;
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  const data = new Date(`${value}T12:00:00`);
+  if (Number.isNaN(data.getTime())) return null;
+  return Math.ceil((data.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24));
+};
+
+const SectionTitle = ({ title, subtitle, icon: Icon }) => (
+  <div className="mb-4 flex items-start justify-between gap-4">
+    <div>
+      <h3 className="text-lg font-black tracking-tight text-slate-900">{title}</h3>
+      {subtitle && <p className="text-sm text-slate-500 font-medium mt-1">{subtitle}</p>}
+    </div>
+    {Icon && <div className="h-10 w-10 rounded-xl bg-slate-900 text-white grid place-items-center shadow"><Icon size={18} /></div>}
+  </div>
+);
+
+const InsightCard = ({ title, value, subtitle, trend, icon: Icon, tone = 'slate' }) => {
+  const tones = {
+    slate: 'bg-white border-slate-200',
+    blue: 'bg-blue-50/70 border-blue-100',
+    emerald: 'bg-emerald-50/70 border-emerald-100',
+    amber: 'bg-amber-50/70 border-amber-100',
+    rose: 'bg-rose-50/70 border-rose-100',
+    indigo: 'bg-indigo-50/70 border-indigo-100'
+  };
+
+  return (
+    <div className={`rounded-2xl border p-5 shadow-sm ${tones[tone] || tones.slate}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">{title}</p>
+          <p className="text-2xl font-black text-slate-900 mt-1">{value}</p>
+          {subtitle && <p className="text-xs font-semibold text-slate-500 mt-1">{subtitle}</p>}
+        </div>
+        {Icon && <div className="h-10 w-10 rounded-xl bg-white border border-slate-200 text-slate-700 grid place-items-center"><Icon size={18} /></div>}
+      </div>
+      {trend && <p className="mt-3 text-xs font-bold text-blue-700">{trend}</p>}
+    </div>
+  );
+};
 
 function App() {
   const [user, setUser] = useState(null);
@@ -232,6 +286,94 @@ function App() {
     const distribuicao = relatorioData.reduce((acc, curr) => acc + (parseFloat(curr.valorDistribuicao) || 0), 0);
     return { faturou, distribuicao, lucro: faturou - distribuicao };
   }, [relatorioData]);
+
+  const previsaoOperacional = useMemo(() => {
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    const emRota = viagens.filter(v => getStatusViagem(v) === 'Em rota');
+    const pendentes = viagens.filter(v => getStatusViagem(v) === 'Pendente');
+
+    const entregasHoje = viagens.filter(v => {
+      if (!v.dataEntrega) return false;
+      const d = new Date(`${v.dataEntrega}T12:00:00`);
+      return !Number.isNaN(d.getTime()) && d.toDateString() === hoje.toDateString();
+    }).length;
+
+    const vencendo3Dias = financeiro.filter(f => {
+      const status = getStatusFinanceiro(f);
+      if (status === 'Pago') return false;
+      const dias = calcularDiasParaData(f.dataVencimentoBoleto || f.vencimento);
+      return dias !== null && dias >= 0 && dias <= 3;
+    }).length;
+
+    const atrasadas = viagens.filter(v => {
+      if (getStatusViagem(v) === 'Entregue') return false;
+      const base = v.dataEntrega || v.dataSaida || v.dataNF;
+      const dias = calcularDiasParaData(base);
+      return dias !== null && dias < 0;
+    }).length;
+
+    return {
+      emRota: emRota.length,
+      pendentes: pendentes.length,
+      entregasHoje,
+      vencendo3Dias,
+      atrasadas
+    };
+  }, [viagens, financeiro, cargaStatusMap]);
+
+  const fluxoCaixaPrevisto = useMemo(() => {
+    const aReceber7Dias = financeiro.reduce((acc, item) => {
+      const status = getStatusFinanceiro(item);
+      if (status === 'Pago') return acc;
+      const dias = calcularDiasParaData(item.dataVencimentoBoleto || item.vencimento);
+      if (dias !== null && dias >= 0 && dias <= 7) return acc + (parseFloat(item.valorFrete) || 0);
+      return acc;
+    }, 0);
+
+    const custoEmRota = viagens
+      .filter(v => getStatusViagem(v) !== 'Entregue')
+      .reduce((acc, curr) => acc + (parseFloat(curr.valorDistribuicao) || 0), 0);
+
+    return {
+      aReceber7Dias,
+      custoEmRota,
+      saldoProjetado: aReceber7Dias - custoEmRota
+    };
+  }, [financeiro, viagens, cargaStatusMap]);
+
+  const viagemInsights = useMemo(() => {
+    const total = viagens.length;
+    const semComprovante = viagens.filter(v => !(v.urlComprovante || v.boleto)).length;
+    const semMotorista = viagens.filter(v => !v.motorista).length;
+    const semCTe = viagens.filter(v => !v.numeroCTe || !v.dataCTe).length;
+
+    const porMotorista = {};
+    viagens.forEach((v) => {
+      const nome = v.motorista || 'Não atribuído';
+      porMotorista[nome] = (porMotorista[nome] || 0) + 1;
+    });
+    const motoristaTop = Object.entries(porMotorista).sort((a, b) => b[1] - a[1])[0] || ['---', 0];
+
+    return { total, semComprovante, semMotorista, semCTe, motoristaTop };
+  }, [viagens]);
+
+  const financeiroInsights = useMemo(() => {
+    const pagos = financeiro.filter(f => getStatusFinanceiro(f) === 'Pago');
+    const pendentes = financeiro.filter(f => getStatusFinanceiro(f) === 'Pendente');
+    const vencidos = financeiro.filter(f => getStatusFinanceiro(f) === 'Vencido');
+
+    const totalPago = pagos.reduce((acc, item) => acc + (parseFloat(item.valorFrete) || 0), 0);
+    const totalPendente = pendentes.reduce((acc, item) => acc + (parseFloat(item.valorFrete) || 0), 0);
+    const totalVencido = vencidos.reduce((acc, item) => acc + (parseFloat(item.valorFrete) || 0), 0);
+
+    return {
+      totalPago,
+      totalPendente,
+      totalVencido,
+      taxaRecebimento: financeiro.length ? Math.round((pagos.length / financeiro.length) * 100) : 0
+    };
+  }, [financeiro]);
 
   const relatorioPorCarga = !!reportNumeroCarga.trim();
 
@@ -524,56 +666,118 @@ function App() {
         <button onClick={() => signOut(auth)} className="mt-auto flex items-center gap-2 text-slate-400 hover:text-white text-xs font-bold uppercase py-4 border-t border-white/10"><LogOut size={16}/> Sair</button>
       </aside>
 
-      <main className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-20 bg-white border-b flex items-center justify-between px-8 shrink-0">
-          <div className="flex items-center gap-4">
-            <div className="relative w-96">
+      <main className="flex-1 flex flex-col overflow-hidden bg-gradient-to-b from-slate-100 to-slate-200/40">
+        <header className="bg-white/90 backdrop-blur border-b border-slate-200 px-8 py-4 shrink-0">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">Painel de comando</p>
+              <h2 className="text-2xl font-black tracking-tight text-slate-900">Gestão operacional CargoFy</h2>
+            </div>
+            {activeTab !== 'relatorios' && (
+              <button onClick={() => { resetForm(); setEditingId(null); setModalOpen(true); }} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-blue-500/20 transition-all">
+                <Plus size={16} /> Novo Registro
+              </button>
+            )}
+          </div>
+          <div className="mt-4 flex items-center gap-3 flex-wrap">
+            <div className="relative w-full max-w-xl">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-              <input 
-                type="text" 
-                placeholder="Pesquisar por NF, Contratante ou Cidade..." 
+              <input
+                type="text"
+                placeholder="Pesquisar por NF, Contratante, Cidade, Motorista ou Placa..."
                 value={searchNF}
                 onChange={(e) => setSearchNF(e.target.value)}
                 className="w-full pl-12 pr-4 py-2.5 bg-slate-100 rounded-xl outline-none focus:ring-2 ring-blue-500/20 text-sm font-medium transition-all"
               />
             </div>
             {statusFilter !== 'Todos' && (
-              <button onClick={() => setStatusFilter('Todos')} className="bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase flex items-center gap-2">
+              <button onClick={() => setStatusFilter('Todos')} className="bg-blue-50 text-blue-700 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 border border-blue-100">
                 Filtro: {statusFilter} <X size={12}/>
               </button>
             )}
+            <span className="text-xs font-semibold text-slate-500">{filteredData.length} registros visíveis</span>
           </div>
-          {activeTab !== 'relatorios' && (
-            <button onClick={() => { resetForm(); setEditingId(null); setModalOpen(true); }} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-blue-500/20 transition-all">
-              <Plus size={16} /> Novo Registro
-            </button>
-          )}
         </header>
 
-        <div className="p-8 overflow-y-auto">
+        <div className="p-8 overflow-y-auto space-y-8">
           {activeTab === 'dashboard' && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-              <Card title="Cargas Pendentes" value={stats.pendentes} icon={Clock} color="bg-amber-500" active={statusFilter === 'Pendente'} onClick={() => setStatusFilter('Pendente')} />
-              <Card title="Cargas em Rota" value={stats.emRota} icon={MapPin} color="bg-blue-600" active={statusFilter === 'Em rota'} onClick={() => setStatusFilter('Em rota')} />
-              <Card title="Concluídas" value={stats.entregues} icon={CheckCircle2} color="bg-emerald-500" active={statusFilter === 'Entregue'} onClick={() => setStatusFilter('Entregue')} />
-            </div>
+            <>
+              <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                <SectionTitle title="Visão executiva" subtitle="O que aconteceu, o que está acontecendo e o que vai acontecer" icon={LayoutDashboard} />
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                  <InsightCard title="Em operação agora" value={previsaoOperacional.emRota} subtitle="cargas em rota" icon={Route} tone="blue" />
+                  <InsightCard title="Entregas hoje" value={previsaoOperacional.entregasHoje} subtitle="finalizadas no dia" icon={Target} tone="emerald" />
+                  <InsightCard title="Atrasos críticos" value={previsaoOperacional.atrasadas} subtitle="demandam ação imediata" icon={ShieldAlert} tone="rose" />
+                  <InsightCard title="Boletos em 3 dias" value={previsaoOperacional.vencendo3Dias} subtitle="vencimento próximo" icon={BellRing} tone="amber" />
+                </div>
+              </section>
+
+              <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                <section className="xl:col-span-2 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <SectionTitle title="KPIs operacionais" subtitle="Status atual das viagens" icon={TrendingUp} />
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <Card title="Cargas Pendentes" value={stats.pendentes} icon={Clock} color="bg-amber-500" active={statusFilter === 'Pendente'} onClick={() => setStatusFilter('Pendente')} />
+                    <Card title="Cargas em Rota" value={stats.emRota} icon={MapPin} color="bg-blue-600" active={statusFilter === 'Em rota'} onClick={() => setStatusFilter('Em rota')} />
+                    <Card title="Concluídas" value={stats.entregues} icon={CheckCircle2} color="bg-emerald-500" active={statusFilter === 'Entregue'} onClick={() => setStatusFilter('Entregue')} />
+                  </div>
+                </section>
+
+                <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <SectionTitle title="Previsão de caixa (7 dias)" subtitle="Financeiro projetado" icon={Wallet} />
+                  <div className="space-y-4">
+                    <InsightCard title="A receber" value={moedaBR(fluxoCaixaPrevisto.aReceber7Dias)} subtitle="boletos pendentes" icon={DollarSign} tone="indigo" />
+                    <InsightCard title="Custo em aberto" value={moedaBR(fluxoCaixaPrevisto.custoEmRota)} subtitle="distribuição de viagens não entregues" icon={Truck} tone="amber" />
+                    <InsightCard title="Saldo projetado" value={moedaBR(fluxoCaixaPrevisto.saldoProjetado)} subtitle="receita - custo" icon={TimerReset} tone={fluxoCaixaPrevisto.saldoProjetado >= 0 ? 'emerald' : 'rose'} />
+                  </div>
+                </section>
+              </div>
+            </>
+          )}
+
+          {activeTab === 'viagens' && (
+            <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+              <SectionTitle title="Controle de viagens" subtitle="Qualidade operacional e pendências de documentação" icon={Package} />
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                <InsightCard title="Total de viagens" value={viagemInsights.total} icon={Package} tone="slate" />
+                <InsightCard title="Sem comprovante" value={viagemInsights.semComprovante} subtitle="exigem evidência" icon={Paperclip} tone="amber" />
+                <InsightCard title="Sem motorista" value={viagemInsights.semMotorista} subtitle="necessita alocação" icon={Users} tone="rose" />
+                <InsightCard title="CT-e pendente" value={viagemInsights.semCTe} subtitle="pendência fiscal" icon={FileText} tone="indigo" />
+              </div>
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Motorista com maior volume</p>
+                <p className="text-lg font-black text-slate-900 mt-1">{viagemInsights.motoristaTop[0]}</p>
+                <p className="text-sm font-semibold text-slate-500">{viagemInsights.motoristaTop[1]} viagens no período carregado</p>
+              </div>
+            </section>
           )}
 
           {activeTab === 'financeiro' && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-              <Card title="Quanto Faturou" value={`R$ ${financeiroResumo.faturou.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={DollarSign} color="bg-indigo-600" />
-              <Card title="Gasto Distribuição" value={`R$ ${financeiroResumo.gastouDistribuicao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={Truck} color="bg-amber-500" />
-              <Card title="Lucro" value={`R$ ${financeiroResumo.lucroTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={CheckCircle2} color="bg-emerald-600" />
-            </div>
+            <section className="space-y-6">
+              <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                <SectionTitle title="Visão financeira" subtitle="Receita, custos, margem e recebimento" icon={DollarSign} />
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Card title="Quanto Faturou" value={moedaBR(financeiroResumo.faturou)} icon={DollarSign} color="bg-indigo-600" />
+                  <Card title="Gasto Distribuição" value={moedaBR(financeiroResumo.gastouDistribuicao)} icon={Truck} color="bg-amber-500" />
+                  <Card title="Lucro" value={moedaBR(financeiroResumo.lucroTotal)} icon={CheckCircle2} color="bg-emerald-600" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                <InsightCard title="Recebido" value={moedaBR(financeiroInsights.totalPago)} subtitle={`${financeiroInsights.taxaRecebimento}% da carteira`} icon={CheckCircle2} tone="emerald" />
+                <InsightCard title="A receber" value={moedaBR(financeiroInsights.totalPendente)} subtitle="boletos pendentes" icon={Clock} tone="amber" />
+                <InsightCard title="Vencido" value={moedaBR(financeiroInsights.totalVencido)} subtitle="risco de inadimplência" icon={AlertCircle} tone="rose" />
+                <InsightCard title="Carteira total" value={financeiro.length} subtitle="títulos monitorados" icon={FileText} tone="indigo" />
+              </div>
+            </section>
           )}
 
           {activeTab === 'relatorios' && (
-            <div className="space-y-6 mb-8">
+            <div className="space-y-6">
               <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-5 flex items-center gap-4">
                 <img src="/logo-cargofy.svg" alt="Logo CargoFy" className="h-14 w-14 rounded-xl object-contain border border-slate-200 p-1" />
                 <div>
-                  <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Relatórios CargoFy</h3>
-                  <p className="text-xs font-semibold text-slate-500">Exportação em CSV/PDF com identidade visual da operação.</p>
+                  <h3 className="text-base font-black text-slate-900">Central de Relatórios</h3>
+                  <p className="text-sm font-medium text-slate-500">Crie relatórios executivos com filtros inteligentes e exportação pronta para diretoria.</p>
                 </div>
               </div>
               <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 grid grid-cols-1 md:grid-cols-6 gap-4">
@@ -588,52 +792,53 @@ function App() {
                 <Input label="Data Final" type="date" value={reportFim} onChange={setReportFim} />
                 <div className="flex items-end">
                   <button onClick={downloadRelatorioCSV} className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase transition-all">
-                    <Download size={16} /> Gerar Relatório CSV
+                    <Download size={16} /> Exportar CSV
                   </button>
                 </div>
                 <div className="flex items-end">
                   <button onClick={gerarRelatorioPDF} className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-slate-700 hover:bg-slate-800 text-white rounded-xl text-xs font-black uppercase transition-all">
-                    <FileText size={16} /> Gerar Relatório PDF
+                    <FileText size={16} /> Exportar PDF
                   </button>
                 </div>
               </div>
 
-              <div className={`grid grid-cols-1 ${relatorioPorCarga ? 'md:grid-cols-1' : 'md:grid-cols-3'} gap-4`}>
-                <Card title="Faturamento" value={`R$ ${resumoRelatorio.faturou.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={DollarSign} color="bg-indigo-600" />
-                {!relatorioPorCarga && <Card title="Distribuição" value={`R$ ${resumoRelatorio.distribuicao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={Truck} color="bg-amber-500" />}
-                {!relatorioPorCarga && <Card title="Lucro" value={`R$ ${resumoRelatorio.lucro.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={CheckCircle2} color="bg-emerald-600" />}
+              <div className={`grid grid-cols-1 ${relatorioPorCarga ? 'md:grid-cols-2' : 'md:grid-cols-3'} gap-4`}>
+                <InsightCard title="Faturamento" value={moedaBR(resumoRelatorio.faturou)} icon={DollarSign} tone="indigo" />
+                {!relatorioPorCarga && <InsightCard title="Distribuição" value={moedaBR(resumoRelatorio.distribuicao)} icon={Truck} tone="amber" />}
+                {!relatorioPorCarga && <InsightCard title="Lucro" value={moedaBR(resumoRelatorio.lucro)} icon={CheckCircle2} tone="emerald" />}
+                {relatorioPorCarga && <InsightCard title="Registros" value={relatorioData.length} subtitle="filtrados por carga" icon={Target} tone="blue" />}
               </div>
 
               <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white">
-                  <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Relatório Detalhado</h3>
-                  <span className="text-[10px] font-bold text-slate-400">{relatorioData.length} registros</span>
+                  <h3 className="text-sm font-black text-slate-700">Relatório detalhado</h3>
+                  <span className="text-xs font-semibold text-slate-400">{relatorioData.length} registros</span>
                 </div>
                 <table className="w-full text-left border-collapse">
                   <thead className="bg-slate-50 border-b border-slate-100">
                     <tr>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Carga / NF / Empresa</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">CT-e</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Data</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Frete</th>
-                      {!relatorioPorCarga && <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Distribuição</th>}
-                      {!relatorioPorCarga && <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Lucro</th>}
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">Carga / NF / Empresa</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">CT-e</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">Data</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">Frete</th>
+                      {!relatorioPorCarga && <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">Distribuição</th>}
+                      {!relatorioPorCarga && <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">Lucro</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
                     {relatorioData.map(item => (
-                      <tr key={`rel-${item.id}`} className="hover:bg-slate-50/50 transition-colors">
+                      <tr key={`rel-${item.id}`} className="hover:bg-slate-50/70 transition-colors">
                         <td className="px-6 py-4">
                           <p className="text-[10px] font-black text-indigo-600 uppercase">Carga #{item.numeroCarga || '---'}</p>
                           <p className="font-bold text-slate-800">{item.numeroNF || '---'}</p>
-                          <p className="text-[10px] font-black text-slate-500">CT-e: {item.numeroCTe || '---'}</p>
-                          <p className="text-[10px] font-black text-blue-600 uppercase tracking-tight">{item.contratante || 'Sem empresa'}</p>
+                          <p className="text-[11px] font-semibold text-slate-500">CT-e: {item.numeroCTe || '---'}</p>
+                          <p className="text-[10px] font-bold text-blue-700 uppercase tracking-tight">{item.contratante || 'Sem empresa'}</p>
                         </td>
-                        <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.dataCTe ? new Date(item.dataCTe + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</td>
-                        <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.dataSaida || item.dataNF || item.dataEntrega ? new Date((item.dataSaida || item.dataNF || item.dataEntrega) + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</td>
-                        <td className="px-6 py-4 text-sm font-bold text-slate-700">R$ {(parseFloat(item.valorFrete) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        {!relatorioPorCarga && <td className="px-6 py-4 text-sm font-bold text-slate-700">R$ {(parseFloat(item.valorDistribuicao) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
-                        {!relatorioPorCarga && <td className="px-6 py-4 text-sm font-black text-emerald-700">R$ {((parseFloat(item.valorFrete) || 0) - (parseFloat(item.valorDistribuicao) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
+                        <td className="px-6 py-4 text-sm font-semibold text-slate-700">{formatarDataBR(item.dataCTe)}</td>
+                        <td className="px-6 py-4 text-sm font-semibold text-slate-700">{formatarDataBR(item.dataSaida || item.dataNF || item.dataEntrega)}</td>
+                        <td className="px-6 py-4 text-sm font-semibold text-slate-700">{moedaBR(item.valorFrete)}</td>
+                        {!relatorioPorCarga && <td className="px-6 py-4 text-sm font-semibold text-slate-700">{moedaBR(item.valorDistribuicao)}</td>}
+                        {!relatorioPorCarga && <td className="px-6 py-4 text-sm font-black text-emerald-700">{moedaBR((parseFloat(item.valorFrete) || 0) - (parseFloat(item.valorDistribuicao) || 0))}</td>}
                       </tr>
                     ))}
                   </tbody>
@@ -643,127 +848,125 @@ function App() {
           )}
 
           {activeTab !== 'relatorios' && (
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white">
-              <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">{activeTab}</h3>
-              <span className="text-[10px] font-bold text-slate-400">{filteredData.length} registros</span>
-            </div>
-            <table className="w-full text-left border-collapse">
-              <thead className="bg-slate-50 border-b border-slate-100">
-                <tr>
-                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">NF / Contratante</th>
-                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Destino / Motorista</th>
-                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Status / Financeiro</th>
-                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase text-right">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {filteredData.map(item => (
-                  <tr key={item.id} className="hover:bg-slate-50/50 group transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="flex flex-col">
-                        <div className="flex items-center gap-2">
-                          <p className="font-bold text-slate-800">{item.numeroNF || item.nome || item.modelo || "---"}</p>
-                          {item.numeroCarga && <p className="text-[10px] font-black text-indigo-600 uppercase">Carga #{item.numeroCarga}</p>}
-                          {(item.boleto || item.urlBoleto || item.urlComprovante) && (
-                            <a href={item.boleto || item.urlBoleto || item.urlComprovante} target="_blank" rel="noreferrer" title="Ver Comprovante" className="text-emerald-500 hover:scale-110 transition-transform">
-                              <Paperclip size={14} />
-                            </a>
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white">
+                <h3 className="text-sm font-black text-slate-700 capitalize">{activeTab}</h3>
+                <span className="text-xs font-semibold text-slate-400">{filteredData.length} registros</span>
+              </div>
+              <table className="w-full text-left border-collapse">
+                <thead className="bg-slate-50 border-b border-slate-100">
+                  <tr>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">NF / Contratante</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">Destino / Motorista</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">Status / Financeiro</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {filteredData.map(item => (
+                    <tr key={item.id} className="hover:bg-slate-50/70 group transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col">
+                          <div className="flex items-center gap-2">
+                            <p className="font-bold text-slate-800">{item.numeroNF || item.nome || item.modelo || "---"}</p>
+                            {item.numeroCarga && <p className="text-[10px] font-black text-indigo-600 uppercase">Carga #{item.numeroCarga}</p>}
+                            {(item.boleto || item.urlBoleto || item.urlComprovante) && (
+                              <a href={item.boleto || item.urlBoleto || item.urlComprovante} target="_blank" rel="noreferrer" title="Ver Comprovante" className="text-emerald-500 hover:scale-110 transition-transform">
+                                <Paperclip size={14} />
+                              </a>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <Building2 size={10} className="text-slate-400" />
+                            <p className="text-[11px] font-bold text-blue-700">{item.contratante || "Contratante não informado"}</p>
+                          </div>
+                          <p className="text-[10px] text-slate-400 font-mono mt-1">{item.chaveID || item.email || item.placa}</p>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <p className="text-sm font-semibold text-slate-700">{item.destinatario || item.cidade || item.tipo || '---'}</p>
+                        {(item.destinatario && item.cidade) && <p className="text-[11px] text-slate-500 font-semibold">{item.cidade}</p>}
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <p className="text-[11px] text-slate-500 font-bold">{item.motorista || item.telefone || 'Sem Motorista'}</p>
+                          {item.status === 'Entregue' && item.dataEntrega && (
+                            <span className="text-[10px] font-bold text-emerald-600 flex items-center gap-1">
+                              <Clock size={10} /> Entregue em {formatarDataBR(item.dataEntrega)}
+                            </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-1 mt-0.5">
-                          <Building2 size={10} className="text-slate-400" />
-                          <p className="text-[10px] font-black text-blue-600 uppercase tracking-tight">
-                            {item.contratante || "Contratante não informado"}
-                          </p>
-                        </div>
-                        <p className="text-[10px] text-slate-400 font-mono mt-1">{item.chaveID || item.email || item.placa}</p>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <p className="text-sm font-bold text-slate-700">{item.destinatario || item.cidade || item.tipo || '---'}</p>
-                      {(item.destinatario && item.cidade) && <p className="text-[10px] text-slate-500 font-bold">{item.cidade}</p>}
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <p className="text-[10px] text-slate-400 font-black uppercase">{item.motorista || item.telefone || 'Sem Motorista'}</p>
-                        {item.status === 'Entregue' && item.dataEntrega && (
-                          <span className="text-[9px] font-bold text-emerald-500 flex items-center gap-1">
-                            <Clock size={10} /> Entregue em {new Date(item.dataEntrega + 'T12:00:00').toLocaleDateString('pt-BR')}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col gap-1">
+                          <span className={`w-fit px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                            ((activeTab === 'dashboard' || activeTab === 'viagens') ? getStatusViagem(item) : (activeTab === 'financeiro' ? getStatusFinanceiro(item) : item.status)) === 'Em rota' ? 'bg-blue-100 text-blue-600' :
+                            ((activeTab === 'dashboard' || activeTab === 'viagens') ? getStatusViagem(item) : (activeTab === 'financeiro' ? getStatusFinanceiro(item) : item.status)) === 'Entregue' ? 'bg-emerald-100 text-emerald-600' :
+                            ((activeTab === 'dashboard' || activeTab === 'viagens') ? getStatusViagem(item) : (activeTab === 'financeiro' ? getStatusFinanceiro(item) : item.status)) === 'Pendente' ? 'bg-amber-100 text-amber-700' :
+                            'bg-slate-100 text-slate-500'
+                          }`}>
+                            {(activeTab === 'dashboard' || activeTab === 'viagens') ? getStatusViagem(item) : (activeTab === 'financeiro' ? getStatusFinanceiro(item) : (item.status || 'Ativo'))}
                           </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-col gap-1">
-                        <span className={`w-fit px-2 py-0.5 rounded text-[9px] font-black uppercase ${
-                          ((activeTab === 'dashboard' || activeTab === 'viagens') ? getStatusViagem(item) : (activeTab === 'financeiro' ? getStatusFinanceiro(item) : item.status)) === 'Em rota' ? 'bg-blue-100 text-blue-600' : 
-                          ((activeTab === 'dashboard' || activeTab === 'viagens') ? getStatusViagem(item) : (activeTab === 'financeiro' ? getStatusFinanceiro(item) : item.status)) === 'Entregue' ? 'bg-emerald-100 text-emerald-600' :
-                          ((activeTab === 'dashboard' || activeTab === 'viagens') ? getStatusViagem(item) : (activeTab === 'financeiro' ? getStatusFinanceiro(item) : item.status)) === 'Pendente' ? 'bg-amber-100 text-amber-600' :
-                          'bg-slate-100 text-slate-500'
-                        }`}>
-                          {(activeTab === 'dashboard' || activeTab === 'viagens') ? getStatusViagem(item) : (activeTab === 'financeiro' ? getStatusFinanceiro(item) : (item.status || 'Ativo'))}
-                        </span>
-                        {activeTab !== 'dashboard' && item.valorFrete && <p className="font-black text-slate-900 text-sm">Frete: R$ {parseFloat(item.valorFrete).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>}
-                        {activeTab !== 'dashboard' && (item.valorDistribuicao || activeTab === 'financeiro') && <p className="text-[10px] font-black text-amber-700">Custo: R$ {(parseFloat(item.valorDistribuicao) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>}
-                        {activeTab !== 'dashboard' && (item.valorDistribuicao || item.lucro || activeTab === 'financeiro') && <p className="text-[10px] font-black text-emerald-700">Lucro: R$ {((parseFloat(item.valorFrete) || 0) - (parseFloat(item.valorDistribuicao) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        {(activeTab === 'dashboard' || activeTab === 'viagens' || activeTab === 'financeiro') && (
-                          <button onClick={() => setDetailItem(item)} className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg" title="Ver detalhes"><Eye size={16}/></button>
-                        )}
-                        <button onClick={() => handleOpenEdit(item)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg"><Edit3 size={16}/></button>
-                        <button onClick={async () => { 
-                          if(confirm('Deseja realmente excluir este registro?')) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', (activeTab === 'dashboard' || activeTab === 'viagens' ? 'viagens' : activeTab), item.id));
-                        }} className="p-2 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 size={16}/></button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                          {activeTab !== 'dashboard' && item.valorFrete && <p className="font-bold text-slate-800 text-sm">Frete: {moedaBR(item.valorFrete)}</p>}
+                          {activeTab !== 'dashboard' && (item.valorDistribuicao || activeTab === 'financeiro') && <p className="text-[11px] font-bold text-amber-700">Custo: {moedaBR(item.valorDistribuicao)}</p>}
+                          {activeTab !== 'dashboard' && (item.valorDistribuicao || item.lucro || activeTab === 'financeiro') && <p className="text-[11px] font-bold text-emerald-700">Lucro: {moedaBR((parseFloat(item.valorFrete) || 0) - (parseFloat(item.valorDistribuicao) || 0))}</p>}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          {(activeTab === 'dashboard' || activeTab === 'viagens' || activeTab === 'financeiro') && (
+                            <button onClick={() => setDetailItem(item)} className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg" title="Ver detalhes"><Eye size={16}/></button>
+                          )}
+                          <button onClick={() => handleOpenEdit(item)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg"><Edit3 size={16}/></button>
+                          <button onClick={async () => {
+                            if(confirm('Deseja realmente excluir este registro?')) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', (activeTab === 'dashboard' || activeTab === 'viagens' ? 'viagens' : activeTab), item.id));
+                          }} className="p-2 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 size={16}/></button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
 
           {activeTab === 'dashboard' && (
-            <div className="space-y-6 mt-8">
+            <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Card title="Boletos Gerados" value={boletoStats.boletosGerados} icon={FileText} color="bg-indigo-600" />
-                <Card title="Boletos Pendentes" value={boletoStats.boletosPendentes} icon={Clock} color="bg-amber-500" />
-                <Card title="Boletos Atrasados" value={boletoStats.boletosAtrasados} icon={AlertCircle} color="bg-rose-600" />
-                <Card title="Boletos Pagos" value={boletoStats.boletosPagos} icon={CheckCircle2} color="bg-emerald-600" />
+                <InsightCard title="Boletos Gerados" value={boletoStats.boletosGerados} icon={FileText} tone="indigo" />
+                <InsightCard title="Boletos Pendentes" value={boletoStats.boletosPendentes} icon={Clock} tone="amber" />
+                <InsightCard title="Boletos Atrasados" value={boletoStats.boletosAtrasados} icon={AlertCircle} tone="rose" />
+                <InsightCard title="Boletos Pagos" value={boletoStats.boletosPagos} icon={CheckCircle2} tone="emerald" />
               </div>
               <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white">
-                  <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Dashboard Boletos</h3>
-                  <span className="text-[10px] font-bold text-slate-400">{financeiro.length} registros</span>
+                  <h3 className="text-sm font-black text-slate-700">Monitor de boletos</h3>
+                  <span className="text-xs font-semibold text-slate-400">{financeiro.length} registros</span>
                 </div>
                 <table className="w-full text-left border-collapse">
                   <thead className="bg-slate-50 border-b border-slate-100">
                     <tr>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">NF / Contratante</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Vencimento</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Status</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase text-right">Boleto</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">NF / Contratante</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">Vencimento</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">Status</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase text-right">Boleto</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
                     {financeiro.map(item => (
-                      <tr key={`dash-fin-${item.id}`} className="hover:bg-slate-50/50 transition-colors">
+                      <tr key={`dash-fin-${item.id}`} className="hover:bg-slate-50/70 transition-colors">
                         <td className="px-6 py-4">
                           <p className="font-bold text-slate-800">{item.numeroNF || '---'}</p>
-                          <p className="text-[10px] font-black text-blue-600 uppercase tracking-tight">{item.contratante || 'Contratante não informado'}</p>
+                          <p className="text-[11px] font-semibold text-blue-700">{item.contratante || 'Contratante não informado'}</p>
                         </td>
-                        <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.vencimento ? new Date(item.vencimento + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</td>
+                        <td className="px-6 py-4 text-sm font-semibold text-slate-700">{formatarDataBR(item.vencimento || item.dataVencimentoBoleto)}</td>
                         <td className="px-6 py-4">
-                          <span className={`w-fit px-2 py-0.5 rounded text-[9px] font-black uppercase ${getStatusFinanceiro(item) === 'Pago' ? 'bg-emerald-100 text-emerald-600' : getStatusFinanceiro(item) === 'Vencido' ? 'bg-rose-100 text-rose-600' : 'bg-amber-100 text-amber-600'}`}>
+                          <span className={`w-fit px-2 py-0.5 rounded text-[10px] font-black uppercase ${getStatusFinanceiro(item) === 'Pago' ? 'bg-emerald-100 text-emerald-600' : getStatusFinanceiro(item) === 'Vencido' ? 'bg-rose-100 text-rose-600' : 'bg-amber-100 text-amber-700'}`}>
                             {getStatusFinanceiro(item)}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-right">
                           {(item.boleto || item.urlBoleto || item.urlComprovante) ? (
-                            <a href={item.boleto || item.urlBoleto || item.urlComprovante} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase">Abrir <ExternalLink size={12} /></a>
-                          ) : <span className="text-[10px] font-bold text-slate-400">Sem link</span>}
+                            <a href={item.boleto || item.urlBoleto || item.urlComprovante} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 text-[11px] font-bold">Abrir <ExternalLink size={12} /></a>
+                          ) : <span className="text-[11px] font-semibold text-slate-400">Sem link</span>}
                         </td>
                       </tr>
                     ))}
