@@ -996,41 +996,10 @@ function App() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-                <div className="bg-emerald-50 border border-emerald-100 rounded-3xl p-6 flex items-start justify-between">
-                  <div>
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Recebido</p>
-                    <h3 className="text-3xl font-black text-slate-900 mt-2">R$ {financeiroMenuResumo.recebido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
-                    <p className="text-xs font-bold text-slate-500 mt-2">{financeiroMenuResumo.percentualRecebido}% da carteira</p>
-                  </div>
-                  <div className="p-3 rounded-2xl bg-white border border-slate-200 text-emerald-600"><CheckCircle2 size={22} /></div>
-                </div>
-
-                <div className="bg-amber-50 border border-amber-100 rounded-3xl p-6 flex items-start justify-between">
-                  <div>
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">A receber</p>
-                    <h3 className="text-3xl font-black text-slate-900 mt-2">R$ {financeiroMenuResumo.aReceber.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
-                    <p className="text-xs font-bold text-slate-500 mt-2">boletos pendentes</p>
-                  </div>
-                  <div className="p-3 rounded-2xl bg-white border border-slate-200 text-amber-600"><Clock size={22} /></div>
-                </div>
-
-                <div className="bg-rose-50 border border-rose-100 rounded-3xl p-6 flex items-start justify-between">
-                  <div>
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Vencido</p>
-                    <h3 className="text-3xl font-black text-slate-900 mt-2">R$ {financeiroMenuResumo.vencido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
-                    <p className="text-xs font-bold text-slate-500 mt-2">risco de inadimplência</p>
-                  </div>
-                  <div className="p-3 rounded-2xl bg-white border border-slate-200 text-rose-600"><AlertCircle size={22} /></div>
-                </div>
-
-                <div className="bg-indigo-50 border border-indigo-100 rounded-3xl p-6 flex items-start justify-between">
-                  <div>
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Carteira total</p>
-                    <h3 className="text-3xl font-black text-slate-900 mt-2">{financeiroMenuResumo.carteiraTotal}</h3>
-                    <p className="text-xs font-bold text-slate-500 mt-2">títulos monitorados</p>
-                  </div>
-                  <div className="p-3 rounded-2xl bg-white border border-slate-200 text-indigo-600"><FileText size={22} /></div>
-                </div>
+                <Card title="Recebido" value={`R$ ${financeiroMenuResumo.recebido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={CheckCircle2} color="bg-emerald-600" />
+                <Card title="A Receber" value={`R$ ${financeiroMenuResumo.aReceber.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={Clock} color="bg-amber-500" />
+                <Card title="Vencido" value={`R$ ${financeiroMenuResumo.vencido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={AlertCircle} color="bg-rose-600" />
+                <Card title="Carteira Total" value={financeiroMenuResumo.carteiraTotal} icon={FileText} color="bg-indigo-600" />
               </div>
             </div>
           )}
