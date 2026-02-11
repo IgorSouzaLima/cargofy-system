@@ -527,6 +527,66 @@ function App() {
     );
   }, [activeTab, statusFilter, viagens, financeiro, clientes, motoristas, veiculos, searchNF]);
 
+  const isCargaTab = ['dashboard', 'viagens', 'financeiro'].includes(activeTab);
+
+  const getItemStatus = (item) => {
+    if (activeTab === 'dashboard' || activeTab === 'viagens') return getStatusViagem(item);
+    if (activeTab === 'financeiro') return getStatusFinanceiro(item);
+    return item.status || 'Ativo';
+  };
+
+  const groupedFilteredData = useMemo(() => {
+    if (!isCargaTab) return [];
+
+    const agrupado = filteredData.reduce((acc, item) => {
+      const chave = (item.numeroCarga || '').trim() || 'Sem carga';
+      if (!acc[chave]) acc[chave] = [];
+      acc[chave].push(item);
+      return acc;
+    }, {});
+
+    return Object.entries(agrupado)
+      .map(([numeroCarga, itens]) => {
+        const totalFrete = itens.reduce((sum, it) => sum + (parseFloat(it.valorFrete) || 0), 0);
+        const totalCusto = itens.reduce((sum, it) => sum + (parseFloat(it.valorDistribuicao) || 0), 0);
+        const statusConsolidado = { pendente: 0, emRota: 0, entregue: 0, vencido: 0, pago: 0 };
+
+        itens.forEach((item) => {
+          const status = getItemStatus(item);
+          if (status === 'Pendente') statusConsolidado.pendente += 1;
+          if (status === 'Em rota') statusConsolidado.emRota += 1;
+          if (status === 'Entregue') statusConsolidado.entregue += 1;
+          if (status === 'Vencido') statusConsolidado.vencido += 1;
+          if (status === 'Pago') statusConsolidado.pago += 1;
+        });
+
+        return { numeroCarga, itens, totalFrete, totalCusto, totalLucro: totalFrete - totalCusto, statusConsolidado };
+      })
+      .sort((a, b) => {
+        if (a.numeroCarga === 'Sem carga') return 1;
+        if (b.numeroCarga === 'Sem carga') return -1;
+        const na = Number(a.numeroCarga);
+        const nb = Number(b.numeroCarga);
+        if (!Number.isNaN(na) && !Number.isNaN(nb)) return na - nb;
+        return a.numeroCarga.localeCompare(b.numeroCarga, 'pt-BR');
+      });
+  }, [filteredData, isCargaTab, activeTab, cargaStatusMap]);
+
+  const renderStatusPill = (status) => {
+    const tone =
+      status === 'Em rota'
+        ? 'bg-blue-100 text-blue-700'
+        : status === 'Entregue' || status === 'Pago'
+          ? 'bg-emerald-100 text-emerald-700'
+          : status === 'Pendente'
+            ? 'bg-amber-100 text-amber-700'
+            : status === 'Vencido'
+              ? 'bg-rose-100 text-rose-700'
+              : 'bg-slate-100 text-slate-600';
+
+    return <span className={`w-fit px-2 py-0.5 rounded text-[10px] font-black uppercase ${tone}`}>{status}</span>;
+  };
+
   const handleOpenEdit = (item) => {
     setFormData({
       ...item,
@@ -847,7 +907,7 @@ function App() {
             </div>
           )}
 
-          {activeTab !== 'relatorios' && (
+          {activeTab !== 'relatorios' && !isCargaTab && (
             <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white">
                 <h3 className="text-sm font-black text-slate-700 capitalize">{activeTab}</h3>
@@ -856,68 +916,21 @@ function App() {
               <table className="w-full text-left border-collapse">
                 <thead className="bg-slate-50 border-b border-slate-100">
                   <tr>
-                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">NF / Contratante</th>
-                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">Destino / Motorista</th>
-                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">Status / Financeiro</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">Registro</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">Detalhes</th>
                     <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase text-right">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {filteredData.map(item => (
                     <tr key={item.id} className="hover:bg-slate-50/70 group transition-colors">
-                      <td className="px-6 py-4">
-                        <div className="flex flex-col">
-                          <div className="flex items-center gap-2">
-                            <p className="font-bold text-slate-800">{item.numeroNF || item.nome || item.modelo || "---"}</p>
-                            {item.numeroCarga && <p className="text-[10px] font-black text-indigo-600 uppercase">Carga #{item.numeroCarga}</p>}
-                            {(item.boleto || item.urlBoleto || item.urlComprovante) && (
-                              <a href={item.boleto || item.urlBoleto || item.urlComprovante} target="_blank" rel="noreferrer" title="Ver Comprovante" className="text-emerald-500 hover:scale-110 transition-transform">
-                                <Paperclip size={14} />
-                              </a>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-1 mt-0.5">
-                            <Building2 size={10} className="text-slate-400" />
-                            <p className="text-[11px] font-bold text-blue-700">{item.contratante || "Contratante não informado"}</p>
-                          </div>
-                          <p className="text-[10px] text-slate-400 font-mono mt-1">{item.chaveID || item.email || item.placa}</p>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <p className="text-sm font-semibold text-slate-700">{item.destinatario || item.cidade || item.tipo || '---'}</p>
-                        {(item.destinatario && item.cidade) && <p className="text-[11px] text-slate-500 font-semibold">{item.cidade}</p>}
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <p className="text-[11px] text-slate-500 font-bold">{item.motorista || item.telefone || 'Sem Motorista'}</p>
-                          {item.status === 'Entregue' && item.dataEntrega && (
-                            <span className="text-[10px] font-bold text-emerald-600 flex items-center gap-1">
-                              <Clock size={10} /> Entregue em {formatarDataBR(item.dataEntrega)}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex flex-col gap-1">
-                          <span className={`w-fit px-2 py-0.5 rounded text-[10px] font-black uppercase ${
-                            ((activeTab === 'dashboard' || activeTab === 'viagens') ? getStatusViagem(item) : (activeTab === 'financeiro' ? getStatusFinanceiro(item) : item.status)) === 'Em rota' ? 'bg-blue-100 text-blue-600' :
-                            ((activeTab === 'dashboard' || activeTab === 'viagens') ? getStatusViagem(item) : (activeTab === 'financeiro' ? getStatusFinanceiro(item) : item.status)) === 'Entregue' ? 'bg-emerald-100 text-emerald-600' :
-                            ((activeTab === 'dashboard' || activeTab === 'viagens') ? getStatusViagem(item) : (activeTab === 'financeiro' ? getStatusFinanceiro(item) : item.status)) === 'Pendente' ? 'bg-amber-100 text-amber-700' :
-                            'bg-slate-100 text-slate-500'
-                          }`}>
-                            {(activeTab === 'dashboard' || activeTab === 'viagens') ? getStatusViagem(item) : (activeTab === 'financeiro' ? getStatusFinanceiro(item) : (item.status || 'Ativo'))}
-                          </span>
-                          {activeTab !== 'dashboard' && item.valorFrete && <p className="font-bold text-slate-800 text-sm">Frete: {moedaBR(item.valorFrete)}</p>}
-                          {activeTab !== 'dashboard' && (item.valorDistribuicao || activeTab === 'financeiro') && <p className="text-[11px] font-bold text-amber-700">Custo: {moedaBR(item.valorDistribuicao)}</p>}
-                          {activeTab !== 'dashboard' && (item.valorDistribuicao || item.lucro || activeTab === 'financeiro') && <p className="text-[11px] font-bold text-emerald-700">Lucro: {moedaBR((parseFloat(item.valorFrete) || 0) - (parseFloat(item.valorDistribuicao) || 0))}</p>}
-                        </div>
-                      </td>
+                      <td className="px-6 py-4 font-bold text-slate-800">{item.nome || item.modelo || item.numeroNF || '---'}</td>
+                      <td className="px-6 py-4 text-sm text-slate-600">{item.email || item.telefone || item.placa || item.tipo || '---'}</td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          {(activeTab === 'dashboard' || activeTab === 'viagens' || activeTab === 'financeiro') && (
-                            <button onClick={() => setDetailItem(item)} className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg" title="Ver detalhes"><Eye size={16}/></button>
-                          )}
                           <button onClick={() => handleOpenEdit(item)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg"><Edit3 size={16}/></button>
                           <button onClick={async () => {
-                            if(confirm('Deseja realmente excluir este registro?')) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', (activeTab === 'dashboard' || activeTab === 'viagens' ? 'viagens' : activeTab), item.id));
+                            if(confirm('Deseja realmente excluir este registro?')) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', activeTab, item.id));
                           }} className="p-2 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 size={16}/></button>
                         </div>
                       </td>
@@ -927,6 +940,94 @@ function App() {
               </table>
             </div>
           )}
+
+          {activeTab !== 'relatorios' && isCargaTab && (
+            <div className="space-y-4">
+              {groupedFilteredData.map((grupo) => (
+                <div key={`grupo-${grupo.numeroCarga}`} className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+                  <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-black text-slate-800 uppercase tracking-wide">Carga #{grupo.numeroCarga}</h3>
+                      <p className="text-xs font-semibold text-slate-500">{grupo.itens.length} registros | Frete {moedaBR(grupo.totalFrete)} | Custo {moedaBR(grupo.totalCusto)} | Lucro {moedaBR(grupo.totalLucro)}</p>
+                    </div>
+                    <div className="flex items-center gap-2 text-[11px] font-bold">
+                      {grupo.statusConsolidado.pendente > 0 && <span className="px-2 py-1 rounded-lg bg-amber-100 text-amber-700">Pendentes: {grupo.statusConsolidado.pendente}</span>}
+                      {grupo.statusConsolidado.emRota > 0 && <span className="px-2 py-1 rounded-lg bg-blue-100 text-blue-700">Em rota: {grupo.statusConsolidado.emRota}</span>}
+                      {grupo.statusConsolidado.entregue > 0 && <span className="px-2 py-1 rounded-lg bg-emerald-100 text-emerald-700">Entregues: {grupo.statusConsolidado.entregue}</span>}
+                      {grupo.statusConsolidado.vencido > 0 && <span className="px-2 py-1 rounded-lg bg-rose-100 text-rose-700">Vencidos: {grupo.statusConsolidado.vencido}</span>}
+                      {grupo.statusConsolidado.pago > 0 && <span className="px-2 py-1 rounded-lg bg-emerald-100 text-emerald-700">Pagos: {grupo.statusConsolidado.pago}</span>}
+                    </div>
+                  </div>
+
+                  <table className="w-full text-left border-collapse">
+                    <thead className="bg-white border-b border-slate-100">
+                      <tr>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">NF / Contratante</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">Destino / Motorista</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">Status / Financeiro</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase text-right">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {grupo.itens.map(item => (
+                        <tr key={item.id} className="hover:bg-slate-50/70 group transition-colors">
+                          <td className="px-6 py-4">
+                            <div className="flex flex-col">
+                              <div className="flex items-center gap-2">
+                                <p className="font-bold text-slate-800">{item.numeroNF || item.nome || item.modelo || "---"}</p>
+                                {(item.boleto || item.urlBoleto || item.urlComprovante) && (
+                                  <a href={item.boleto || item.urlBoleto || item.urlComprovante} target="_blank" rel="noreferrer" title="Ver Comprovante" className="text-emerald-500 hover:scale-110 transition-transform">
+                                    <Paperclip size={14} />
+                                  </a>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1 mt-0.5">
+                                <Building2 size={10} className="text-slate-400" />
+                                <p className="text-[11px] font-bold text-blue-700">{item.contratante || "Contratante não informado"}</p>
+                              </div>
+                              <p className="text-[10px] text-slate-400 font-mono mt-1">{item.chaveID || item.email || item.placa}</p>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <p className="text-sm font-semibold text-slate-700">{item.destinatario || item.cidade || item.tipo || '---'}</p>
+                            {(item.destinatario && item.cidade) && <p className="text-[11px] text-slate-500 font-semibold">{item.cidade}</p>}
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <p className="text-[11px] text-slate-500 font-bold">{item.motorista || item.telefone || 'Sem Motorista'}</p>
+                              {item.status === 'Entregue' && item.dataEntrega && (
+                                <span className="text-[10px] font-bold text-emerald-600 flex items-center gap-1">
+                                  <Clock size={10} /> Entregue em {formatarDataBR(item.dataEntrega)}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex flex-col gap-1">
+                              {renderStatusPill(getItemStatus(item))}
+                              {activeTab !== 'dashboard' && item.valorFrete && <p className="font-bold text-slate-800 text-sm">Frete: {moedaBR(item.valorFrete)}</p>}
+                              {activeTab !== 'dashboard' && (item.valorDistribuicao || activeTab === 'financeiro') && <p className="text-[11px] font-bold text-amber-700">Custo: {moedaBR(item.valorDistribuicao)}</p>}
+                              {activeTab !== 'dashboard' && (item.valorDistribuicao || item.lucro || activeTab === 'financeiro') && <p className="text-[11px] font-bold text-emerald-700">Lucro: {moedaBR((parseFloat(item.valorFrete) || 0) - (parseFloat(item.valorDistribuicao) || 0))}</p>}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              {(activeTab === 'dashboard' || activeTab === 'viagens' || activeTab === 'financeiro') && (
+                                <button onClick={() => setDetailItem(item)} className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg" title="Ver detalhes"><Eye size={16}/></button>
+                              )}
+                              <button onClick={() => handleOpenEdit(item)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg"><Edit3 size={16}/></button>
+                              <button onClick={async () => {
+                                if(confirm('Deseja realmente excluir este registro?')) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', (activeTab === 'dashboard' || activeTab === 'viagens' ? 'viagens' : activeTab), item.id));
+                              }} className="p-2 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 size={16}/></button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ))}
+            </div>
+          )}
+
 
           {activeTab === 'dashboard' && (
             <div className="space-y-6">
