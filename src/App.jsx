@@ -610,7 +610,6 @@ function App() {
     });
 
     return Object.entries(grupos)
-      .sort((a, b) => a[0].localeCompare(b[0], 'pt-BR', { numeric: true }))
       .map(([numeroCarga, itens]) => ({
         numeroCarga,
         itens: itens.sort((a, b) => {
@@ -618,7 +617,14 @@ function App() {
           const db = (b.dataVencimentoBoleto || b.vencimento || '9999-12-31');
           return da.localeCompare(db);
         })
-      }));
+      }))
+      .sort((a, b) => {
+        const da = (a.itens[0]?.dataVencimentoBoleto || a.itens[0]?.vencimento || '9999-12-31');
+        const db = (b.itens[0]?.dataVencimentoBoleto || b.itens[0]?.vencimento || '9999-12-31');
+        const diff = da.localeCompare(db);
+        if (diff !== 0) return diff;
+        return a.numeroCarga.localeCompare(b.numeroCarga, 'pt-BR', { numeric: true });
+      });
   }, [activeTab, filteredData]);
 
   const viagensAgrupadasPorCarga = useMemo(() => {
