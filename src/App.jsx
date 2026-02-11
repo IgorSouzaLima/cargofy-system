@@ -76,6 +76,12 @@ const calcularDiasParaData = (value) => {
   return Math.ceil((data.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24));
 };
 
+const normalizarTipoCarga = (value) => {
+  const tipo = (value || '').trim().toLowerCase();
+  if (tipo === 'dedicada') return 'Dedicada';
+  return 'Fracionada';
+};
+
 const SectionTitle = ({ title, subtitle, icon: Icon }) => (
   <div className="mb-4 flex items-start justify-between gap-4">
     <div>
@@ -162,7 +168,8 @@ function App() {
     email: '', 
     telefone: '', 
     modelo: '', 
-    tipo: ''
+    tipo: '',
+    tipoCarga: 'Fracionada'
   });
 
   useEffect(() => {
@@ -347,6 +354,8 @@ function App() {
     const semComprovante = viagens.filter(v => !(v.urlComprovante || v.boleto)).length;
     const semMotorista = viagens.filter(v => !v.motorista).length;
     const semCTe = viagens.filter(v => !v.numeroCTe || !v.dataCTe).length;
+    const fracionadas = viagens.filter(v => normalizarTipoCarga(v.tipoCarga) === 'Fracionada').length;
+    const dedicadas = viagens.filter(v => normalizarTipoCarga(v.tipoCarga) === 'Dedicada').length;
 
     const porMotorista = {};
     viagens.forEach((v) => {
@@ -355,7 +364,7 @@ function App() {
     });
     const motoristaTop = Object.entries(porMotorista).sort((a, b) => b[1] - a[1])[0] || ['---', 0];
 
-    return { total, semComprovante, semMotorista, semCTe, motoristaTop };
+    return { total, semComprovante, semMotorista, semCTe, motoristaTop, fracionadas, dedicadas };
   }, [viagens]);
 
   const financeiroInsights = useMemo(() => {
@@ -616,6 +625,7 @@ function App() {
       destinatario: viagemData.destinatario || '',
       cidade: viagemData.cidade || '',
       motorista: viagemData.motorista || '',
+      tipoCarga: normalizarTipoCarga(viagemData.tipoCarga),
       status: getStatusViagem(viagemData),
       valorFrete: viagemData.valorFrete || '',
       valorDistribuicao: viagemData.valorDistribuicao || '',
@@ -669,6 +679,7 @@ function App() {
             ...formData,
             numeroBoleto: formData.metodoPagamento === 'Boleto' ? formData.numeroBoleto : '',
             dataVencimentoBoleto: formData.metodoPagamento === 'Boleto' ? formData.dataVencimentoBoleto : '',
+            tipoCarga: normalizarTipoCarga(formData.tipoCarga),
             lucro: ((parseFloat(formData.valorFrete) || 0) - (parseFloat(formData.valorDistribuicao) || 0)).toFixed(2)
           }
         : formData;
@@ -698,7 +709,7 @@ function App() {
       volume: '', peso: '', valorNF: '', chaveID: '', status: 'Pendente', 
       valorFrete: '', valorDistribuicao: '', lucro: '', metodoPagamento: '', numeroBoleto: '', dataVencimentoBoleto: '', motorista: '', veiculo: '', placa: '', urlComprovante: '', boleto: '', vencimento: '', 
       statusFinanceiro: 'Pendente', nome: '', email: '', telefone: '', 
-      modelo: '', tipo: ''
+      modelo: '', tipo: '', tipoCarga: 'Fracionada'
     });
   };
 
@@ -802,6 +813,8 @@ function App() {
                 <InsightCard title="Sem comprovante" value={viagemInsights.semComprovante} subtitle="exigem evidência" icon={Paperclip} tone="amber" />
                 <InsightCard title="Sem motorista" value={viagemInsights.semMotorista} subtitle="necessita alocação" icon={Users} tone="rose" />
                 <InsightCard title="CT-e pendente" value={viagemInsights.semCTe} subtitle="pendência fiscal" icon={FileText} tone="indigo" />
+                <InsightCard title="Fracionadas" value={viagemInsights.fracionadas} subtitle="mix operacional" icon={Layers} tone="blue" />
+                <InsightCard title="Dedicadas" value={viagemInsights.dedicadas} subtitle="atendimento exclusivo" icon={Target} tone="emerald" />
               </div>
               <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <p className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Motorista com maior volume</p>
@@ -984,6 +997,7 @@ function App() {
                               <div className="flex items-center gap-1 mt-0.5">
                                 <Building2 size={10} className="text-slate-400" />
                                 <p className="text-[11px] font-bold text-blue-700">{item.contratante || "Contratante não informado"}</p>
+                                <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${normalizarTipoCarga(item.tipoCarga) === 'Dedicada' ? 'bg-purple-100 text-purple-700' : 'bg-cyan-100 text-cyan-700'}`}>{normalizarTipoCarga(item.tipoCarga)}</span>
                               </div>
                               <p className="text-[10px] text-slate-400 font-mono mt-1">{item.chaveID || item.email || item.placa}</p>
                             </div>
@@ -1107,6 +1121,13 @@ function App() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Input label="Empresa Destinatária" value={formData.destinatario} onChange={v => setFormData({...formData, destinatario: v})} />
                   <Input label="Cidade de Destino" value={formData.cidade} onChange={v => setFormData({...formData, cidade: v})} />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Tipo da Carga</label>
+                  <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold outline-none border border-transparent focus:border-blue-400" value={formData.tipoCarga || 'Fracionada'} onChange={e => setFormData({...formData, tipoCarga: e.target.value})}>
+                    <option value="Fracionada">Fracionada</option>
+                    <option value="Dedicada">Dedicada</option>
+                  </select>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
                   <Input label="Volume (Qtd)" type="number" value={formData.volume} onChange={v => setFormData({...formData, volume: v})} />
@@ -1299,6 +1320,7 @@ function App() {
             <Info label="Contratante" value={detailItem.contratante} />
             <Info label="Destinatário" value={detailItem.destinatario} />
             <Info label="Cidade" value={detailItem.cidade} />
+            <Info label="Tipo de Carga" value={normalizarTipoCarga(detailItem.tipoCarga)} />
             <Info label="Motorista" value={detailItem.motorista} />
             <Info label="Veículo" value={detailItem.veiculo} />
             <Info label="Status" value={detailItem.status || (detailItem.statusFinanceiro || detailItem.vencimento || detailItem.dataVencimentoBoleto ? getStatusFinanceiro(detailItem) : getStatusViagem(detailItem))} />
