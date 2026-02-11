@@ -591,41 +591,6 @@ function App() {
   }, [dashboardBoletosFiltrados]);
 
 
-  const proximosBoletos = useMemo(() => {
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
-
-    const itensComData = dashboardFinanceiroBase
-      .filter(item => getStatusFinanceiro(item) !== 'Pago')
-      .map(item => {
-        const dataVencimento = item.dataVencimentoBoleto || item.vencimento;
-        const dataObj = dataVencimento ? new Date(`${dataVencimento}T12:00:00`) : null;
-        const numeroCTeResolvido = getNumeroCTeResolvido(item);
-        return { ...item, dataVencimento, dataObj, numeroCTeResolvido };
-      })
-      .filter(item => item.dataObj && !Number.isNaN(item.dataObj.getTime()));
-
-    const futuros = itensComData.filter(item => item.dataObj >= hoje);
-    const baseOrdenada = (futuros.length ? futuros : itensComData)
-      .sort((a, b) => a.dataObj - b.dataObj)
-      .slice(0, 10);
-
-    return baseOrdenada;
-  }, [dashboardFinanceiroBase, getNumeroCTeResolvido, getStatusFinanceiro]);
-
-  const proximosBoletosPorCarga = useMemo(() => {
-    const grupos = {};
-    proximosBoletos.forEach(item => {
-      const chave = (item.numeroCarga || 'Sem carga').trim() || 'Sem carga';
-      if (!grupos[chave]) grupos[chave] = [];
-      grupos[chave].push(item);
-    });
-
-    return Object.entries(grupos)
-      .sort((a, b) => a[0].localeCompare(b[0], 'pt-BR', { numeric: true }))
-      .map(([numeroCarga, itens]) => ({ numeroCarga, itens }));
-  }, [proximosBoletos]);
-
   const financeiroAgrupadoPorCarga = useMemo(() => {
     if (activeTab !== 'financeiro') return [];
     const grupos = {};
@@ -1276,44 +1241,6 @@ function App() {
                 </div>
               </div>
               )}
-
-
-              <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white">
-                  <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Próximos boletos por vencimento</h3>
-                  <span className="text-[10px] font-bold text-slate-400">{proximosBoletos.length} registros</span>
-                </div>
-                <div className="p-4 space-y-3">
-                  {proximosBoletosPorCarga.map(grupo => (
-                    <div key={`prox-carga-${grupo.numeroCarga}`} className="rounded-2xl border border-slate-100 overflow-hidden">
-                      <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
-                        <h4 className="text-[11px] font-black text-slate-600 uppercase tracking-widest">Carga {grupo.numeroCarga}</h4>
-                        <span className="text-[10px] font-bold text-slate-400">{grupo.itens.length} boleto(s)</span>
-                      </div>
-                      <table className="w-full text-left border-collapse">
-                        <thead className="bg-slate-50 border-b border-slate-100">
-                          <tr>
-                            <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase">NF</th>
-                            <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase">CT-e</th>
-                            <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase">Contratante</th>
-                            <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase">Vencimento</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50">
-                          {grupo.itens.map(item => (
-                            <tr key={`prox-${item.id}`} className="hover:bg-slate-50/50 transition-colors">
-                              <td className="px-4 py-3 text-sm font-bold text-slate-800">{item.numeroNF || '---'}</td>
-                              <td className="px-4 py-3 text-sm font-bold text-slate-700">{item.numeroCTeResolvido || '---'}</td>
-                              <td className="px-4 py-3 text-sm font-bold text-slate-700">{item.contratante || '---'}</td>
-                              <td className="px-4 py-3 text-sm font-bold text-slate-700">{item.dataVencimento ? new Date(`${item.dataVencimento}T12:00:00`).toLocaleDateString('pt-BR') : '---'}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ))}
-                </div>
-              </div>
             </div>
           )}
         </div>
