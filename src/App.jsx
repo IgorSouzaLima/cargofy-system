@@ -257,20 +257,6 @@ function App() {
     return { pendentes, emRota, entregues, total: dashboardViagensBase.length };
   }, [dashboardViagensBase, getStatusViagem]);
 
-  const financeiroResumo = useMemo(() => {
-    const baseFinanceiro = monthFilter
-      ? financeiro.filter(item => {
-          const dataBase = item.dataVencimentoBoleto || item.vencimento;
-          return (dataBase || '').slice(0, 7) === monthFilter;
-        })
-      : financeiro;
-
-    const faturou = baseFinanceiro.reduce((acc, curr) => acc + (parseFloat(curr.valorFrete) || 0), 0);
-    const gastouDistribuicao = baseFinanceiro.reduce((acc, curr) => acc + (parseFloat(curr.valorDistribuicao) || 0), 0);
-    const lucroTotal = faturou - gastouDistribuicao;
-    return { faturou, gastouDistribuicao, lucroTotal };
-  }, [financeiro, monthFilter]);
-
   const normalizarStatusFinanceiro = (status) => (status || 'pendente').trim().toLowerCase();
 
 
@@ -304,6 +290,28 @@ function App() {
     const boletosPendentes = dashboardFinanceiroBase.filter(f => getStatusFinanceiro(f) === 'Pendente').length;
 
     return { boletosGerados, boletosPendentes, boletosAtrasados, boletosPagos };
+  }, [dashboardFinanceiroBase]);
+
+  const financeiroMenuResumo = useMemo(() => {
+    const carteiraTotal = dashboardFinanceiroBase.length;
+    const recebido = dashboardFinanceiroBase
+      .filter(item => getStatusFinanceiro(item) === 'Pago')
+      .reduce((acc, curr) => acc + (parseFloat(curr.valorFrete) || 0), 0);
+
+    const aReceber = dashboardFinanceiroBase
+      .filter(item => getStatusFinanceiro(item) === 'Pendente')
+      .reduce((acc, curr) => acc + (parseFloat(curr.valorFrete) || 0), 0);
+
+    const vencido = dashboardFinanceiroBase
+      .filter(item => getStatusFinanceiro(item) === 'Vencido')
+      .reduce((acc, curr) => acc + (parseFloat(curr.valorFrete) || 0), 0);
+
+    const totalCarteiraValor = recebido + aReceber + vencido;
+    const percentualRecebido = totalCarteiraValor > 0
+      ? Math.round((recebido / totalCarteiraValor) * 100)
+      : 0;
+
+    return { carteiraTotal, recebido, aReceber, vencido, percentualRecebido };
   }, [dashboardFinanceiroBase]);
 
   const empresasRelatorio = useMemo(() => {
@@ -973,10 +981,42 @@ function App() {
           )}
 
           {activeTab === 'financeiro' && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-              <Card title="Quanto Faturou" value={`R$ ${financeiroResumo.faturou.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={DollarSign} color="bg-indigo-600" />
-              <Card title="Gasto Distribuição" value={`R$ ${financeiroResumo.gastouDistribuicao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={Truck} color="bg-amber-500" />
-              <Card title="Lucro" value={`R$ ${financeiroResumo.lucroTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={CheckCircle2} color="bg-emerald-600" />
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
+              <div className="bg-emerald-50 border border-emerald-100 rounded-3xl p-6 flex items-start justify-between">
+                <div>
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Recebido</p>
+                  <h3 className="text-3xl font-black text-slate-900 mt-2">R$ {financeiroMenuResumo.recebido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+                  <p className="text-xs font-bold text-slate-500 mt-2">{financeiroMenuResumo.percentualRecebido}% da carteira</p>
+                </div>
+                <div className="p-3 rounded-2xl bg-white border border-slate-200 text-emerald-600"><CheckCircle2 size={22} /></div>
+              </div>
+
+              <div className="bg-amber-50 border border-amber-100 rounded-3xl p-6 flex items-start justify-between">
+                <div>
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">A receber</p>
+                  <h3 className="text-3xl font-black text-slate-900 mt-2">R$ {financeiroMenuResumo.aReceber.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+                  <p className="text-xs font-bold text-slate-500 mt-2">boletos pendentes</p>
+                </div>
+                <div className="p-3 rounded-2xl bg-white border border-slate-200 text-amber-600"><Clock size={22} /></div>
+              </div>
+
+              <div className="bg-rose-50 border border-rose-100 rounded-3xl p-6 flex items-start justify-between">
+                <div>
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Vencido</p>
+                  <h3 className="text-3xl font-black text-slate-900 mt-2">R$ {financeiroMenuResumo.vencido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+                  <p className="text-xs font-bold text-slate-500 mt-2">risco de inadimplência</p>
+                </div>
+                <div className="p-3 rounded-2xl bg-white border border-slate-200 text-rose-600"><AlertCircle size={22} /></div>
+              </div>
+
+              <div className="bg-indigo-50 border border-indigo-100 rounded-3xl p-6 flex items-start justify-between">
+                <div>
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Carteira total</p>
+                  <h3 className="text-3xl font-black text-slate-900 mt-2">{financeiroMenuResumo.carteiraTotal}</h3>
+                  <p className="text-xs font-bold text-slate-500 mt-2">títulos monitorados</p>
+                </div>
+                <div className="p-3 rounded-2xl bg-white border border-slate-200 text-indigo-600"><FileText size={22} /></div>
+              </div>
             </div>
           )}
 
