@@ -212,6 +212,8 @@ function App() {
     return '';
   };
 
+  const exigeCTe = (item) => (item?.tipoCarga || '').trim().toLowerCase() !== 'dedicada';
+
   const dashboardViagensBase = useMemo(() => {
     if (!monthFilter) return viagens;
     return viagens.filter(v => {
@@ -582,7 +584,7 @@ function App() {
     const totalViagens = base.length;
     const semComprovante = base.filter(item => !(item.urlComprovante || '').trim()).length;
     const semMotorista = base.filter(item => !(item.motorista || '').trim()).length;
-    const ctePendente = base.filter(item => !((item.numeroCTe || '').trim()) || !((item.dataCTe || '').trim())).length;
+    const ctePendente = base.filter(item => exigeCTe(item) && (!((item.numeroCTe || '').trim()) || !((item.dataCTe || '').trim()))).length;
 
     const contagemPorMotorista = {};
     base.forEach(item => {
@@ -603,7 +605,7 @@ function App() {
     const lista = filteredData.filter(item => {
       if (viagensPainelFiltro === 'semComprovante') return !(item.urlComprovante || '').trim();
       if (viagensPainelFiltro === 'semMotorista') return !(item.motorista || '').trim();
-      if (viagensPainelFiltro === 'ctePendente') return !((item.numeroCTe || '').trim()) || !((item.dataCTe || '').trim());
+      if (viagensPainelFiltro === 'ctePendente') return exigeCTe(item) && (!((item.numeroCTe || '').trim()) || !((item.dataCTe || '').trim()));
       return false;
     });
 
