@@ -1,6 +1,7 @@
 export const INITIAL_FORM_DATA = {
   numeroNF: '',
   numeroCarga: '',
+  tipoCarga: '',
   numeroCTe: '',
   dataCTe: '',
   dataNF: '',
