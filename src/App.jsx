@@ -202,6 +202,19 @@ function App() {
     return { boletosGerados, boletosPendentes, boletosAtrasados, boletosPagos };
   }, [financeiro]);
 
+  const viagensControleStats = useMemo(() => {
+    const semComprovante = viagens.filter(v => !((v.urlComprovante || '').trim())).length;
+    const semMotorista = viagens.filter(v => !((v.motorista || '').trim())).length;
+    const ctePendente = viagens.filter(v => !((v.numeroCTe || '').trim())).length;
+
+    return {
+      total: viagens.length,
+      semComprovante,
+      semMotorista,
+      ctePendente
+    };
+  }, [viagens]);
+
   const empresasRelatorio = useMemo(() => {
     const empresas = [...new Set(viagens.map(v => v.contratante).filter(Boolean))];
     return ['Todas', ...empresas];
@@ -564,6 +577,26 @@ function App() {
               <Card title="Quanto Faturou" value={`R$ ${financeiroResumo.faturou.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={DollarSign} color="bg-indigo-600" />
               <Card title="Gasto Distribuição" value={`R$ ${financeiroResumo.gastouDistribuicao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={Truck} color="bg-amber-500" />
               <Card title="Lucro" value={`R$ ${financeiroResumo.lucroTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={CheckCircle2} color="bg-emerald-600" />
+            </div>
+          )}
+
+          {activeTab === 'viagens' && (
+            <div className="bg-slate-50 border border-slate-200 rounded-3xl p-6 mb-8">
+              <div className="flex items-start justify-between gap-4 mb-6">
+                <div>
+                  <h2 className="text-2xl font-black text-slate-900 uppercase tracking-wide">Controle de Viagens</h2>
+                  <p className="text-sm font-semibold text-slate-500">Qualidade operacional e pendências de documentação</p>
+                </div>
+                <div className="p-4 rounded-2xl bg-slate-900 text-white shadow-lg">
+                  <Package size={22} />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                <Card title="Total de Viagens" value={viagensControleStats.total} icon={Package} color="bg-slate-700" />
+                <Card title="Sem Comprovante" value={viagensControleStats.semComprovante} icon={Paperclip} color="bg-amber-500" />
+                <Card title="Sem Motorista" value={viagensControleStats.semMotorista} icon={Users} color="bg-rose-500" />
+                <Card title="CT-e Pendente" value={viagensControleStats.ctePendente} icon={FileText} color="bg-indigo-600" />
+              </div>
             </div>
           )}
 
