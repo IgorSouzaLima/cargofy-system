@@ -72,6 +72,7 @@ function App() {
   const [editingId, setEditingId] = useState(null);
   const [searchNF, setSearchNF] = useState('');
   const [monthFilter, setMonthFilter] = useState('');
+  const [viagensPainelFiltro, setViagensPainelFiltro] = useState('');
   const [reportEmpresa, setReportEmpresa] = useState('Todas');
   const [reportInicio, setReportInicio] = useState('');
   const [reportFim, setReportFim] = useState('');
@@ -278,10 +279,10 @@ function App() {
   const dashboardFinanceiroBase = useMemo(() => {
     if (!monthFilter) return financeiro;
     return financeiro.filter(item => {
-      const dataBase = item.dataVencimentoBoleto || item.vencimento;
+      const dataBase = getDataCTeResolvida(item) || item.dataCTe;
       return (dataBase || '').slice(0, 7) === monthFilter;
     });
-  }, [financeiro, monthFilter]);
+  }, [financeiro, monthFilter, getDataCTeResolvida]);
 
   const boletoStats = useMemo(() => {
     const boletosGerados = dashboardFinanceiroBase.length;
@@ -508,7 +509,7 @@ function App() {
     if ((activeTab === 'dashboard' || activeTab === 'viagens' || activeTab === 'financeiro') && monthFilter) {
       list = list.filter(item => {
         const dataBase = activeTab === 'financeiro'
-          ? (item.dataVencimentoBoleto || item.vencimento)
+          ? (getDataCTeResolvida(item) || item.dataCTe)
           : (item.dataSaida || item.dataNF || item.dataEntrega || item.dataCTe);
         return (dataBase || '').slice(0, 7) === monthFilter;
       });
@@ -526,7 +527,7 @@ function App() {
       (item.cidade?.toLowerCase().includes(term)) ||
       (item.motorista?.toLowerCase().includes(term))
     );
-  }, [activeTab, statusFilter, viagens, financeiro, clientes, motoristas, veiculos, searchNF, monthFilter]);
+  }, [activeTab, statusFilter, viagens, financeiro, clientes, motoristas, veiculos, searchNF, monthFilter, getDataCTeResolvida]);
 
   const dashboardViagensFiltradas = useMemo(() => {
     if (!dashboardCargaFilter) return [];
@@ -627,6 +628,26 @@ function App() {
     return { totalViagens, semComprovante, semMotorista, ctePendente, motoristaMaiorVolume, totalMaiorVolume };
   }, [activeTab, filteredData, dashboardViagensBase]);
 
+  const viagensPendenciasFiltradas = useMemo(() => {
+    if (activeTab !== 'viagens' || !viagensPainelFiltro) return [];
+
+    const lista = filteredData.filter(item => {
+      if (viagensPainelFiltro === 'semComprovante') return !(item.urlComprovante || '').trim();
+      if (viagensPainelFiltro === 'semMotorista') return !(item.motorista || '').trim();
+      if (viagensPainelFiltro === 'ctePendente') return !((item.numeroCTe || '').trim()) || !((item.dataCTe || '').trim());
+      return false;
+    });
+
+    return lista.sort((a, b) => {
+      const cargaA = (a.numeroCarga || 'Sem carga').trim() || 'Sem carga';
+      const cargaB = (b.numeroCarga || 'Sem carga').trim() || 'Sem carga';
+      const porCarga = cargaA.localeCompare(cargaB, 'pt-BR', { numeric: true });
+      if (porCarga !== 0) return porCarga;
+      return (a.numeroNF || '').localeCompare((b.numeroNF || ''), 'pt-BR', { numeric: true });
+    });
+  }, [activeTab, filteredData, viagensPainelFiltro]);
+
+
 
   const financeiroAgrupadoPorCarga = useMemo(() => {
     if (activeTab !== 'financeiro') return [];
@@ -639,6 +660,7 @@ function App() {
     });
 
     return Object.entries(grupos)
+      .sort((a, b) => a[0].localeCompare(b[0], 'pt-BR', { numeric: true }))
       .map(([numeroCarga, itens]) => ({
         numeroCarga,
         itens: itens.sort((a, b) => {
@@ -646,14 +668,7 @@ function App() {
           const db = (b.dataVencimentoBoleto || b.vencimento || '9999-12-31');
           return da.localeCompare(db);
         })
-      }))
-      .sort((a, b) => {
-        const da = (a.itens[0]?.dataVencimentoBoleto || a.itens[0]?.vencimento || '9999-12-31');
-        const db = (b.itens[0]?.dataVencimentoBoleto || b.itens[0]?.vencimento || '9999-12-31');
-        const diff = da.localeCompare(db);
-        if (diff !== 0) return diff;
-        return a.numeroCarga.localeCompare(b.numeroCarga, 'pt-BR', { numeric: true });
-      });
+      }));
   }, [activeTab, filteredData]);
 
   const viagensAgrupadasPorCarga = useMemo(() => {
@@ -959,9 +974,9 @@ function App() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
                   <Card title="Total de viagens" value={viagensPainelResumo.totalViagens} icon={Package} color="bg-slate-700" />
-                  <Card title="Sem comprovante" value={viagensPainelResumo.semComprovante} icon={Paperclip} color="bg-amber-500" />
-                  <Card title="Sem motorista" value={viagensPainelResumo.semMotorista} icon={Users} color="bg-rose-500" />
-                  <Card title="CT-e pendente" value={viagensPainelResumo.ctePendente} icon={FileText} color="bg-indigo-600" />
+                  <Card title="Sem comprovante" value={viagensPainelResumo.semComprovante} icon={Paperclip} color="bg-amber-500" active={viagensPainelFiltro === 'semComprovante'} onClick={() => setViagensPainelFiltro(prev => prev === 'semComprovante' ? '' : 'semComprovante')} />
+                  <Card title="Sem motorista" value={viagensPainelResumo.semMotorista} icon={Users} color="bg-rose-500" active={viagensPainelFiltro === 'semMotorista'} onClick={() => setViagensPainelFiltro(prev => prev === 'semMotorista' ? '' : 'semMotorista')} />
+                  <Card title="CT-e pendente" value={viagensPainelResumo.ctePendente} icon={FileText} color="bg-indigo-600" active={viagensPainelFiltro === 'ctePendente'} onClick={() => setViagensPainelFiltro(prev => prev === 'ctePendente' ? '' : 'ctePendente')} />
                 </div>
 
                 <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4">
@@ -969,6 +984,31 @@ function App() {
                   <p className="text-2xl font-black text-slate-900 mt-1">{viagensPainelResumo.motoristaMaiorVolume}</p>
                   <p className="text-sm font-bold text-slate-500 mt-1">{viagensPainelResumo.totalMaiorVolume} viagem(ns) no período carregado</p>
                 </div>
+
+
+                {viagensPainelFiltro && (
+                  <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+                    <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                      <h4 className="text-[11px] font-black text-slate-600 uppercase tracking-widest">
+                        {viagensPainelFiltro === 'semComprovante' ? 'Sem comprovante' : viagensPainelFiltro === 'semMotorista' ? 'Sem motorista' : 'CT-e pendente'}
+                      </h4>
+                      <span className="text-[10px] font-bold text-slate-400">{viagensPendenciasFiltradas.length} registro(s)</span>
+                    </div>
+                    <div className="divide-y divide-slate-50">
+                      {viagensPendenciasFiltradas.map(item => (
+                        <div key={`pend-${item.id}`} className="px-4 py-3 flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-black text-slate-800">Carga {item.numeroCarga || '---'} · NF {item.numeroNF || '---'}</p>
+                            <p className="text-[10px] font-bold text-slate-500 uppercase">{item.contratante || 'Sem contratante'}</p>
+                          </div>
+                          <button onClick={() => setDetailItem(item)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase hover:bg-indigo-100">
+                            <Eye size={12}/> Ver dados
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {viagensAgrupadasPorCarga.map(grupo => (
