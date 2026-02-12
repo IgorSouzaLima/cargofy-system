@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
-import { collection, doc, addDoc, onSnapshot, updateDoc, deleteDoc, serverTimestamp, query } from 'firebase/firestore';
+import { collection, doc, addDoc, onSnapshot, updateDoc, deleteDoc, serverTimestamp, query, setDoc } from 'firebase/firestore';
 import { 
   LayoutDashboard, Truck, Users, DollarSign, Plus, Package, MapPin, X, Trash2, 
   Briefcase, LogOut, Lock, Mail, Clock, FileText, Search, Calendar, Layers, 
@@ -200,6 +200,16 @@ function App() {
     if (!numero) return '---';
     if (!tipo) return numero;
     return `${tipo} - ${numero}`;
+  };
+
+  const getFinanceiroDocId = (viagemData) => {
+    const origemViagemId = (viagemData?.id || '').trim();
+    if (origemViagemId) return `viagem_${origemViagemId}`;
+
+    const numeroNF = (viagemData?.numeroNF || '').trim();
+    if (numeroNF) return `nf_${numeroNF.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+
+    return '';
   };
 
   const dashboardViagensBase = useMemo(() => {
@@ -696,15 +706,22 @@ function App() {
       urlComprovante: viagemData.boleto || viagemData.urlComprovante || ''
     };
 
-    if (registroExistente?.id) {
-      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'financeiro', registroExistente.id), payloadFinanceiro);
-    } else {
-      await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'financeiro'), {
+    const financeiroDocId = registroExistente?.id || getFinanceiroDocId(viagemData);
+
+    if (financeiroDocId) {
+      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'financeiro', financeiroDocId), {
         ...payloadFinanceiro,
         userId: user.uid,
-        createdAt: serverTimestamp()
-      });
+        createdAt: registroExistente?.createdAt || serverTimestamp()
+      }, { merge: true });
+      return;
     }
+
+    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'financeiro'), {
+      ...payloadFinanceiro,
+      userId: user.uid,
+      createdAt: serverTimestamp()
+    });
   };
 
   useEffect(() => {
