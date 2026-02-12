@@ -621,6 +621,24 @@ function App() {
   }, [activeTab, filteredData, viagensPainelFiltro]);
 
 
+  const viagensPendenciasSemComprovantePorCarga = useMemo(() => {
+    if (activeTab !== 'viagens' || viagensPainelFiltro !== 'semComprovante') return [];
+
+    const grupos = {};
+    viagensPendenciasFiltradas.forEach(item => {
+      const chave = (item.numeroCarga || 'Sem carga').trim() || 'Sem carga';
+      if (!grupos[chave]) grupos[chave] = [];
+      grupos[chave].push(item);
+    });
+
+    return Object.entries(grupos)
+      .sort((a, b) => a[0].localeCompare(b[0], 'pt-BR', { numeric: true }))
+      .map(([numeroCarga, itens]) => ({
+        numeroCarga,
+        itens: itens.sort((a, b) => (a.numeroNF || '').localeCompare((b.numeroNF || ''), 'pt-BR', { numeric: true }))
+      }));
+  }, [activeTab, viagensPainelFiltro, viagensPendenciasFiltradas]);
+
 
   const financeiroAgrupadoPorCarga = useMemo(() => {
     if (activeTab !== 'financeiro') return [];
@@ -970,24 +988,55 @@ function App() {
                       </h4>
                       <span className="text-[10px] font-bold text-slate-400">{viagensPendenciasFiltradas.length} registro(s)</span>
                     </div>
-                    <div className="divide-y divide-slate-50">
-                      {viagensPendenciasFiltradas.map(item => (
-                        <div key={`pend-${item.id}`} className="px-4 py-3 flex items-center justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-black text-slate-800">Carga {getCargaLabel(item)} · NF {item.numeroNF || '---'}</p>
-                            <p className="text-[10px] font-bold text-slate-500 uppercase">{item.contratante || 'Sem contratante'}</p>
+                    {viagensPainelFiltro === 'semComprovante' ? (
+                      <div className="p-3 space-y-3">
+                        {viagensPendenciasSemComprovantePorCarga.map(grupo => (
+                          <div key={`pend-grupo-${grupo.numeroCarga}`} className="rounded-xl border border-slate-100 overflow-hidden">
+                            <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                              <h5 className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Carga {grupo.numeroCarga === 'Sem carga' ? 'Sem carga' : getCargaLabel({ numeroCarga: grupo.numeroCarga, tipoCarga: (grupo.itens?.[0]?.tipoCarga || '') })}</h5>
+                              <span className="text-[10px] font-bold text-slate-400">{grupo.itens.length} NF(s)</span>
+                            </div>
+                            <div className="divide-y divide-slate-50">
+                              {grupo.itens.map(item => (
+                                <div key={`pend-${item.id}`} className="px-4 py-3 flex items-center justify-between gap-3">
+                                  <div>
+                                    <p className="text-sm font-black text-slate-800">NF {item.numeroNF || '---'}</p>
+                                    <p className="text-[10px] font-bold text-slate-500 uppercase">{item.contratante || 'Sem contratante'}</p>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <button onClick={() => handleOpenEdit(item)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 text-[10px] font-black uppercase hover:bg-blue-100">
+                                      <Edit3 size={12}/> Editar
+                                    </button>
+                                    <button onClick={() => setDetailItem(item)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase hover:bg-indigo-100">
+                                      <Eye size={12}/> Ver dados
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <button onClick={() => handleOpenEdit(item)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 text-[10px] font-black uppercase hover:bg-blue-100">
-                              <Edit3 size={12}/> Editar
-                            </button>
-                            <button onClick={() => setDetailItem(item)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase hover:bg-indigo-100">
-                              <Eye size={12}/> Ver dados
-                            </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-slate-50">
+                        {viagensPendenciasFiltradas.map(item => (
+                          <div key={`pend-${item.id}`} className="px-4 py-3 flex items-center justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-black text-slate-800">Carga {getCargaLabel(item)} · NF {item.numeroNF || '---'}</p>
+                              <p className="text-[10px] font-bold text-slate-500 uppercase">{item.contratante || 'Sem contratante'}</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button onClick={() => handleOpenEdit(item)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 text-[10px] font-black uppercase hover:bg-blue-100">
+                                <Edit3 size={12}/> Editar
+                              </button>
+                              <button onClick={() => setDetailItem(item)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase hover:bg-indigo-100">
+                                <Eye size={12}/> Ver dados
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
