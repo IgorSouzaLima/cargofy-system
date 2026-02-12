@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { addDoc, onSnapshot, updateDoc, deleteDoc, serverTimestamp, query } from 'firebase/firestore';
 import { 
-  LayoutDashboard, Truck, Users, DollarSign, Plus, Package, MapPin, Trash2, 
+  LayoutDashboard, Truck, Users, DollarSign, Plus, Package, MapPin, X, Trash2, 
   Briefcase, LogOut, Lock, Mail, Clock, FileText, Search, Calendar, Layers, 
   CheckCircle2, AlertCircle, Edit3, Download, Camera, Paperclip, ExternalLink, Building2, Eye
 } from 'lucide-react';
@@ -342,6 +342,9 @@ function App() {
     );
   }, [activeTab, statusFilter, viagens, financeiro, clientes, motoristas, veiculos, searchNF]);
 
+
+  const shouldShowMainTable = activeTab !== 'relatorios' && (activeTab !== 'dashboard' || statusFilter !== 'Todos');
+
   const handleOpenEdit = (item) => {
     setFormData({
       ...item,
@@ -500,7 +503,7 @@ function App() {
               </button>
             )}
           </div>
-          {activeTab !== 'relatorios' && (
+          {shouldShowMainTable && (
             <button onClick={() => { resetForm(); setEditingId(null); setModalOpen(true); }} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-blue-500/20 transition-all">
               <Plus size={16} /> Novo Registro
             </button>
@@ -599,10 +602,10 @@ function App() {
             </div>
           )}
 
-          {activeTab !== 'relatorios' && (
+          {shouldShowMainTable && (
           <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white">
-              <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">{activeTab}</h3>
+              <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">{activeTab === 'dashboard' ? `viagens (${statusFilter.toLowerCase()})` : activeTab}</h3>
               <span className="text-[10px] font-bold text-slate-400">{filteredData.length} registros</span>
             </div>
             <table className="w-full text-left border-collapse">
