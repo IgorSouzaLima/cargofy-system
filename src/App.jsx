@@ -5,7 +5,7 @@ import { getFirestore, collection, doc, addDoc, onSnapshot, updateDoc, deleteDoc
 import { 
   LayoutDashboard, Truck, Users, DollarSign, Plus, Package, MapPin, X, Trash2, 
   Briefcase, LogOut, Lock, Mail, Clock, FileText, Search, Calendar, Layers, 
-  CheckCircle2, AlertCircle, Edit3, Download, ArrowRight, Camera, Paperclip, ExternalLink, Building2, Eye
+  CheckCircle2, AlertCircle, Edit3, Download, ArrowRight, Camera, Paperclip, ExternalLink, Building2, Eye, Upload
 } from 'lucide-react';
 
 // --- CONFIGURAÇÃO ---
@@ -61,6 +61,8 @@ function App() {
   const [user, setUser] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [statusFilter, setStatusFilter] = useState('Todos');
+  const [dashboardCargaFilter, setDashboardCargaFilter] = useState('');
+  const [dashboardBoletoFilter, setDashboardBoletoFilter] = useState('');
   const [viagens, setViagens] = useState([]);
   const [financeiro, setFinanceiro] = useState([]);
   const [clientes, setClientes] = useState([]);
@@ -69,6 +71,8 @@ function App() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [searchNF, setSearchNF] = useState('');
+  const [monthFilter, setMonthFilter] = useState('');
+  const [viagensPainelFiltro, setViagensPainelFiltro] = useState('');
   const [reportEmpresa, setReportEmpresa] = useState('Todas');
   const [reportInicio, setReportInicio] = useState('');
   const [reportFim, setReportFim] = useState('');
@@ -108,7 +112,8 @@ function App() {
     email: '', 
     telefone: '', 
     modelo: '', 
-    tipo: ''
+    tipo: '',
+    observacao: ''
   });
 
   useEffect(() => {
@@ -144,36 +149,114 @@ function App() {
 
     const mapa = {};
     Object.entries(agrupado).forEach(([chave, itens]) => {
+      const pendentes = itens.filter(i => (i.status || 'Pendente') === 'Pendente').length;
+      const emRota = itens.filter(i => (i.status || 'Pendente') === 'Em rota').length;
+      const entregues = itens.filter(i => (i.status || 'Pendente') === 'Entregue').length;
+
       mapa[chave] = {
         total: itens.length,
-        entregues: itens.filter(i => i.status === 'Entregue').length,
-        allEntregues: itens.every(i => i.status === 'Entregue')
+        pendentes,
+        emRota,
+        entregues,
+        allEntregues: entregues === itens.length,
+        allPendentes: pendentes === itens.length,
+        hasEmRota: emRota > 0
       };
     });
     return mapa;
   }, [viagens]);
 
+  const mapaCTePorReferencia = useMemo(() => {
+    const mapa = {};
+    viagens.forEach(v => {
+      const cte = (v.numeroCTe || '').trim();
+      if (!cte) return;
+      const nf = (v.numeroNF || '').trim();
+      const carga = (v.numeroCarga || '').trim();
+      if (nf && !mapa[`nf:${nf}`]) mapa[`nf:${nf}`] = cte;
+      if (carga && !mapa[`carga:${carga}`]) mapa[`carga:${carga}`] = cte;
+    });
+    return mapa;
+  }, [viagens]);
+
+  const getViagemRelacionada = (item) => {
+    const nf = (item?.numeroNF || '').trim();
+    if (nf) {
+      const porNf = viagens.find(v => (v.numeroNF || '').trim() === nf);
+      if (porNf) return porNf;
+    }
+
+    const carga = (item?.numeroCarga || '').trim();
+    if (carga) {
+      const porCarga = viagens.find(v => (v.numeroCarga || '').trim() === carga);
+      if (porCarga) return porCarga;
+    }
+
+    return null;
+  };
+
+  const getNumeroCTeResolvido = (item) => {
+    const cteAtual = (item?.numeroCTe || '').trim();
+    if (cteAtual) return cteAtual;
+
+    const nf = (item?.numeroNF || '').trim();
+    if (nf && mapaCTePorReferencia[`nf:${nf}`]) return mapaCTePorReferencia[`nf:${nf}`];
+
+    const carga = (item?.numeroCarga || '').trim();
+    if (carga && mapaCTePorReferencia[`carga:${carga}`]) return mapaCTePorReferencia[`carga:${carga}`];
+
+    return '';
+  };
+
+  const getDataCTeResolvida = (item) => item?.dataCTe || getViagemRelacionada(item)?.dataCTe || '';
+
+  const getDataEntregaResolvida = (item) => item?.dataEntrega || getViagemRelacionada(item)?.dataEntrega || '';
+
+  const getVeiculoResolvido = (item) => {
+    const viagemRelacionada = getViagemRelacionada(item);
+    const ref = (item?.veiculo || viagemRelacionada?.veiculo || '').trim();
+    const placaItem = (item?.placa || viagemRelacionada?.placa || '').trim();
+
+    if (!ref && placaItem) return placaItem;
+    if (!ref) return '';
+
+    const encontrado = veiculos.find(v => v.id === ref || v.placa === ref || v.modelo === ref || v.placa === placaItem);
+    if (encontrado) {
+      const modelo = encontrado.modelo || 'Veículo';
+      const placa = encontrado.placa ? ` - ${encontrado.placa}` : '';
+      return `${modelo}${placa}`;
+    }
+
+    return placaItem || ref;
+  };
+
   const getStatusViagem = (viagem) => {
     const chave = (viagem.numeroCarga || '').trim();
     if (chave && cargaStatusMap[chave]) {
-      return cargaStatusMap[chave].allEntregues ? 'Entregue' : 'Em rota';
+      const resumo = cargaStatusMap[chave];
+      if (resumo.allEntregues) return 'Entregue';
+      if (resumo.hasEmRota) return 'Em rota';
+      if (resumo.allPendentes) return 'Pendente';
+      return 'Em rota';
     }
     return viagem.status || 'Pendente';
   };
 
-  const stats = useMemo(() => {
-    const pendentes = viagens.filter(v => getStatusViagem(v) === 'Pendente').length;
-    const emRota = viagens.filter(v => getStatusViagem(v) === 'Em rota').length;
-    const entregues = viagens.filter(v => getStatusViagem(v) === 'Entregue').length;
-    return { pendentes, emRota, entregues, total: viagens.length };
-  }, [viagens]);
 
-  const financeiroResumo = useMemo(() => {
-    const faturou = viagens.reduce((acc, curr) => acc + (parseFloat(curr.valorFrete) || 0), 0);
-    const gastouDistribuicao = viagens.reduce((acc, curr) => acc + (parseFloat(curr.valorDistribuicao) || 0), 0);
-    const lucroTotal = faturou - gastouDistribuicao;
-    return { faturou, gastouDistribuicao, lucroTotal };
-  }, [viagens]);
+  const dashboardViagensBase = useMemo(() => {
+    if (!monthFilter) return viagens;
+    return viagens.filter(v => {
+      const dataBase = v.dataSaida || v.dataNF || v.dataEntrega || v.dataCTe;
+      return (dataBase || '').slice(0, 7) === monthFilter;
+    });
+  }, [viagens, monthFilter]);
+
+  const stats = useMemo(() => {
+    const pendentes = dashboardViagensBase.filter(v => getStatusViagem(v) === 'Pendente').length;
+    const emRota = dashboardViagensBase.filter(v => getStatusViagem(v) === 'Em rota').length;
+    const entregues = dashboardViagensBase.filter(v => getStatusViagem(v) === 'Entregue').length;
+    return { pendentes, emRota, entregues, total: dashboardViagensBase.length };
+  }, [dashboardViagensBase, getStatusViagem]);
 
   const normalizarStatusFinanceiro = (status) => (status || 'pendente').trim().toLowerCase();
 
@@ -193,14 +276,29 @@ function App() {
     return 'Pendente';
   };
 
+  const dashboardFinanceiroBase = useMemo(() => {
+    if (!monthFilter) return financeiro;
+    return financeiro.filter(item => {
+      const dataBase = getDataCTeResolvida(item) || item.dataCTe;
+      return (dataBase || '').slice(0, 7) === monthFilter;
+    });
+  }, [financeiro, monthFilter, getDataCTeResolvida]);
+
   const boletoStats = useMemo(() => {
-    const boletosGerados = financeiro.length;
-    const boletosPagos = financeiro.filter(f => getStatusFinanceiro(f) === 'Pago').length;
-    const boletosAtrasados = financeiro.filter(f => getStatusFinanceiro(f) === 'Vencido').length;
-    const boletosPendentes = financeiro.filter(f => getStatusFinanceiro(f) === 'Pendente').length;
+    const boletosGerados = dashboardFinanceiroBase.length;
+    const boletosPagos = dashboardFinanceiroBase.filter(f => getStatusFinanceiro(f) === 'Pago').length;
+    const boletosAtrasados = dashboardFinanceiroBase.filter(f => getStatusFinanceiro(f) === 'Vencido').length;
+    const boletosPendentes = dashboardFinanceiroBase.filter(f => getStatusFinanceiro(f) === 'Pendente').length;
 
     return { boletosGerados, boletosPendentes, boletosAtrasados, boletosPagos };
-  }, [financeiro]);
+  }, [dashboardFinanceiroBase]);
+
+  const financeiroResumo = useMemo(() => {
+    const faturou = dashboardFinanceiroBase.reduce((acc, curr) => acc + (parseFloat(curr.valorFrete) || 0), 0);
+    const gastouDistribuicao = dashboardFinanceiroBase.reduce((acc, curr) => acc + (parseFloat(curr.valorDistribuicao) || 0), 0);
+    const lucroTotal = faturou - gastouDistribuicao;
+    return { faturou, gastouDistribuicao, lucroTotal };
+  }, [dashboardFinanceiroBase]);
 
   const empresasRelatorio = useMemo(() => {
     const empresas = [...new Set(viagens.map(v => v.contratante).filter(Boolean))];
@@ -208,24 +306,33 @@ function App() {
   }, [viagens]);
 
   const relatorioData = useMemo(() => {
-    return viagens.filter(v => {
-      if (reportEmpresa !== 'Todas' && v.contratante !== reportEmpresa) return false;
-      if (reportNumeroCarga && (v.numeroCarga || '').trim() !== reportNumeroCarga.trim()) return false;
-      const dataBase = v.dataSaida || v.dataNF || v.dataEntrega;
-      if (!dataBase) return !reportInicio && !reportFim;
-      const data = new Date(`${dataBase}T12:00:00`);
-      if (Number.isNaN(data.getTime())) return false;
-      if (reportInicio) {
-        const ini = new Date(`${reportInicio}T00:00:00`);
-        if (data < ini) return false;
-      }
-      if (reportFim) {
-        const fim = new Date(`${reportFim}T23:59:59`);
-        if (data > fim) return false;
-      }
-      return true;
-    });
-  }, [viagens, reportEmpresa, reportNumeroCarga, reportInicio, reportFim]);
+    return viagens
+      .filter(v => {
+        if (reportEmpresa !== 'Todas' && v.contratante !== reportEmpresa) return false;
+        if (reportNumeroCarga && (v.numeroCarga || '').trim() !== reportNumeroCarga.trim()) return false;
+        const dataBase = v.dataSaida || v.dataNF || v.dataEntrega;
+        if (!dataBase) return !reportInicio && !reportFim;
+        const data = new Date(`${dataBase}T12:00:00`);
+        if (Number.isNaN(data.getTime())) return false;
+        if (reportInicio) {
+          const ini = new Date(`${reportInicio}T00:00:00`);
+          if (data < ini) return false;
+        }
+        if (reportFim) {
+          const fim = new Date(`${reportFim}T23:59:59`);
+          if (data > fim) return false;
+        }
+        return true;
+      })
+      .map(v => {
+        const nf = (v.numeroNF || '').trim();
+        const carga = (v.numeroCarga || '').trim();
+        return {
+          ...v,
+          numeroCTe: (v.numeroCTe || '').trim() || mapaCTePorReferencia[`nf:${nf}`] || mapaCTePorReferencia[`carga:${carga}`] || ''
+        };
+      });
+  }, [viagens, reportEmpresa, reportNumeroCarga, reportInicio, reportFim, mapaCTePorReferencia]);
 
   const resumoRelatorio = useMemo(() => {
     const faturou = relatorioData.reduce((acc, curr) => acc + (parseFloat(curr.valorFrete) || 0), 0);
@@ -237,24 +344,32 @@ function App() {
 
   const downloadRelatorioCSV = () => {
     const header = relatorioPorCarga
-      ? ['Carga', 'NF', 'CT-e', 'Data CT-e', 'Empresa', 'Data', 'Frete']
+      ? ['Carga', 'NF', 'CT-e', 'Data CT-e', 'Empresa', 'Boleto', 'Vencimento Boleto', 'Frete']
       : ['Carga', 'NF', 'CT-e', 'Data CT-e', 'Empresa', 'Data', 'Frete', 'Distribuicao', 'Lucro'];
 
     const rows = relatorioData.map(item => {
+      const vencBoleto = item.dataVencimentoBoleto || item.vencimento || '';
       const base = [
         item.numeroCarga || '',
         item.numeroNF || '',
         item.numeroCTe || '',
         item.dataCTe || '',
         item.contratante || '',
-        item.dataSaida || item.dataNF || item.dataEntrega || '',
+        item.numeroBoleto || '',
+        vencBoleto,
         (parseFloat(item.valorFrete) || 0).toFixed(2)
       ];
 
       if (relatorioPorCarga) return base;
 
       return [
-        ...base,
+        item.numeroCarga || '',
+        item.numeroNF || '',
+        item.numeroCTe || '',
+        item.dataCTe || '',
+        item.contratante || '',
+        item.dataSaida || item.dataNF || item.dataEntrega || '',
+        (parseFloat(item.valorFrete) || 0).toFixed(2),
         (parseFloat(item.valorDistribuicao) || 0).toFixed(2),
         ((parseFloat(item.valorFrete) || 0) - (parseFloat(item.valorDistribuicao) || 0)).toFixed(2)
       ];
@@ -308,16 +423,35 @@ function App() {
 
     const logoUrl = `${window.location.origin}/logo-cargofy.svg`;
 
-    const linhas = relatorioData.map(item => {
-      const data = item.dataSaida || item.dataNF || item.dataEntrega;
-      const dataFmt = data ? new Date(`${data}T12:00:00`).toLocaleDateString('pt-BR') : '---';
-      const frete = (parseFloat(item.valorFrete) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-      const dist = (parseFloat(item.valorDistribuicao) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-      const lucro = ((parseFloat(item.valorFrete) || 0) - (parseFloat(item.valorDistribuicao) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-      return relatorioPorCarga
-        ? `<tr><td>${item.numeroCarga || '---'}</td><td>${item.numeroNF || '---'}</td><td>${item.numeroCTe || '---'}</td><td>${item.dataCTe ? new Date(item.dataCTe + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</td><td>${item.contratante || 'Sem empresa'}</td><td>${dataFmt}</td><td>R$ ${frete}</td></tr>`
-        : `<tr><td>${item.numeroCarga || '---'}</td><td>${item.numeroNF || '---'}</td><td>${item.numeroCTe || '---'}</td><td>${item.dataCTe ? new Date(item.dataCTe + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</td><td>${item.contratante || 'Sem empresa'}</td><td>${dataFmt}</td><td>R$ ${frete}</td><td>R$ ${dist}</td><td>R$ ${lucro}</td></tr>`;
-    }).join('');
+    const gruposPorCarga = relatorioData.reduce((acc, item) => {
+      const chave = (item.numeroCarga || 'Sem carga').trim() || 'Sem carga';
+      if (!acc[chave]) acc[chave] = [];
+      acc[chave].push(item);
+      return acc;
+    }, {});
+
+    const linhas = Object.entries(gruposPorCarga)
+      .sort((a, b) => a[0].localeCompare(b[0], 'pt-BR', { numeric: true }))
+      .map(([carga, itens]) => {
+        const linhaTitulo = `<tr class="grupo"><td colspan="${relatorioPorCarga ? 8 : 9}">Carga ${carga} · ${itens.length} registro(s)</td></tr>`;
+
+        const linhasItens = itens.map(item => {
+          const data = item.dataSaida || item.dataNF || item.dataEntrega;
+          const dataFmt = data ? new Date(`${data}T12:00:00`).toLocaleDateString('pt-BR') : '---';
+          const vencBoleto = item.dataVencimentoBoleto || item.vencimento;
+          const vencFmt = vencBoleto ? new Date(`${vencBoleto}T12:00:00`).toLocaleDateString('pt-BR') : '---';
+          const frete = (parseFloat(item.valorFrete) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+          const dist = (parseFloat(item.valorDistribuicao) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+          const lucro = ((parseFloat(item.valorFrete) || 0) - (parseFloat(item.valorDistribuicao) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+
+          return relatorioPorCarga
+            ? `<tr><td>${item.numeroCarga || '---'}</td><td>${item.numeroNF || '---'}</td><td>${item.numeroCTe || '---'}</td><td>${item.dataCTe ? new Date(item.dataCTe + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</td><td>${item.contratante || 'Sem empresa'}</td><td>${item.numeroBoleto || '---'}</td><td>${vencFmt}</td><td>R$ ${frete}</td></tr>`
+            : `<tr><td>${item.numeroCarga || '---'}</td><td>${item.numeroNF || '---'}</td><td>${item.numeroCTe || '---'}</td><td>${item.dataCTe ? new Date(item.dataCTe + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</td><td>${item.contratante || 'Sem empresa'}</td><td>${dataFmt}</td><td>R$ ${frete}</td><td>R$ ${dist}</td><td>R$ ${lucro}</td></tr>`;
+        }).join('');
+
+        return `${linhaTitulo}${linhasItens}`;
+      })
+      .join('');
 
     janela.document.write(`
       <html>
@@ -333,6 +467,7 @@ function App() {
             th, td { border: 1px solid #cbd5e1; padding: 8px; font-size: 12px; text-align: left; }
             th { background: #f1f5f9; text-transform: uppercase; font-size: 11px; }
             .resumo { display: flex; gap: 16px; margin: 12px 0; font-weight: bold; }
+            .grupo td { background: #e2e8f0; font-weight: 700; text-transform: uppercase; font-size: 11px; }
           </style>
         </head>
         <body>
@@ -340,14 +475,13 @@ function App() {
           <p>Empresa: ${reportEmpresa} | Carga: ${reportNumeroCarga || 'Todas'} | Período: ${reportInicio || 'Início'} até ${reportFim || 'Hoje'} | Registros: ${relatorioData.length}</p>
           <div class="resumo">
             <span>Faturamento: R$ ${resumoRelatorio.faturou.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-            <span>Distribuição: R$ ${resumoRelatorio.distribuicao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-            <span>Lucro: R$ ${resumoRelatorio.lucro.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+            ${relatorioPorCarga ? '' : `<span>Distribuição: R$ ${resumoRelatorio.distribuicao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span><span>Lucro: R$ ${resumoRelatorio.lucro.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>`}
           </div>
           <table>
             <thead>
-              ${relatorioPorCarga ? '<tr><th>Carga</th><th>NF</th><th>CT-e</th><th>Data CT-e</th><th>Empresa</th><th>Data</th><th>Frete</th></tr>' : '<tr><th>Carga</th><th>NF</th><th>CT-e</th><th>Data CT-e</th><th>Empresa</th><th>Data</th><th>Frete</th><th>Distribuição</th><th>Lucro</th></tr>'}
+              ${relatorioPorCarga ? '<tr><th>Carga</th><th>NF</th><th>CT-e</th><th>Data CT-e</th><th>Empresa</th><th>Boleto</th><th>Vencimento do Boleto</th><th>Frete</th></tr>' : '<tr><th>Carga</th><th>NF</th><th>CT-e</th><th>Data CT-e</th><th>Empresa</th><th>Data</th><th>Frete</th><th>Distribuição</th><th>Lucro</th></tr>'}
             </thead>
-            <tbody>${linhas || `<tr><td colspan="${relatorioPorCarga ? 7 : 9}">Sem registros para o filtro.</td></tr>`}</tbody>
+            <tbody>${linhas || `<tr><td colspan="${relatorioPorCarga ? 8 : 9}">Sem registros para o filtro.</td></tr>`}</tbody>
           </table>
         </body>
       </html>
@@ -361,7 +495,7 @@ function App() {
     let list = [];
     switch (activeTab) {
       case 'dashboard':
-      case 'viagens': 
+      case 'viagens':
         list = statusFilter === 'Todos' ? viagens : viagens.filter(v => getStatusViagem(v) === statusFilter);
         break;
       case 'financeiro': list = financeiro; break;
@@ -372,10 +506,20 @@ function App() {
       default: list = [];
     }
 
+    if ((activeTab === 'dashboard' || activeTab === 'viagens' || activeTab === 'financeiro') && monthFilter) {
+      list = list.filter(item => {
+        const dataBase = activeTab === 'financeiro'
+          ? (item.dataVencimentoBoleto || item.vencimento)
+          : (item.dataSaida || item.dataNF || item.dataEntrega || item.dataCTe);
+        return (dataBase || '').slice(0, 7) === monthFilter;
+      });
+    }
+
     if (!searchNF) return list;
     const term = searchNF.toLowerCase();
-    return list.filter(item => 
+    return list.filter(item =>
       (item.numeroNF?.toLowerCase().includes(term)) ||
+      (item.numeroCTe?.toLowerCase().includes(term)) ||
       (item.numeroCarga?.toLowerCase().includes(term)) ||
       (item.contratante?.toLowerCase().includes(term)) ||
       (item.nome?.toLowerCase().includes(term)) ||
@@ -383,14 +527,174 @@ function App() {
       (item.cidade?.toLowerCase().includes(term)) ||
       (item.motorista?.toLowerCase().includes(term))
     );
-  }, [activeTab, statusFilter, viagens, financeiro, clientes, motoristas, veiculos, searchNF]);
+  }, [activeTab, statusFilter, viagens, financeiro, clientes, motoristas, veiculos, searchNF, monthFilter]);
+
+  const dashboardViagensFiltradas = useMemo(() => {
+    if (!dashboardCargaFilter) return [];
+    const termo = (searchNF || '').toLowerCase();
+    return dashboardViagensBase
+      .filter(item => getStatusViagem(item) === dashboardCargaFilter)
+      .filter(item => {
+        if (!termo) return true;
+        return (
+          (item.numeroNF?.toLowerCase().includes(termo)) ||
+          (item.numeroCTe?.toLowerCase().includes(termo)) ||
+          (item.numeroCarga?.toLowerCase().includes(termo)) ||
+          (item.contratante?.toLowerCase().includes(termo)) ||
+          (item.cidade?.toLowerCase().includes(termo)) ||
+          (item.motorista?.toLowerCase().includes(termo))
+        );
+      });
+  }, [dashboardViagensBase, dashboardCargaFilter, searchNF, getStatusViagem]);
+
+  const dashboardViagensFiltradasPorCarga = useMemo(() => {
+    const grupos = {};
+    dashboardViagensFiltradas.forEach(item => {
+      const chave = (item.numeroCarga || 'Sem carga').trim() || 'Sem carga';
+      if (!grupos[chave]) grupos[chave] = [];
+      grupos[chave].push(item);
+    });
+
+    return Object.entries(grupos)
+      .sort((a, b) => a[0].localeCompare(b[0], 'pt-BR', { numeric: true }))
+      .map(([numeroCarga, itens]) => ({
+        numeroCarga,
+        itens: itens.sort((a, b) => (a.numeroNF || '').localeCompare((b.numeroNF || ''), 'pt-BR', { numeric: true }))
+      }));
+  }, [dashboardViagensFiltradas]);
+
+  const dashboardBoletosFiltrados = useMemo(() => {
+    if (!dashboardBoletoFilter) return [];
+    const termo = (searchNF || '').toLowerCase();
+    const base = dashboardBoletoFilter === 'Todos'
+      ? dashboardFinanceiroBase
+      : dashboardFinanceiroBase.filter(item => getStatusFinanceiro(item) === dashboardBoletoFilter);
+
+    if (!termo) return base;
+    return base.filter(item => (
+      (item.numeroNF?.toLowerCase().includes(termo)) ||
+      (item.numeroCarga?.toLowerCase().includes(termo)) ||
+      (item.contratante?.toLowerCase().includes(termo)) ||
+      (item.cidade?.toLowerCase().includes(termo)) ||
+      (item.motorista?.toLowerCase().includes(termo))
+    ));
+  }, [dashboardFinanceiroBase, dashboardBoletoFilter, searchNF]);
+
+  const dashboardBoletosFiltradosPorCarga = useMemo(() => {
+    const grupos = {};
+    dashboardBoletosFiltrados.forEach(item => {
+      const chave = (item.numeroCarga || 'Sem carga').trim() || 'Sem carga';
+      if (!grupos[chave]) grupos[chave] = [];
+      grupos[chave].push(item);
+    });
+
+    return Object.entries(grupos)
+      .map(([numeroCarga, itens]) => ({
+        numeroCarga,
+        itens: itens.sort((a, b) => {
+          const da = (a.dataVencimentoBoleto || a.vencimento || '9999-12-31');
+          const db = (b.dataVencimentoBoleto || b.vencimento || '9999-12-31');
+          return da.localeCompare(db);
+        })
+      }))
+      .sort((a, b) => {
+        if (dashboardBoletoFilter === 'Pendente') {
+          const da = (a.itens[0]?.dataVencimentoBoleto || a.itens[0]?.vencimento || '9999-12-31');
+          const db = (b.itens[0]?.dataVencimentoBoleto || b.itens[0]?.vencimento || '9999-12-31');
+          return da.localeCompare(db);
+        }
+
+        return a.numeroCarga.localeCompare(b.numeroCarga, 'pt-BR', { numeric: true });
+      });
+  }, [dashboardBoletosFiltrados, dashboardBoletoFilter]);
+
+  const viagensPainelResumo = useMemo(() => {
+    const base = activeTab === 'viagens' ? filteredData : dashboardViagensBase;
+    const totalViagens = base.length;
+    const semComprovante = base.filter(item => !(item.urlComprovante || '').trim()).length;
+    const semMotorista = base.filter(item => !(item.motorista || '').trim()).length;
+    const ctePendente = base.filter(item => !((item.numeroCTe || '').trim()) || !((item.dataCTe || '').trim())).length;
+
+    const contagemPorMotorista = {};
+    base.forEach(item => {
+      const nome = (item.motorista || '').trim();
+      if (!nome) return;
+      contagemPorMotorista[nome] = (contagemPorMotorista[nome] || 0) + 1;
+    });
+
+    const [motoristaMaiorVolume, totalMaiorVolume] = Object.entries(contagemPorMotorista)
+      .sort((a, b) => b[1] - a[1])[0] || ['Sem motorista definido', 0];
+
+    return { totalViagens, semComprovante, semMotorista, ctePendente, motoristaMaiorVolume, totalMaiorVolume };
+  }, [activeTab, filteredData, dashboardViagensBase]);
+
+  const viagensPendenciasFiltradas = useMemo(() => {
+    if (activeTab !== 'viagens' || !viagensPainelFiltro) return [];
+
+    const lista = filteredData.filter(item => {
+      if (viagensPainelFiltro === 'semComprovante') return !(item.urlComprovante || '').trim();
+      if (viagensPainelFiltro === 'semMotorista') return !(item.motorista || '').trim();
+      if (viagensPainelFiltro === 'ctePendente') return !((item.numeroCTe || '').trim()) || !((item.dataCTe || '').trim());
+      return false;
+    });
+
+    return lista.sort((a, b) => {
+      const cargaA = (a.numeroCarga || 'Sem carga').trim() || 'Sem carga';
+      const cargaB = (b.numeroCarga || 'Sem carga').trim() || 'Sem carga';
+      const porCarga = cargaA.localeCompare(cargaB, 'pt-BR', { numeric: true });
+      if (porCarga !== 0) return porCarga;
+      return (a.numeroNF || '').localeCompare((b.numeroNF || ''), 'pt-BR', { numeric: true });
+    });
+  }, [activeTab, filteredData, viagensPainelFiltro]);
+
+
+
+  const financeiroAgrupadoPorCarga = useMemo(() => {
+    if (activeTab !== 'financeiro') return [];
+    const grupos = {};
+
+    filteredData.forEach(item => {
+      const chave = (item.numeroCarga || 'Sem carga').trim() || 'Sem carga';
+      if (!grupos[chave]) grupos[chave] = [];
+      grupos[chave].push(item);
+    });
+
+    return Object.entries(grupos)
+      .sort((a, b) => a[0].localeCompare(b[0], 'pt-BR', { numeric: true }))
+      .map(([numeroCarga, itens]) => ({
+        numeroCarga,
+        itens: itens.sort((a, b) => {
+          const da = (a.dataVencimentoBoleto || a.vencimento || '9999-12-31');
+          const db = (b.dataVencimentoBoleto || b.vencimento || '9999-12-31');
+          return da.localeCompare(db);
+        })
+      }));
+  }, [activeTab, filteredData]);
+
+  const viagensAgrupadasPorCarga = useMemo(() => {
+    if (activeTab !== 'viagens') return [];
+    const grupos = {};
+    filteredData.forEach(item => {
+      const chave = (item.numeroCarga || 'Sem carga').trim() || 'Sem carga';
+      if (!grupos[chave]) grupos[chave] = [];
+      grupos[chave].push(item);
+    });
+
+    return Object.entries(grupos)
+      .sort((a, b) => a[0].localeCompare(b[0], 'pt-BR', { numeric: true }))
+      .map(([numeroCarga, itens]) => ({
+        numeroCarga,
+        itens: itens.sort((a, b) => (a.numeroNF || '').localeCompare(b.numeroNF || '', 'pt-BR', { numeric: true }))
+      }));
+  }, [activeTab, filteredData]);
 
   const handleOpenEdit = (item) => {
     setFormData({
       ...item,
       boleto: item.boleto || item.urlBoleto || item.urlComprovante || '',
       statusFinanceiro: item.statusFinanceiro || 'Pendente',
-      dataVencimentoBoleto: item.dataVencimentoBoleto || item.diaVencimento || ''
+      dataVencimentoBoleto: item.dataVencimentoBoleto || item.vencimento || '',
+      vencimento: item.vencimento || item.dataVencimentoBoleto || ''
     });
     setEditingId(item.id);
     setModalOpen(true);
@@ -398,18 +702,20 @@ function App() {
 
   const syncFinanceiroPorViagem = async (viagemData) => {
     const numeroNF = (viagemData.numeroNF || '').trim();
-    const numeroCarga = (viagemData.numeroCarga || '').trim();
-    if (!numeroNF && !numeroCarga) return;
+    const origemViagemId = (viagemData.id || '').trim();
+    if (!numeroNF && !origemViagemId) return;
 
     const registroExistente = financeiro.find(f =>
-      (numeroNF && (f.numeroNF || '').trim() === numeroNF) ||
-      (numeroCarga && (f.numeroCarga || '').trim() === numeroCarga && (f.contratante || '') === (viagemData.contratante || ''))
+      (origemViagemId && (f.origemViagemId || '').trim() === origemViagemId) ||
+      (numeroNF && (f.numeroNF || '').trim() === numeroNF)
     );
 
     const statusInformado = (viagemData.statusFinanceiro || '').trim();
     const payloadFinanceiro = {
       numeroNF: viagemData.numeroNF || '',
       numeroCarga: viagemData.numeroCarga || '',
+      origemViagemId: origemViagemId,
+      numeroCTe: viagemData.numeroCTe || '',
       contratante: viagemData.contratante || '',
       destinatario: viagemData.destinatario || '',
       cidade: viagemData.cidade || '',
@@ -441,6 +747,36 @@ function App() {
     }
   };
 
+  useEffect(() => {
+    if (!user || !viagens.length) return;
+
+    const sincronizarPendentes = async () => {
+      try {
+        const pendentes = viagens.filter(v => {
+          const viagemId = (v.id || '').trim();
+          const numeroNF = (v.numeroNF || '').trim();
+
+          if (!viagemId && !numeroNF) return false;
+
+          const jaExiste = financeiro.some(f =>
+            (viagemId && (f.origemViagemId || '').trim() === viagemId) ||
+            (numeroNF && (f.numeroNF || '').trim() === numeroNF)
+          );
+
+          return !jaExiste;
+        });
+
+        for (const viagem of pendentes) {
+          await syncFinanceiroPorViagem(viagem);
+        }
+      } catch (error) {
+        console.error('Erro ao sincronizar viagens pendentes no financeiro:', error);
+      }
+    };
+
+    sincronizarPendentes();
+  }, [user, viagens, financeiro]);
+
   const handleSave = async (e) => {
     e.preventDefault();
     const colName = (activeTab === 'dashboard' || activeTab === 'viagens') ? 'viagens' : activeTab;
@@ -458,6 +794,8 @@ function App() {
     const payload = colName === 'financeiro'
       ? {
           ...formData,
+          dataVencimentoBoleto: formData.vencimento || formData.dataVencimentoBoleto || '',
+          vencimento: formData.vencimento || formData.dataVencimentoBoleto || '',
           lucro: ((parseFloat(formData.valorFrete) || 0) - (parseFloat(formData.valorDistribuicao) || 0)).toFixed(2),
           urlBoleto: formData.boleto || '',
           urlComprovante: formData.boleto || formData.urlComprovante || ''
@@ -480,7 +818,7 @@ function App() {
       }
 
       if (colName === 'viagens') {
-        await syncFinanceiroPorViagem(payload);
+        await syncFinanceiroPorViagem({ ...payload, id: editingId || '' });
       }
 
       setModalOpen(false);
@@ -496,23 +834,71 @@ function App() {
       volume: '', peso: '', valorNF: '', chaveID: '', status: 'Pendente', 
       valorFrete: '', valorDistribuicao: '', lucro: '', metodoPagamento: '', numeroBoleto: '', dataVencimentoBoleto: '', motorista: '', veiculo: '', placa: '', urlComprovante: '', boleto: '', vencimento: '', 
       statusFinanceiro: 'Pendente', nome: '', email: '', telefone: '', 
-      modelo: '', tipo: ''
+      modelo: '', tipo: '', observacao: ''
     });
   };
 
   const lucroViagem = (parseFloat(formData.valorFrete) || 0) - (parseFloat(formData.valorDistribuicao) || 0);
+
+  const handleOpenSheetUrl = () => {
+    const input = window.prompt('Cole o link da planilha para abrir no Sheets:');
+    const url = (input || '').trim();
+    if (!url) return;
+
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const openInNewWindow = (url) => {
+    const link = (url || '').trim();
+    if (!link) return;
+
+    const isImagemInline = link.startsWith('data:image/');
+    if (isImagemInline) {
+      const novaJanela = window.open('', '_blank');
+      if (!novaJanela) return;
+      novaJanela.document.write(`
+        <!doctype html>
+        <html lang="pt-BR">
+          <head>
+            <meta charset="utf-8" />
+            <title>Comprovante</title>
+            <style>
+              html, body { margin: 0; padding: 0; background: #0f172a; height: 100%; }
+              body { display: flex; align-items: center; justify-content: center; }
+              img { max-width: 100%; max-height: 100%; object-fit: contain; }
+            </style>
+          </head>
+          <body>
+            <img src="${link}" alt="Comprovante" />
+          </body>
+        </html>
+      `);
+      novaJanela.document.close();
+      return;
+    }
+
+    window.open(link, '_blank', 'noopener,noreferrer');
+  };
+
+  const novoRegistroLabel = activeTab === 'clientes'
+    ? 'Adicionar Cliente'
+    : activeTab === 'motoristas'
+      ? 'Adicionar Motorista'
+      : activeTab === 'veiculos'
+        ? 'Adicionar Veículo'
+        : 'Novo Registro';
 
   if (!user) return <Login />;
 
   return (
     <div className="flex h-screen bg-[#f1f5f9] text-slate-900 font-sans">
       <aside className="w-64 bg-[#0f172a] text-white flex flex-col p-6 shadow-2xl shrink-0">
-        <div className="flex items-center gap-3 mb-10 px-2 cursor-pointer" onClick={() => {setActiveTab('dashboard'); setStatusFilter('Todos');}}>
+        <div className="flex items-center gap-3 mb-10 px-2 cursor-pointer" onClick={() => {setActiveTab('dashboard'); setStatusFilter('Todos'); setDashboardCargaFilter(''); setDashboardBoletoFilter('');}}>
           <Truck className="text-blue-500" size={28} />
           <h1 className="text-xl font-black tracking-tighter uppercase">CargoFy</h1>
         </div>
         <nav className="flex-1 space-y-1 overflow-y-auto">
-          <NavItem icon={LayoutDashboard} label="Painel" active={activeTab === 'dashboard'} onClick={() => {setActiveTab('dashboard'); setStatusFilter('Todos');}} />
+          <NavItem icon={LayoutDashboard} label="Painel" active={activeTab === 'dashboard'} onClick={() => {setActiveTab('dashboard'); setStatusFilter('Todos'); setDashboardCargaFilter(''); setDashboardBoletoFilter('');}} />
           <NavItem icon={Package} label="Viagens" active={activeTab === 'viagens'} onClick={() => {setActiveTab('viagens'); setStatusFilter('Todos');}} />
           <NavItem icon={DollarSign} label="Financeiro" active={activeTab === 'financeiro'} onClick={() => setActiveTab('financeiro')} />
           <NavItem icon={FileText} label="Relatórios" active={activeTab === 'relatorios'} onClick={() => setActiveTab('relatorios')} />
@@ -531,7 +917,7 @@ function App() {
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
               <input 
                 type="text" 
-                placeholder="Pesquisar por NF, Contratante ou Cidade..." 
+                placeholder="Pesquisar por NF, CT-e, Contratante ou Cidade..." 
                 value={searchNF}
                 onChange={(e) => setSearchNF(e.target.value)}
                 className="w-full pl-12 pr-4 py-2.5 bg-slate-100 rounded-xl outline-none focus:ring-2 ring-blue-500/20 text-sm font-medium transition-all"
@@ -542,28 +928,134 @@ function App() {
                 Filtro: {statusFilter} <X size={12}/>
               </button>
             )}
+            {(activeTab === 'dashboard' || activeTab === 'viagens' || activeTab === 'financeiro') && (
+              <label className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-100 text-slate-600 text-[10px] font-black uppercase">
+                <Calendar size={14} />
+                <span>Mês</span>
+                <input
+                  type="month"
+                  value={monthFilter}
+                  onChange={(e) => setMonthFilter(e.target.value)}
+                  className="bg-transparent outline-none text-[11px] font-bold"
+                />
+              </label>
+            )}
           </div>
-          {activeTab !== 'relatorios' && (
-            <button onClick={() => { resetForm(); setEditingId(null); setModalOpen(true); }} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-blue-500/20 transition-all">
-              <Plus size={16} /> Novo Registro
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {activeTab === 'dashboard' && (
+              <button
+                type="button"
+                onClick={handleOpenSheetUrl}
+                className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-emerald-500/20 transition-all"
+              >
+                <Upload size={14} /> Upload Sheets
+              </button>
+            )}
+            {(activeTab === 'dashboard' || activeTab === 'viagens' || activeTab === 'clientes' || activeTab === 'motoristas' || activeTab === 'veiculos') && (
+              <button onClick={() => { resetForm(); setEditingId(null); setModalOpen(true); }} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-blue-500/20 transition-all">
+                <Plus size={16} /> {novoRegistroLabel}
+              </button>
+            )}
+          </div>
         </header>
 
         <div className="p-8 overflow-y-auto">
+
+          {activeTab === 'viagens' && (
+            <div className="space-y-4 mt-8">
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Controle de viagens</h3>
+                    <p className="text-xs font-semibold text-slate-500">Qualidade operacional e pendências de documentação</p>
+                  </div>
+                  <div className="p-3 rounded-2xl bg-slate-900 text-white"><Package size={20} /></div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                  <Card title="Total de viagens" value={viagensPainelResumo.totalViagens} icon={Package} color="bg-slate-700" />
+                  <Card title="Sem comprovante" value={viagensPainelResumo.semComprovante} icon={Paperclip} color="bg-amber-500" active={viagensPainelFiltro === 'semComprovante'} onClick={() => setViagensPainelFiltro(prev => prev === 'semComprovante' ? '' : 'semComprovante')} />
+                  <Card title="Sem motorista" value={viagensPainelResumo.semMotorista} icon={Users} color="bg-rose-500" active={viagensPainelFiltro === 'semMotorista'} onClick={() => setViagensPainelFiltro(prev => prev === 'semMotorista' ? '' : 'semMotorista')} />
+                  <Card title="CT-e pendente" value={viagensPainelResumo.ctePendente} icon={FileText} color="bg-indigo-600" active={viagensPainelFiltro === 'ctePendente'} onClick={() => setViagensPainelFiltro(prev => prev === 'ctePendente' ? '' : 'ctePendente')} />
+                </div>
+
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4">
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Motorista com maior volume</p>
+                  <p className="text-2xl font-black text-slate-900 mt-1">{viagensPainelResumo.motoristaMaiorVolume}</p>
+                  <p className="text-sm font-bold text-slate-500 mt-1">{viagensPainelResumo.totalMaiorVolume} viagem(ns) no período carregado</p>
+                </div>
+
+
+                {viagensPainelFiltro && (
+                  <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+                    <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                      <h4 className="text-[11px] font-black text-slate-600 uppercase tracking-widest">
+                        {viagensPainelFiltro === 'semComprovante' ? 'Sem comprovante' : viagensPainelFiltro === 'semMotorista' ? 'Sem motorista' : 'CT-e pendente'}
+                      </h4>
+                      <span className="text-[10px] font-bold text-slate-400">{viagensPendenciasFiltradas.length} registro(s)</span>
+                    </div>
+                    <div className="divide-y divide-slate-50">
+                      {viagensPendenciasFiltradas.map(item => (
+                        <div key={`pend-${item.id}`} className="px-4 py-3 flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-black text-slate-800">Carga {item.numeroCarga || '---'} · NF {item.numeroNF || '---'}</p>
+                            <p className="text-[10px] font-bold text-slate-500 uppercase">{item.contratante || 'Sem contratante'}</p>
+                          </div>
+                          <button onClick={() => setDetailItem(item)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase hover:bg-indigo-100">
+                            <Eye size={12}/> Ver dados
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {viagensAgrupadasPorCarga.map(grupo => (
+                <div key={`grupo-${grupo.numeroCarga}`} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                  <div className="px-6 py-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                    <h3 className="text-xs font-black text-slate-600 uppercase tracking-widest">Carga {grupo.numeroCarga}</h3>
+                    <span className="text-[10px] font-bold text-slate-400">{grupo.itens.length} NFs</span>
+                  </div>
+                  <div className="p-4 space-y-2">
+                    {grupo.itens.map(item => (
+                      <div key={`item-${item.id}`} className="p-3 rounded-xl border border-slate-100 bg-white flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-black text-slate-800">NF {item.numeroNF || '---'} · CT-e {getNumeroCTeResolvido(item) || '---'}</p>
+                          <p className="text-[10px] font-bold text-slate-500 uppercase">{item.contratante || 'Sem contratante'} · Destino: {item.destinatario || item.cidade || 'Sem destino'} · Motorista: {item.motorista || 'Sem motorista'}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`w-fit px-2 py-0.5 rounded text-[9px] font-black uppercase ${getStatusViagem(item) === 'Em rota' ? 'bg-blue-100 text-blue-600' : getStatusViagem(item) === 'Entregue' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
+                            {getStatusViagem(item)}
+                          </span>
+                          <button onClick={() => handleOpenEdit(item)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg" title="Editar"><Edit3 size={16}/></button>
+                          <button onClick={() => setDetailItem(item)} className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg" title="Ver dados"><Eye size={16}/></button>
+                          <button onClick={async () => { if (confirm('Deseja realmente excluir este registro?')) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'viagens', item.id)); }} className="p-2 text-red-400 hover:bg-red-50 rounded-lg" title="Excluir"><Trash2 size={16}/></button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           {activeTab === 'dashboard' && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-              <Card title="Cargas Pendentes" value={stats.pendentes} icon={Clock} color="bg-amber-500" active={statusFilter === 'Pendente'} onClick={() => setStatusFilter('Pendente')} />
-              <Card title="Cargas em Rota" value={stats.emRota} icon={MapPin} color="bg-blue-600" active={statusFilter === 'Em rota'} onClick={() => setStatusFilter('Em rota')} />
-              <Card title="Concluídas" value={stats.entregues} icon={CheckCircle2} color="bg-emerald-500" active={statusFilter === 'Entregue'} onClick={() => setStatusFilter('Entregue')} />
+              <Card title="Cargas Pendentes" value={stats.pendentes} icon={Clock} color="bg-amber-500" active={dashboardCargaFilter === 'Pendente'} onClick={() => setDashboardCargaFilter(prev => prev === 'Pendente' ? '' : 'Pendente')} />
+              <Card title="Cargas em Rota" value={stats.emRota} icon={MapPin} color="bg-blue-600" active={dashboardCargaFilter === 'Em rota'} onClick={() => setDashboardCargaFilter(prev => prev === 'Em rota' ? '' : 'Em rota')} />
+              <Card title="Concluídas" value={stats.entregues} icon={CheckCircle2} color="bg-emerald-500" active={dashboardCargaFilter === 'Entregue'} onClick={() => setDashboardCargaFilter(prev => prev === 'Entregue' ? '' : 'Entregue')} />
             </div>
           )}
 
           {activeTab === 'financeiro' && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-              <Card title="Quanto Faturou" value={`R$ ${financeiroResumo.faturou.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={DollarSign} color="bg-indigo-600" />
-              <Card title="Gasto Distribuição" value={`R$ ${financeiroResumo.gastouDistribuicao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={Truck} color="bg-amber-500" />
-              <Card title="Lucro" value={`R$ ${financeiroResumo.lucroTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={CheckCircle2} color="bg-emerald-600" />
+            <div className="space-y-4 mb-8">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card title="Quanto Faturou" value={`R$ ${financeiroResumo.faturou.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={DollarSign} color="bg-indigo-600" />
+                <Card title="Gasto Distribuição" value={`R$ ${financeiroResumo.gastouDistribuicao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={Truck} color="bg-amber-500" />
+                <Card title="Lucro" value={`R$ ${financeiroResumo.lucroTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={CheckCircle2} color="bg-emerald-600" />
+              </div>
+
             </div>
           )}
 
@@ -642,7 +1134,7 @@ function App() {
             </div>
           )}
 
-          {activeTab !== 'relatorios' && (
+          {activeTab !== 'relatorios' && activeTab !== 'dashboard' && activeTab !== 'viagens' && activeTab !== 'financeiro' && (
           <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white">
               <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">{activeTab}</h3>
@@ -666,7 +1158,7 @@ function App() {
                           <p className="font-bold text-slate-800">{item.numeroNF || item.nome || item.modelo || "---"}</p>
                           {item.numeroCarga && <p className="text-[10px] font-black text-indigo-600 uppercase">Carga #{item.numeroCarga}</p>}
                           {(item.boleto || item.urlBoleto || item.urlComprovante) && (
-                            <a href={item.boleto || item.urlBoleto || item.urlComprovante} target="_blank" rel="noreferrer" title="Ver Comprovante" className="text-emerald-500 hover:scale-110 transition-transform">
+                            <a href={item.boleto || item.urlBoleto || item.urlComprovante} target="_blank" rel="noreferrer" title="Ver Comprovante" onClick={(e) => { e.preventDefault(); openInNewWindow(item.boleto || item.urlBoleto || item.urlComprovante); }} className="text-emerald-500 hover:scale-110 transition-transform">
                               <Paperclip size={14} />
                             </a>
                           )}
@@ -725,51 +1217,169 @@ function App() {
           </div>
           )}
 
+
+
+          {activeTab === 'financeiro' && (
+            <div className="space-y-4 mt-8">
+              {financeiroAgrupadoPorCarga.map(grupo => {
+                const resumoFrete = grupo.itens.reduce((acc, curr) => acc + (parseFloat(curr.valorFrete) || 0), 0);
+                const resumoCusto = grupo.itens.reduce((acc, curr) => acc + (parseFloat(curr.valorDistribuicao) || 0), 0);
+                const resumoLucro = resumoFrete - resumoCusto;
+
+                return (
+                <div key={`fin-grupo-${grupo.numeroCarga}`} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                  <div className="px-6 py-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                    <h3 className="text-xs font-black text-slate-600 uppercase tracking-widest">Carga {grupo.numeroCarga}</h3>
+                    <div className="text-right">
+                      <span className="text-[10px] font-bold text-slate-400 block">{grupo.itens.length} boletos</span>
+                      <span className="text-[10px] font-semibold text-slate-500 block">Fechado: R$ {resumoFrete.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} · Gasto: R$ {resumoCusto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} · Lucro: R$ {resumoLucro.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                  </div>
+                  <div className="divide-y divide-slate-100">
+                    {grupo.itens.map(item => (
+                      <div key={`fin-item-${item.id}`} className="px-6 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-black text-slate-800">NF {item.numeroNF || '---'} · (Boleto {item.numeroBoleto || '---'}) CT-e {getNumeroCTeResolvido(item) || '---'}</p>
+                          <p className="text-[10px] font-bold text-slate-500 uppercase">{item.contratante || 'Sem contratante'} · Motorista: {item.motorista || 'Sem motorista'}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="text-right">
+                            <p className="text-xs font-bold text-slate-700">Venc: {(item.dataVencimentoBoleto || item.vencimento) ? new Date(((item.dataVencimentoBoleto || item.vencimento) + 'T12:00:00')).toLocaleDateString('pt-BR') : '---'}</p>
+                            <span className={`w-fit ml-auto px-2 py-0.5 rounded text-[9px] font-black uppercase ${getStatusFinanceiro(item) === 'Pago' ? 'bg-emerald-100 text-emerald-600' : getStatusFinanceiro(item) === 'Vencido' ? 'bg-rose-100 text-rose-600' : 'bg-amber-100 text-amber-600'}`}>{getStatusFinanceiro(item)}</span>
+                          </div>
+                          <button onClick={() => handleOpenEdit(item)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg" title="Editar"><Edit3 size={16}/></button>
+                          <button onClick={() => setDetailItem(item)} className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg" title="Ver dados"><Eye size={16}/></button>
+                          <button onClick={async () => { if (confirm('Deseja realmente excluir este registro?')) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'financeiro', item.id)); }} className="p-2 text-red-400 hover:bg-red-50 rounded-lg" title="Excluir"><Trash2 size={16}/></button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+              })}
+            </div>
+          )}
+
+          {activeTab === 'dashboard' && dashboardCargaFilter && (
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden mb-8">
+              <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white">
+                <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Dashboard Cargas - {dashboardCargaFilter}</h3>
+                <span className="text-[10px] font-bold text-slate-400">{dashboardViagensFiltradas.length} registros</span>
+              </div>
+              {dashboardCargaFilter === 'Entregue' ? (
+                <div className="p-4 space-y-3">
+                  {dashboardViagensFiltradasPorCarga.map(grupo => (
+                    <div key={`dash-carga-entregue-${grupo.numeroCarga}`} className="rounded-2xl border border-slate-100 overflow-hidden">
+                      <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                        <h4 className="text-[11px] font-black text-slate-600 uppercase tracking-widest">Carga {grupo.numeroCarga}</h4>
+                        <span className="text-[10px] font-bold text-slate-400">{grupo.itens.length} NF(s)</span>
+                      </div>
+                      <div className="divide-y divide-slate-50">
+                        {grupo.itens.map(item => (
+                          <div key={`dash-v-${item.id}`} className="px-4 py-3 hover:bg-slate-50/60 transition-colors flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                            <div>
+                              <p className="font-bold text-slate-800">NF {item.numeroNF || '---'} · CT-e {getNumeroCTeResolvido(item) || '---'}</p>
+                              <p className="text-[10px] font-black text-blue-600 uppercase tracking-tight">{item.contratante || 'Contratante não informado'}</p>
+                              <p className="text-[10px] font-black text-slate-500 uppercase">{item.cidade || 'Destino não informado'} · {item.motorista || 'Sem motorista'}</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="w-fit px-2 py-0.5 rounded text-[9px] font-black uppercase bg-emerald-100 text-emerald-600">Entregue</span>
+                              <button onClick={() => setDetailItem(item)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase hover:bg-indigo-100">
+                                <Eye size={12}/> Ver dados
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+              <table className="w-full text-left border-collapse">
+                <thead className="bg-slate-50 border-b border-slate-100">
+                  <tr>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Carga / NF / Empresa</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">CT-e</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Destino / Motorista</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Status</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase text-right">Dados</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {dashboardViagensFiltradas.map(item => (
+                    <tr key={`dash-v-${item.id}`} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="px-6 py-4">
+                        <p className="font-bold text-slate-800">Carga {item.numeroCarga || '---'} · NF {item.numeroNF || '---'}</p>
+                        <p className="text-[10px] font-black text-blue-600 uppercase tracking-tight">{item.contratante || 'Contratante não informado'}</p>
+                      </td>
+                      <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.numeroCTe || '---'}</td>
+                      <td className="px-6 py-4">
+                        <p className="text-sm font-bold text-slate-800">{item.cidade || 'Destino não informado'}</p>
+                        <p className="text-[10px] font-black text-slate-500 uppercase">{item.motorista || 'Sem motorista'}</p>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`w-fit px-2 py-0.5 rounded text-[9px] font-black uppercase ${getStatusViagem(item) === 'Em rota' ? 'bg-blue-100 text-blue-600' : getStatusViagem(item) === 'Entregue' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
+                          {getStatusViagem(item)}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button onClick={() => setDetailItem(item)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase hover:bg-indigo-100">
+                          <Eye size={12}/> Ver dados
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              )}
+            </div>
+          )}
+
           {activeTab === 'dashboard' && (
             <div className="space-y-6 mt-8">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Card title="Boletos Gerados" value={boletoStats.boletosGerados} icon={FileText} color="bg-indigo-600" />
-                <Card title="Boletos Pendentes" value={boletoStats.boletosPendentes} icon={Clock} color="bg-amber-500" />
-                <Card title="Boletos Atrasados" value={boletoStats.boletosAtrasados} icon={AlertCircle} color="bg-rose-600" />
-                <Card title="Boletos Pagos" value={boletoStats.boletosPagos} icon={CheckCircle2} color="bg-emerald-600" />
+                <Card title="Boletos Gerados" value={boletoStats.boletosGerados} icon={FileText} color="bg-indigo-600" active={dashboardBoletoFilter === 'Todos'} onClick={() => setDashboardBoletoFilter(prev => prev === 'Todos' ? '' : 'Todos')} />
+                <Card title="Boletos Pendentes" value={boletoStats.boletosPendentes} icon={Clock} color="bg-amber-500" active={dashboardBoletoFilter === 'Pendente'} onClick={() => setDashboardBoletoFilter(prev => prev === 'Pendente' ? '' : 'Pendente')} />
+                <Card title="Boletos Atrasados" value={boletoStats.boletosAtrasados} icon={AlertCircle} color="bg-rose-600" active={dashboardBoletoFilter === 'Vencido'} onClick={() => setDashboardBoletoFilter(prev => prev === 'Vencido' ? '' : 'Vencido')} />
+                <Card title="Boletos Pagos" value={boletoStats.boletosPagos} icon={CheckCircle2} color="bg-emerald-600" active={dashboardBoletoFilter === 'Pago'} onClick={() => setDashboardBoletoFilter(prev => prev === 'Pago' ? '' : 'Pago')} />
               </div>
+              {dashboardBoletoFilter && (
               <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white">
-                  <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Dashboard Boletos</h3>
-                  <span className="text-[10px] font-bold text-slate-400">{financeiro.length} registros</span>
+                  <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Dashboard Boletos - {dashboardBoletoFilter === 'Todos' ? 'Gerados' : dashboardBoletoFilter}</h3>
+                  <span className="text-[10px] font-bold text-slate-400">{dashboardBoletosFiltrados.length} registros</span>
                 </div>
-                <table className="w-full text-left border-collapse">
-                  <thead className="bg-slate-50 border-b border-slate-100">
-                    <tr>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">NF / Contratante</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Vencimento</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">Status</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase text-right">Boleto</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {financeiro.map(item => (
-                      <tr key={`dash-fin-${item.id}`} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="px-6 py-4">
-                          <p className="font-bold text-slate-800">{item.numeroNF || '---'}</p>
-                          <p className="text-[10px] font-black text-blue-600 uppercase tracking-tight">{item.contratante || 'Contratante não informado'}</p>
-                        </td>
-                        <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.vencimento ? new Date(item.vencimento + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</td>
-                        <td className="px-6 py-4">
-                          <span className={`w-fit px-2 py-0.5 rounded text-[9px] font-black uppercase ${getStatusFinanceiro(item) === 'Pago' ? 'bg-emerald-100 text-emerald-600' : getStatusFinanceiro(item) === 'Vencido' ? 'bg-rose-100 text-rose-600' : 'bg-amber-100 text-amber-600'}`}>
-                            {getStatusFinanceiro(item)}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          {(item.boleto || item.urlBoleto || item.urlComprovante) ? (
-                            <a href={item.boleto || item.urlBoleto || item.urlComprovante} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase">Abrir <ExternalLink size={12} /></a>
-                          ) : <span className="text-[10px] font-bold text-slate-400">Sem link</span>}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <div className="p-4 space-y-3">
+                  {dashboardBoletosFiltradosPorCarga.map(grupo => (
+                    <div key={`dash-boleto-carga-${grupo.numeroCarga}`} className="rounded-2xl border border-slate-100 overflow-hidden">
+                      <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                        <h4 className="text-[11px] font-black text-slate-600 uppercase tracking-widest">Carga {grupo.numeroCarga}</h4>
+                        <span className="text-[10px] font-bold text-slate-400">{grupo.itens.length} boletos</span>
+                      </div>
+                      <div className="divide-y divide-slate-50">
+                        {grupo.itens.map(item => (
+                          <div key={`dash-fin-${item.id}`} className="px-4 py-3 hover:bg-slate-50/60 transition-colors flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                            <div>
+                              <p className="font-bold text-slate-800">NF {item.numeroNF || '---'} · {item.contratante || 'Contratante não informado'}</p>
+                              <p className="text-[10px] font-black text-slate-500 uppercase">Vencimento: {(item.dataVencimentoBoleto || item.vencimento) ? new Date(((item.dataVencimentoBoleto || item.vencimento) + 'T12:00:00')).toLocaleDateString('pt-BR') : '---'}</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className={`w-fit px-2 py-0.5 rounded text-[9px] font-black uppercase ${getStatusFinanceiro(item) === 'Pago' ? 'bg-emerald-100 text-emerald-600' : getStatusFinanceiro(item) === 'Vencido' ? 'bg-rose-100 text-rose-600' : 'bg-amber-100 text-amber-600'}`}>
+                                {getStatusFinanceiro(item)}
+                              </span>
+                              <button onClick={() => setDetailItem(item)} className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg" title="Ver dados"><Eye size={16}/></button>
+                              {(item.boleto || item.urlBoleto || item.urlComprovante) ? (
+                                <a href={item.boleto || item.urlBoleto || item.urlComprovante} target="_blank" rel="noreferrer" onClick={(e) => { e.preventDefault(); openInNewWindow(item.boleto || item.urlBoleto || item.urlComprovante); }} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase">Abrir <ExternalLink size={12} /></a>
+                              ) : <span className="text-[10px] font-bold text-slate-400">Sem link</span>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
+              )}
             </div>
           )}
         </div>
@@ -904,13 +1514,13 @@ function App() {
                           className="flex-1 px-4 py-2.5 bg-white border border-emerald-200 rounded-xl text-xs font-semibold outline-none file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-emerald-100 file:text-emerald-700"
                         />
                         {formData.urlComprovante && (
-                          <a href={formData.urlComprovante} target="_blank" rel="noreferrer" className="p-2.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors">
+                          <a href={formData.urlComprovante} target="_blank" rel="noreferrer" onClick={(e) => { e.preventDefault(); openInNewWindow(formData.urlComprovante); }} className="p-2.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors">
                             <ExternalLink size={18} />
                           </a>
                         )}
                       </div>
                       {formData.urlComprovante && (
-                        <a href={formData.urlComprovante} target="_blank" rel="noreferrer" title="Abrir comprovante em nova aba" className="inline-block mt-2">
+                        <a href={formData.urlComprovante} target="_blank" rel="noreferrer" onClick={(e) => { e.preventDefault(); openInNewWindow(formData.urlComprovante); }} title="Abrir comprovante em nova aba" className="inline-block mt-2">
                           <img src={formData.urlComprovante} alt="Pré-visualização do comprovante" className="h-20 w-20 object-cover rounded-lg border border-emerald-200 hover:opacity-90 transition-opacity cursor-pointer" />
                         </a>
                       )}
@@ -976,6 +1586,19 @@ function App() {
             </div>
           )}
 
+          {(activeTab === 'dashboard' || activeTab === 'viagens' || activeTab === 'financeiro') && (
+            <div className="space-y-1">
+              <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Observação</label>
+              <textarea
+                value={formData.observacao || ''}
+                onChange={e => setFormData({...formData, observacao: e.target.value})}
+                placeholder="Digite uma observação adicional..."
+                rows={3}
+                className="w-full p-3 bg-slate-100 rounded-xl text-sm font-medium outline-none border border-transparent focus:border-blue-400"
+              />
+            </div>
+          )}
+
           <div className="flex gap-3 pt-8 border-t">
             <button type="button" onClick={() => setModalOpen(false)} className="flex-1 py-4 text-xs font-black uppercase text-slate-400 hover:text-slate-600 transition-colors">Descartar</button>
             <button type="submit" className="flex-[2] py-4 bg-blue-600 text-white rounded-2xl text-xs font-black uppercase shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all">
@@ -990,24 +1613,26 @@ function App() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
             <Info label="Número da Carga" value={detailItem.numeroCarga} />
             <Info label="NF" value={detailItem.numeroNF} />
-            <Info label="Número do CT-e" value={detailItem.numeroCTe} />
-            <Info label="Data do CT-e" value={detailItem.dataCTe ? new Date(detailItem.dataCTe + 'T12:00:00').toLocaleDateString('pt-BR') : ''} />
+            <Info label="Número do CT-e" value={getNumeroCTeResolvido(detailItem)} />
+            <Info label="Data do CT-e" value={getDataCTeResolvida(detailItem) ? new Date(getDataCTeResolvida(detailItem) + 'T12:00:00').toLocaleDateString('pt-BR') : ''} />
+            <Info label="Data da Entrega" value={getDataEntregaResolvida(detailItem) ? new Date(`${getDataEntregaResolvida(detailItem)}T12:00:00`).toLocaleDateString('pt-BR') : ''} />
             <Info label="Contratante" value={detailItem.contratante} />
             <Info label="Destinatário" value={detailItem.destinatario} />
             <Info label="Cidade" value={detailItem.cidade} />
             <Info label="Motorista" value={detailItem.motorista} />
-            <Info label="Veículo" value={detailItem.veiculo} />
+            <Info label="Veículo" value={getVeiculoResolvido(detailItem)} />
             <Info label="Status" value={detailItem.status || (detailItem.statusFinanceiro || detailItem.vencimento || detailItem.dataVencimentoBoleto ? getStatusFinanceiro(detailItem) : getStatusViagem(detailItem))} />
             <Info label="Valor Frete" value={detailItem.valorFrete ? `R$ ${parseFloat(detailItem.valorFrete).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : ''} />
             <Info label="Valor Distribuição" value={detailItem.valorDistribuicao ? `R$ ${parseFloat(detailItem.valorDistribuicao).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : ''} />
             <Info label="Lucro" value={`R$ ${((parseFloat(detailItem.valorFrete) || 0) - (parseFloat(detailItem.valorDistribuicao) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} />
             <Info label="Número do Boleto" value={detailItem.numeroBoleto || ''} />
             <Info label="Data de Vencimento" value={(detailItem.dataVencimentoBoleto || detailItem.vencimento) ? new Date(((detailItem.dataVencimentoBoleto || detailItem.vencimento) + 'T12:00:00')).toLocaleDateString('pt-BR') : ''} />
+            <Info label="Observação" value={detailItem.observacao || ''} />
             <div className="md:col-span-2">
               <Info label="Comprovante" value={detailItem.urlComprovante ? 'Foto anexada' : 'Sem comprovante'} />
               {detailItem.urlComprovante && (
                 <div className="mt-2">
-                  <a href={detailItem.urlComprovante} target="_blank" rel="noreferrer" title="Abrir comprovante em nova aba" className="inline-block">
+                  <a href={detailItem.urlComprovante} target="_blank" rel="noreferrer" onClick={(e) => { e.preventDefault(); openInNewWindow(detailItem.urlComprovante); }} title="Abrir comprovante em nova aba" className="inline-block">
                     <img src={detailItem.urlComprovante} alt="Comprovante da carga" className="h-28 w-28 object-cover rounded-lg border border-slate-200 hover:opacity-90 transition-opacity cursor-pointer" />
                   </a>
                 </div>
