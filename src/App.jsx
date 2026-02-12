@@ -1,59 +1,16 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { initializeApp } from 'firebase/app';
-import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
-import { getFirestore, collection, doc, addDoc, onSnapshot, updateDoc, deleteDoc, serverTimestamp, query } from 'firebase/firestore';
+import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
+import { addDoc, onSnapshot, updateDoc, deleteDoc, serverTimestamp, query } from 'firebase/firestore';
 import { 
-  LayoutDashboard, Truck, Users, DollarSign, Plus, Package, MapPin, X, Trash2, 
+  LayoutDashboard, Truck, Users, DollarSign, Plus, Package, MapPin, Trash2, 
   Briefcase, LogOut, Lock, Mail, Clock, FileText, Search, Calendar, Layers, 
-  CheckCircle2, AlertCircle, Edit3, Download, ArrowRight, Camera, Paperclip, ExternalLink, Building2, Eye
+  CheckCircle2, AlertCircle, Edit3, Download, Camera, Paperclip, ExternalLink, Building2, Eye
 } from 'lucide-react';
-
-// --- CONFIGURAÇÃO ---
-const firebaseConfig = { 
-  apiKey: "AIzaSyDncBYgIrudOBBwjsNFe9TS7Zr0b2nJLRo", 
-  authDomain: "cargofy-b4435.firebaseapp.com", 
-  projectId: "cargofy-b4435", 
-  storageBucket: "cargofy-b4435.firebasestorage.app", 
-  appId: "1:827918943476:web:a1a33a1e6dd84e4e8c8aa1" 
-};
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const appId = 'cargofy-b4435-prod';
-
-// --- COMPONENTES DE UI ---
-
-const Card = ({ title, value, icon: Icon, color, onClick, active }) => (
-  <button 
-    onClick={onClick}
-    className={`w-full text-left bg-white p-6 rounded-2xl shadow-sm border ${active ? 'border-blue-500 ring-2 ring-blue-500/10' : 'border-slate-100'} flex items-start justify-between transition-all hover:shadow-md hover:scale-[1.02] active:scale-95`}
-  >
-    <div>
-      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{title}</p>
-      <h3 className="text-xl font-black text-slate-800 mt-1">{value}</h3>
-      {onClick && <p className="text-[9px] font-bold text-blue-500 mt-2 flex items-center gap-1 uppercase">Ver detalhes <ArrowRight size={10}/></p>}
-    </div>
-    <div className={`p-3 rounded-xl ${color} text-white shadow-lg`}>
-      <Icon size={20} />
-    </div>
-  </button>
-);
-
-const Modal = ({ isOpen, onClose, title, children }) => {
-  if (!isOpen) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-        <div className="px-8 py-5 border-b flex justify-between items-center bg-slate-50">
-          <h2 className="text-lg font-black text-slate-800 uppercase tracking-tight">{title}</h2>
-          <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors"><X size={20} /></button>
-        </div>
-        <div className="p-8 overflow-y-auto">{children}</div>
-      </div>
-    </div>
-  );
-};
+import { auth } from './config/firebase';
+import { COLLECTION_NAMES, SUBSCRIBED_COLLECTIONS } from './constants/firestore';
+import { getCollectionRef, getDocRef } from './services/firestorePaths';
+import { Card } from './components/ui/Card';
+import { Modal } from './components/ui/Modal';
 
 // --- APP PRINCIPAL ---
 
@@ -118,9 +75,9 @@ function App() {
 
   useEffect(() => {
     if (!user) return;
-    const collections = ['viagens', 'financeiro', 'clientes', 'motoristas', 'veiculos'];
+    const collections = SUBSCRIBED_COLLECTIONS;
     const unsubscribes = collections.map(colName => {
-      const q = query(collection(db, 'artifacts', appId, 'public', 'data', colName));
+      const q = query(getCollectionRef(colName));
       return onSnapshot(q, (snapshot) => {
         const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         if (colName === 'viagens') setViagens(data);
@@ -431,9 +388,9 @@ function App() {
     };
 
     if (registroExistente?.id) {
-      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'financeiro', registroExistente.id), payloadFinanceiro);
+      await updateDoc(getDocRef(COLLECTION_NAMES.financeiro, registroExistente.id), payloadFinanceiro);
     } else {
-      await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'financeiro'), {
+      await addDoc(getCollectionRef(COLLECTION_NAMES.financeiro), {
         ...payloadFinanceiro,
         userId: user.uid,
         createdAt: serverTimestamp()
@@ -472,9 +429,9 @@ function App() {
         : formData;
     try {
       if (editingId) {
-        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', colName, editingId), payload);
+        await updateDoc(getDocRef(colName, editingId), payload);
       } else {
-        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', colName), {
+        await addDoc(getCollectionRef(colName), {
           ...payload, userId: user.uid, createdAt: serverTimestamp()
         });
       }
@@ -714,7 +671,7 @@ function App() {
                         )}
                         <button onClick={() => handleOpenEdit(item)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg"><Edit3 size={16}/></button>
                         <button onClick={async () => { 
-                          if(confirm('Deseja realmente excluir este registro?')) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', (activeTab === 'dashboard' || activeTab === 'viagens' ? 'viagens' : activeTab), item.id));
+                          if(confirm('Deseja realmente excluir este registro?')) await deleteDoc(getDocRef((activeTab === 'dashboard' || activeTab === 'viagens' ? COLLECTION_NAMES.viagens : activeTab), item.id));
                         }} className="p-2 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 size={16}/></button>
                       </div>
                     </td>
