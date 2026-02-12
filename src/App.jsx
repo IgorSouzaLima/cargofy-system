@@ -246,10 +246,10 @@ function App() {
   const dashboardViagensBase = useMemo(() => {
     if (!monthFilter) return viagens;
     return viagens.filter(v => {
-      const dataBase = v.dataSaida || v.dataNF || v.dataEntrega || v.dataCTe;
+      const dataBase = getDataCTeResolvida(v) || v.dataCTe;
       return (dataBase || '').slice(0, 7) === monthFilter;
     });
-  }, [viagens, monthFilter]);
+  }, [viagens, monthFilter, getDataCTeResolvida]);
 
   const stats = useMemo(() => {
     const pendentes = dashboardViagensBase.filter(v => getStatusViagem(v) === 'Pendente').length;
@@ -508,9 +508,7 @@ function App() {
 
     if ((activeTab === 'dashboard' || activeTab === 'viagens' || activeTab === 'financeiro') && monthFilter) {
       list = list.filter(item => {
-        const dataBase = activeTab === 'financeiro'
-          ? (getDataCTeResolvida(item) || item.dataCTe)
-          : (item.dataSaida || item.dataNF || item.dataEntrega || item.dataCTe);
+        const dataBase = (getDataCTeResolvida(item) || item.dataCTe);
         return (dataBase || '').slice(0, 7) === monthFilter;
       });
     }
