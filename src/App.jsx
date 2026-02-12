@@ -164,6 +164,8 @@ function App() {
 
   const getDataEntregaResolvida = (item) => item?.dataEntrega || getViagemRelacionada(item)?.dataEntrega || '';
 
+  const getChaveIDResolvida = (item) => item?.chaveID || getViagemRelacionada(item)?.chaveID || '';
+
   const getVeiculoResolvido = (item) => {
     const viagemRelacionada = getViagemRelacionada(item);
     const ref = (item?.veiculo || viagemRelacionada?.veiculo || '').trim();
@@ -1600,6 +1602,7 @@ function App() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
             <Info label="Número da Carga" value={getCargaLabel(detailItem)} />
             <Info label="NF" value={detailItem.numeroNF} />
+            <Info label="Chave de Acesso (NF-e)" value={getChaveIDResolvida(detailItem)} />
             <Info label="Número do CT-e" value={getNumeroCTeResolvido(detailItem)} />
             <Info label="Data do CT-e" value={getDataCTeResolvida(detailItem) ? new Date(getDataCTeResolvida(detailItem) + 'T12:00:00').toLocaleDateString('pt-BR') : ''} />
             <Info label="Data da Entrega" value={getDataEntregaResolvida(detailItem) ? new Date(`${getDataEntregaResolvida(detailItem)}T12:00:00`).toLocaleDateString('pt-BR') : ''} />
