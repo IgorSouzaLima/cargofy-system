@@ -61,6 +61,7 @@ function App() {
   const [user, setUser] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [statusFilter, setStatusFilter] = useState('Todos');
+  const [viagensMenuFilter, setViagensMenuFilter] = useState('todos');
   const [viagens, setViagens] = useState([]);
   const [financeiro, setFinanceiro] = useState([]);
   const [clientes, setClientes] = useState([]);
@@ -166,6 +167,18 @@ function App() {
     const emRota = viagens.filter(v => getStatusViagem(v) === 'Em rota').length;
     const entregues = viagens.filter(v => getStatusViagem(v) === 'Entregue').length;
     return { pendentes, emRota, entregues, total: viagens.length };
+  }, [viagens]);
+
+  const viagensControleStats = useMemo(() => {
+    const semComprovante = viagens.filter(v => !(v.urlComprovante || '').trim()).length;
+    const semMotorista = viagens.filter(v => !(v.motorista || '').trim()).length;
+    const ctePendente = viagens.filter(v => !(v.numeroCTe || '').trim() || !(v.dataCTe || '').trim()).length;
+    return {
+      total: viagens.length,
+      semComprovante,
+      semMotorista,
+      ctePendente
+    };
   }, [viagens]);
 
   const financeiroResumo = useMemo(() => {
@@ -361,9 +374,17 @@ function App() {
     let list = [];
     switch (activeTab) {
       case 'dashboard':
-      case 'viagens': 
+      case 'viagens': {
         list = statusFilter === 'Todos' ? viagens : viagens.filter(v => getStatusViagem(v) === statusFilter);
+        if (viagensMenuFilter === 'sem-comprovante') {
+          list = list.filter(v => !(v.urlComprovante || '').trim());
+        } else if (viagensMenuFilter === 'sem-motorista') {
+          list = list.filter(v => !(v.motorista || '').trim());
+        } else if (viagensMenuFilter === 'cte-pendente') {
+          list = list.filter(v => !(v.numeroCTe || '').trim() || !(v.dataCTe || '').trim());
+        }
         break;
+      }
       case 'financeiro': list = financeiro; break;
       case 'relatorios': list = viagens; break;
       case 'clientes': list = clientes; break;
@@ -383,7 +404,7 @@ function App() {
       (item.cidade?.toLowerCase().includes(term)) ||
       (item.motorista?.toLowerCase().includes(term))
     );
-  }, [activeTab, statusFilter, viagens, financeiro, clientes, motoristas, veiculos, searchNF]);
+  }, [activeTab, statusFilter, viagensMenuFilter, viagens, financeiro, clientes, motoristas, veiculos, searchNF]);
 
   const handleOpenEdit = (item) => {
     setFormData({
@@ -513,7 +534,7 @@ function App() {
         </div>
         <nav className="flex-1 space-y-1 overflow-y-auto">
           <NavItem icon={LayoutDashboard} label="Painel" active={activeTab === 'dashboard'} onClick={() => {setActiveTab('dashboard'); setStatusFilter('Todos');}} />
-          <NavItem icon={Package} label="Viagens" active={activeTab === 'viagens'} onClick={() => {setActiveTab('viagens'); setStatusFilter('Todos');}} />
+          <NavItem icon={Package} label="Viagens" active={activeTab === 'viagens'} onClick={() => {setActiveTab('viagens'); setStatusFilter('Todos'); setViagensMenuFilter('todos');}} />
           <NavItem icon={DollarSign} label="Financeiro" active={activeTab === 'financeiro'} onClick={() => setActiveTab('financeiro')} />
           <NavItem icon={FileText} label="Relatórios" active={activeTab === 'relatorios'} onClick={() => setActiveTab('relatorios')} />
           <div className="py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Gestão</div>
@@ -542,6 +563,11 @@ function App() {
                 Filtro: {statusFilter} <X size={12}/>
               </button>
             )}
+            {activeTab === 'viagens' && viagensMenuFilter !== 'todos' && (
+              <button onClick={() => setViagensMenuFilter('todos')} className="bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase flex items-center gap-2">
+                Menu: {viagensMenuFilter.replace('-', ' ')} <X size={12}/>
+              </button>
+            )}
           </div>
           {activeTab !== 'relatorios' && (
             <button onClick={() => { resetForm(); setEditingId(null); setModalOpen(true); }} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-blue-500/20 transition-all">
@@ -564,6 +590,26 @@ function App() {
               <Card title="Quanto Faturou" value={`R$ ${financeiroResumo.faturou.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={DollarSign} color="bg-indigo-600" />
               <Card title="Gasto Distribuição" value={`R$ ${financeiroResumo.gastouDistribuicao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={Truck} color="bg-amber-500" />
               <Card title="Lucro" value={`R$ ${financeiroResumo.lucroTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={CheckCircle2} color="bg-emerald-600" />
+            </div>
+          )}
+
+          {activeTab === 'viagens' && (
+            <div className="mb-8 bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-5">
+                <div>
+                  <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Controle de viagens</h2>
+                  <p className="text-sm font-semibold text-slate-500">Qualidade operacional e pendências de documentação.</p>
+                </div>
+                <div className="p-3 rounded-2xl bg-slate-900 text-white shadow-lg">
+                  <Package size={20} />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <Card title="Total de viagens" value={viagensControleStats.total} icon={Package} color="bg-slate-700" active={viagensMenuFilter === 'todos'} onClick={() => setViagensMenuFilter('todos')} />
+                <Card title="Sem comprovante" value={viagensControleStats.semComprovante} icon={Paperclip} color="bg-amber-500" active={viagensMenuFilter === 'sem-comprovante'} onClick={() => setViagensMenuFilter('sem-comprovante')} />
+                <Card title="Sem motorista" value={viagensControleStats.semMotorista} icon={Users} color="bg-rose-500" active={viagensMenuFilter === 'sem-motorista'} onClick={() => setViagensMenuFilter('sem-motorista')} />
+                <Card title="CT-e pendente" value={viagensControleStats.ctePendente} icon={FileText} color="bg-indigo-600" active={viagensMenuFilter === 'cte-pendente'} onClick={() => setViagensMenuFilter('cte-pendente')} />
+              </div>
             </div>
           )}
 
