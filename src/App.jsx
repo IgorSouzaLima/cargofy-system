@@ -975,9 +975,14 @@ function App() {
                             <p className="text-sm font-black text-slate-800">Carga {getCargaLabel(item)} · NF {item.numeroNF || '---'}</p>
                             <p className="text-[10px] font-bold text-slate-500 uppercase">{item.contratante || 'Sem contratante'}</p>
                           </div>
-                          <button onClick={() => setDetailItem(item)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase hover:bg-indigo-100">
-                            <Eye size={12}/> Ver dados
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button onClick={() => handleOpenEdit(item)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 text-[10px] font-black uppercase hover:bg-blue-100">
+                              <Edit3 size={12}/> Editar
+                            </button>
+                            <button onClick={() => setDetailItem(item)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase hover:bg-indigo-100">
+                              <Eye size={12}/> Ver dados
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
