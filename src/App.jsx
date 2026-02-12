@@ -979,13 +979,6 @@ function App() {
                   <Card title="CT-e pendente" value={viagensPainelResumo.ctePendente} icon={FileText} color="bg-indigo-600" active={viagensPainelFiltro === 'ctePendente'} onClick={() => setViagensPainelFiltro(prev => prev === 'ctePendente' ? '' : 'ctePendente')} />
                 </div>
 
-                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4">
-                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Motorista com maior volume</p>
-                  <p className="text-2xl font-black text-slate-900 mt-1">{viagensPainelResumo.motoristaMaiorVolume}</p>
-                  <p className="text-sm font-bold text-slate-500 mt-1">{viagensPainelResumo.totalMaiorVolume} viagem(ns) no período carregado</p>
-                </div>
-
-
                 {viagensPainelFiltro && (
                   <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
                     <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50">
