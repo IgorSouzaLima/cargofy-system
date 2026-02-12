@@ -1,26 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { initializeApp } from 'firebase/app';
-import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
-import { getFirestore, collection, doc, addDoc, onSnapshot, updateDoc, deleteDoc, serverTimestamp, query } from 'firebase/firestore';
+import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
+import { collection, doc, addDoc, onSnapshot, updateDoc, deleteDoc, serverTimestamp, query, setDoc } from 'firebase/firestore';
 import { 
   LayoutDashboard, Truck, Users, DollarSign, Plus, Package, MapPin, X, Trash2, 
   Briefcase, LogOut, Lock, Mail, Clock, FileText, Search, Calendar, Layers, 
   CheckCircle2, AlertCircle, Edit3, Download, ArrowRight, Camera, Paperclip, ExternalLink, Building2, Eye, Upload
 } from 'lucide-react';
-
-// --- CONFIGURAÇÃO ---
-const firebaseConfig = { 
-  apiKey: "AIzaSyDncBYgIrudOBBwjsNFe9TS7Zr0b2nJLRo", 
-  authDomain: "cargofy-b4435.firebaseapp.com", 
-  projectId: "cargofy-b4435", 
-  storageBucket: "cargofy-b4435.firebasestorage.app", 
-  appId: "1:827918943476:web:a1a33a1e6dd84e4e8c8aa1" 
-};
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const appId = 'cargofy-b4435-prod';
+import { appId, auth, db } from './config/firebase';
+import { DATA_COLLECTIONS } from './constants/collections';
+import { INITIAL_FORM_DATA } from './data/formDefaults';
 
 // --- COMPONENTES DE UI ---
 
@@ -79,42 +67,7 @@ function App() {
   const [reportNumeroCarga, setReportNumeroCarga] = useState('');
   const [detailItem, setDetailItem] = useState(null);
 
-  const [formData, setFormData] = useState({
-    numeroNF: '', 
-    numeroCarga: '', 
-    numeroCTe: '', 
-    dataCTe: '', 
-    dataNF: '', 
-    dataSaida: '', 
-    dataEntrega: '', // Novo campo
-    contratante: '', // Novo campo
-    destinatario: '', // Novo campo
-    cidade: '', 
-    volume: '', // Novo campo
-    peso: '', // Novo campo
-    valorNF: '', // Novo campo
-    chaveID: '', 
-    status: 'Pendente', 
-    valorFrete: '', 
-    valorDistribuicao: '', 
-    lucro: '', 
-    metodoPagamento: '', 
-    numeroBoleto: '', 
-    dataVencimentoBoleto: '', 
-    motorista: '', 
-    veiculo: '', 
-    placa: '', 
-    urlComprovante: '', 
-    boleto: '', 
-    vencimento: '', 
-    statusFinanceiro: 'Pendente', 
-    nome: '', 
-    email: '', 
-    telefone: '', 
-    modelo: '', 
-    tipo: '',
-    observacao: ''
-  });
+  const [formData, setFormData] = useState(INITIAL_FORM_DATA);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, setUser);
@@ -123,8 +76,7 @@ function App() {
 
   useEffect(() => {
     if (!user) return;
-    const collections = ['viagens', 'financeiro', 'clientes', 'motoristas', 'veiculos'];
-    const unsubscribes = collections.map(colName => {
+    const unsubscribes = DATA_COLLECTIONS.map(colName => {
       const q = query(collection(db, 'artifacts', appId, 'public', 'data', colName));
       return onSnapshot(q, (snapshot) => {
         const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -242,6 +194,25 @@ function App() {
     return viagem.status || 'Pendente';
   };
 
+  const getCargaLabel = (item) => {
+    const numero = (item?.numeroCarga || '').trim();
+    const tipo = (item?.tipoCarga || '').trim();
+    if (!numero) return '---';
+    if (!tipo) return numero;
+    return `${tipo} - ${numero}`;
+  };
+
+  const getFinanceiroDocId = (viagemData) => {
+    const origemViagemId = (viagemData?.id || '').trim();
+    if (origemViagemId) return `viagem_${origemViagemId}`;
+
+    const numeroNF = (viagemData?.numeroNF || '').trim();
+    if (numeroNF) return `nf_${numeroNF.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+
+    return '';
+  };
+
+  const exigeCTe = (item) => (item?.tipoCarga || '').trim().toLowerCase() !== 'dedicada';
 
   const dashboardViagensBase = useMemo(() => {
     if (!monthFilter) return viagens;
@@ -613,7 +584,7 @@ function App() {
     const totalViagens = base.length;
     const semComprovante = base.filter(item => !(item.urlComprovante || '').trim()).length;
     const semMotorista = base.filter(item => !(item.motorista || '').trim()).length;
-    const ctePendente = base.filter(item => !((item.numeroCTe || '').trim()) || !((item.dataCTe || '').trim())).length;
+    const ctePendente = base.filter(item => exigeCTe(item) && (!((item.numeroCTe || '').trim()) || !((item.dataCTe || '').trim()))).length;
 
     const contagemPorMotorista = {};
     base.forEach(item => {
@@ -634,7 +605,7 @@ function App() {
     const lista = filteredData.filter(item => {
       if (viagensPainelFiltro === 'semComprovante') return !(item.urlComprovante || '').trim();
       if (viagensPainelFiltro === 'semMotorista') return !(item.motorista || '').trim();
-      if (viagensPainelFiltro === 'ctePendente') return !((item.numeroCTe || '').trim()) || !((item.dataCTe || '').trim());
+      if (viagensPainelFiltro === 'ctePendente') return exigeCTe(item) && (!((item.numeroCTe || '').trim()) || !((item.dataCTe || '').trim()));
       return false;
     });
 
@@ -714,6 +685,7 @@ function App() {
     const payloadFinanceiro = {
       numeroNF: viagemData.numeroNF || '',
       numeroCarga: viagemData.numeroCarga || '',
+      tipoCarga: viagemData.tipoCarga || '',
       origemViagemId: origemViagemId,
       numeroCTe: viagemData.numeroCTe || '',
       contratante: viagemData.contratante || '',
@@ -736,15 +708,22 @@ function App() {
       urlComprovante: viagemData.boleto || viagemData.urlComprovante || ''
     };
 
-    if (registroExistente?.id) {
-      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'financeiro', registroExistente.id), payloadFinanceiro);
-    } else {
-      await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'financeiro'), {
+    const financeiroDocId = registroExistente?.id || getFinanceiroDocId(viagemData);
+
+    if (financeiroDocId) {
+      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'financeiro', financeiroDocId), {
         ...payloadFinanceiro,
         userId: user.uid,
-        createdAt: serverTimestamp()
-      });
+        createdAt: registroExistente?.createdAt || serverTimestamp()
+      }, { merge: true });
+      return;
     }
+
+    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'financeiro'), {
+      ...payloadFinanceiro,
+      userId: user.uid,
+      createdAt: serverTimestamp()
+    });
   };
 
   useEffect(() => {
@@ -781,8 +760,13 @@ function App() {
     e.preventDefault();
     const colName = (activeTab === 'dashboard' || activeTab === 'viagens') ? 'viagens' : activeTab;
 
-    if (colName === 'viagens' && (!formData.numeroCTe || !formData.dataCTe)) {
-      alert('Informe o número e a data do CT-e para cadastrar a carga.');
+    if (colName === 'viagens' && !formData.tipoCarga) {
+      alert('Selecione se a carga é Dedicada ou Fracionada.');
+      return;
+    }
+
+    if (colName === 'viagens' && formData.tipoCarga === 'Fracionada' && (!formData.numeroCTe || !formData.dataCTe)) {
+      alert('Para carga fracionada, informe o número e a data do CT-e.');
       return;
     }
 
@@ -803,22 +787,26 @@ function App() {
       : colName === 'viagens'
         ? {
             ...formData,
+            numeroCTe: formData.tipoCarga === 'Fracionada' ? formData.numeroCTe : '',
+            dataCTe: formData.tipoCarga === 'Fracionada' ? formData.dataCTe : '',
             numeroBoleto: formData.metodoPagamento === 'Boleto' ? formData.numeroBoleto : '',
             dataVencimentoBoleto: formData.metodoPagamento === 'Boleto' ? formData.dataVencimentoBoleto : '',
             lucro: ((parseFloat(formData.valorFrete) || 0) - (parseFloat(formData.valorDistribuicao) || 0)).toFixed(2)
           }
         : formData;
     try {
+      let savedViagemId = editingId || '';
       if (editingId) {
         await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', colName, editingId), payload);
       } else {
-        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', colName), {
+        const novoDoc = await addDoc(collection(db, 'artifacts', appId, 'public', 'data', colName), {
           ...payload, userId: user.uid, createdAt: serverTimestamp()
         });
+        savedViagemId = novoDoc.id;
       }
 
       if (colName === 'viagens') {
-        await syncFinanceiroPorViagem({ ...payload, id: editingId || '' });
+        await syncFinanceiroPorViagem({ ...payload, id: savedViagemId });
       }
 
       setModalOpen(false);
@@ -828,14 +816,7 @@ function App() {
   };
 
   const resetForm = () => {
-    setFormData({ 
-      numeroNF: '', numeroCarga: '', numeroCTe: '', dataCTe: '', dataNF: '', dataSaida: '', dataEntrega: '', 
-      contratante: '', destinatario: '', cidade: '', 
-      volume: '', peso: '', valorNF: '', chaveID: '', status: 'Pendente', 
-      valorFrete: '', valorDistribuicao: '', lucro: '', metodoPagamento: '', numeroBoleto: '', dataVencimentoBoleto: '', motorista: '', veiculo: '', placa: '', urlComprovante: '', boleto: '', vencimento: '', 
-      statusFinanceiro: 'Pendente', nome: '', email: '', telefone: '', 
-      modelo: '', tipo: '', observacao: ''
-    });
+    setFormData({ ...INITIAL_FORM_DATA });
   };
 
   const lucroViagem = (parseFloat(formData.valorFrete) || 0) - (parseFloat(formData.valorDistribuicao) || 0);
@@ -991,12 +972,17 @@ function App() {
                       {viagensPendenciasFiltradas.map(item => (
                         <div key={`pend-${item.id}`} className="px-4 py-3 flex items-center justify-between gap-3">
                           <div>
-                            <p className="text-sm font-black text-slate-800">Carga {item.numeroCarga || '---'} · NF {item.numeroNF || '---'}</p>
+                            <p className="text-sm font-black text-slate-800">Carga {getCargaLabel(item)} · NF {item.numeroNF || '---'}</p>
                             <p className="text-[10px] font-bold text-slate-500 uppercase">{item.contratante || 'Sem contratante'}</p>
                           </div>
-                          <button onClick={() => setDetailItem(item)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase hover:bg-indigo-100">
-                            <Eye size={12}/> Ver dados
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button onClick={() => handleOpenEdit(item)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 text-[10px] font-black uppercase hover:bg-blue-100">
+                              <Edit3 size={12}/> Editar
+                            </button>
+                            <button onClick={() => setDetailItem(item)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase hover:bg-indigo-100">
+                              <Eye size={12}/> Ver dados
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -1007,7 +993,7 @@ function App() {
               {viagensAgrupadasPorCarga.map(grupo => (
                 <div key={`grupo-${grupo.numeroCarga}`} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                   <div className="px-6 py-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
-                    <h3 className="text-xs font-black text-slate-600 uppercase tracking-widest">Carga {grupo.numeroCarga}</h3>
+                    <h3 className="text-xs font-black text-slate-600 uppercase tracking-widest">Carga {grupo.numeroCarga === 'Sem carga' ? 'Sem carga' : getCargaLabel({ numeroCarga: grupo.numeroCarga, tipoCarga: (grupo.itens?.[0]?.tipoCarga || '') })}</h3>
                     <span className="text-[10px] font-bold text-slate-400">{grupo.itens.length} NFs</span>
                   </div>
                   <div className="p-4 space-y-2">
@@ -1109,7 +1095,7 @@ function App() {
                     {relatorioData.map(item => (
                       <tr key={`rel-${item.id}`} className="hover:bg-slate-50/50 transition-colors">
                         <td className="px-6 py-4">
-                          <p className="text-[10px] font-black text-indigo-600 uppercase">Carga #{item.numeroCarga || '---'}</p>
+                          <p className="text-[10px] font-black text-indigo-600 uppercase">Carga #{getCargaLabel(item)}</p>
                           <p className="font-bold text-slate-800">{item.numeroNF || '---'}</p>
                           <p className="text-[10px] font-black text-slate-500">CT-e: {item.numeroCTe || '---'}</p>
                           <p className="text-[10px] font-black text-blue-600 uppercase tracking-tight">{item.contratante || 'Sem empresa'}</p>
@@ -1149,7 +1135,7 @@ function App() {
                       <div className="flex flex-col">
                         <div className="flex items-center gap-2">
                           <p className="font-bold text-slate-800">{item.numeroNF || item.nome || item.modelo || "---"}</p>
-                          {item.numeroCarga && <p className="text-[10px] font-black text-indigo-600 uppercase">Carga #{item.numeroCarga}</p>}
+                          {item.numeroCarga && <p className="text-[10px] font-black text-indigo-600 uppercase">Carga #{getCargaLabel(item)}</p>}
                           {(item.boleto || item.urlBoleto || item.urlComprovante) && (
                             <a href={item.boleto || item.urlBoleto || item.urlComprovante} target="_blank" rel="noreferrer" title="Ver Comprovante" onClick={(e) => { e.preventDefault(); openInNewWindow(item.boleto || item.urlBoleto || item.urlComprovante); }} className="text-emerald-500 hover:scale-110 transition-transform">
                               <Paperclip size={14} />
@@ -1222,7 +1208,7 @@ function App() {
                 return (
                 <div key={`fin-grupo-${grupo.numeroCarga}`} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                   <div className="px-6 py-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
-                    <h3 className="text-xs font-black text-slate-600 uppercase tracking-widest">Carga {grupo.numeroCarga}</h3>
+                    <h3 className="text-xs font-black text-slate-600 uppercase tracking-widest">Carga {grupo.numeroCarga === 'Sem carga' ? 'Sem carga' : getCargaLabel({ numeroCarga: grupo.numeroCarga, tipoCarga: (grupo.itens?.[0]?.tipoCarga || '') })}</h3>
                     <div className="text-right">
                       <span className="text-[10px] font-bold text-slate-400 block">{grupo.itens.length} boletos</span>
                       <span className="text-[10px] font-semibold text-slate-500 block">Fechado: R$ {resumoFrete.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} · Gasto: R$ {resumoCusto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} · Lucro: R$ {resumoLucro.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
@@ -1259,12 +1245,12 @@ function App() {
                 <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Dashboard Cargas - {dashboardCargaFilter}</h3>
                 <span className="text-[10px] font-bold text-slate-400">{dashboardViagensFiltradas.length} registros</span>
               </div>
-              {dashboardCargaFilter === 'Entregue' ? (
+              {['Entregue', 'Em rota'].includes(dashboardCargaFilter) ? (
                 <div className="p-4 space-y-3">
                   {dashboardViagensFiltradasPorCarga.map(grupo => (
-                    <div key={`dash-carga-entregue-${grupo.numeroCarga}`} className="rounded-2xl border border-slate-100 overflow-hidden">
+                    <div key={`dash-carga-${dashboardCargaFilter}-${grupo.numeroCarga}`} className="rounded-2xl border border-slate-100 overflow-hidden">
                       <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
-                        <h4 className="text-[11px] font-black text-slate-600 uppercase tracking-widest">Carga {grupo.numeroCarga}</h4>
+                        <h4 className="text-[11px] font-black text-slate-600 uppercase tracking-widest">Carga {grupo.numeroCarga === 'Sem carga' ? 'Sem carga' : getCargaLabel({ numeroCarga: grupo.numeroCarga, tipoCarga: (grupo.itens?.[0]?.tipoCarga || '') })}</h4>
                         <span className="text-[10px] font-bold text-slate-400">{grupo.itens.length} NF(s)</span>
                       </div>
                       <div className="divide-y divide-slate-50">
@@ -1276,7 +1262,7 @@ function App() {
                               <p className="text-[10px] font-black text-slate-500 uppercase">{item.cidade || 'Destino não informado'} · {item.motorista || 'Sem motorista'}</p>
                             </div>
                             <div className="flex items-center gap-2">
-                              <span className="w-fit px-2 py-0.5 rounded text-[9px] font-black uppercase bg-emerald-100 text-emerald-600">Entregue</span>
+                              <span className={`w-fit px-2 py-0.5 rounded text-[9px] font-black uppercase ${dashboardCargaFilter === 'Em rota' ? 'bg-blue-100 text-blue-600' : 'bg-emerald-100 text-emerald-600'}`}>{dashboardCargaFilter}</span>
                               <button onClick={() => setDetailItem(item)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase hover:bg-indigo-100">
                                 <Eye size={12}/> Ver dados
                               </button>
@@ -1302,7 +1288,7 @@ function App() {
                   {dashboardViagensFiltradas.map(item => (
                     <tr key={`dash-v-${item.id}`} className="hover:bg-slate-50/50 transition-colors">
                       <td className="px-6 py-4">
-                        <p className="font-bold text-slate-800">Carga {item.numeroCarga || '---'} · NF {item.numeroNF || '---'}</p>
+                        <p className="font-bold text-slate-800">Carga {getCargaLabel(item)} · NF {item.numeroNF || '---'}</p>
                         <p className="text-[10px] font-black text-blue-600 uppercase tracking-tight">{item.contratante || 'Contratante não informado'}</p>
                       </td>
                       <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.numeroCTe || '---'}</td>
@@ -1346,7 +1332,7 @@ function App() {
                   {dashboardBoletosFiltradosPorCarga.map(grupo => (
                     <div key={`dash-boleto-carga-${grupo.numeroCarga}`} className="rounded-2xl border border-slate-100 overflow-hidden">
                       <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
-                        <h4 className="text-[11px] font-black text-slate-600 uppercase tracking-widest">Carga {grupo.numeroCarga}</h4>
+                        <h4 className="text-[11px] font-black text-slate-600 uppercase tracking-widest">Carga {grupo.numeroCarga === 'Sem carga' ? 'Sem carga' : getCargaLabel({ numeroCarga: grupo.numeroCarga, tipoCarga: (grupo.itens?.[0]?.tipoCarga || '') })}</h4>
                         <span className="text-[10px] font-bold text-slate-400">{grupo.itens.length} boletos</span>
                       </div>
                       <div className="divide-y divide-slate-50">
@@ -1390,8 +1376,16 @@ function App() {
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                   <Input label="Número Nota Fiscal" value={formData.numeroNF} onChange={v => setFormData({...formData, numeroNF: v})} />
                   <Input label="Número da Carga" value={formData.numeroCarga} onChange={v => setFormData({...formData, numeroCarga: v})} />
-                  <Input label="Número do CT-e" value={formData.numeroCTe} onChange={v => setFormData({...formData, numeroCTe: v})} />
-                  <Input label="Data do CT-e" type="date" value={formData.dataCTe} onChange={v => setFormData({...formData, dataCTe: v})} />
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Tipo da Carga</label>
+                    <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold uppercase outline-none border border-transparent focus:border-blue-400" value={formData.tipoCarga || ''} onChange={e => setFormData({...formData, tipoCarga: e.target.value})}>
+                      <option value="">Selecionar...</option>
+                      <option value="Dedicada">Dedicada</option>
+                      <option value="Fracionada">Fracionada</option>
+                    </select>
+                  </div>
+                  <Input label="Número do CT-e" value={formData.numeroCTe} onChange={v => setFormData({...formData, numeroCTe: v})} disabled={formData.tipoCarga === 'Dedicada'} />
+                  <Input label="Data do CT-e" type="date" value={formData.dataCTe} onChange={v => setFormData({...formData, dataCTe: v})} disabled={formData.tipoCarga === 'Dedicada'} />
                   <Input label="Contratante" placeholder="Ex: LogiExpress S.A." value={formData.contratante} onChange={v => setFormData({...formData, contratante: v})} />
                   <Input label="Valor da NF (R$)" type="number" value={formData.valorNF} onChange={v => setFormData({...formData, valorNF: v})} />
                 </div>
@@ -1604,7 +1598,7 @@ function App() {
       <Modal isOpen={!!detailItem} onClose={() => setDetailItem(null)} title="Detalhes da Carga">
         {detailItem && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-            <Info label="Número da Carga" value={detailItem.numeroCarga} />
+            <Info label="Número da Carga" value={getCargaLabel(detailItem)} />
             <Info label="NF" value={detailItem.numeroNF} />
             <Info label="Número do CT-e" value={getNumeroCTeResolvido(detailItem)} />
             <Info label="Data do CT-e" value={getDataCTeResolvida(detailItem) ? new Date(getDataCTeResolvida(detailItem) + 'T12:00:00').toLocaleDateString('pt-BR') : ''} />
@@ -1655,7 +1649,7 @@ function NavItem({ icon: Icon, label, active, onClick }) {
   );
 }
 
-function Input({ label, type = "text", value, onChange, placeholder = "" }) {
+function Input({ label, type = "text", value, onChange, placeholder = "", disabled = false }) {
   return (
     <div className="space-y-1">
       <label className="text-[9px] font-black text-slate-400 uppercase ml-1">{label}</label>
@@ -1664,7 +1658,8 @@ function Input({ label, type = "text", value, onChange, placeholder = "" }) {
         placeholder={placeholder}
         value={value || ''} 
         onChange={e => onChange(e.target.value)} 
-        className="w-full px-4 py-2.5 bg-slate-100 rounded-xl outline-none border border-transparent focus:border-blue-400 focus:bg-white text-sm font-semibold transition-all" 
+        disabled={disabled}
+        className="w-full px-4 py-2.5 bg-slate-100 rounded-xl outline-none border border-transparent focus:border-blue-400 focus:bg-white text-sm font-semibold transition-all disabled:opacity-60 disabled:cursor-not-allowed" 
       />
     </div>
   );
