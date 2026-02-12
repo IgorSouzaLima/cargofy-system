@@ -1,26 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { initializeApp } from 'firebase/app';
-import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
-import { getFirestore, collection, doc, addDoc, onSnapshot, updateDoc, deleteDoc, serverTimestamp, query } from 'firebase/firestore';
+import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
+import { collection, doc, addDoc, onSnapshot, updateDoc, deleteDoc, serverTimestamp, query } from 'firebase/firestore';
 import { 
   LayoutDashboard, Truck, Users, DollarSign, Plus, Package, MapPin, X, Trash2, 
   Briefcase, LogOut, Lock, Mail, Clock, FileText, Search, Calendar, Layers, 
   CheckCircle2, AlertCircle, Edit3, Download, ArrowRight, Camera, Paperclip, ExternalLink, Building2, Eye, Upload
 } from 'lucide-react';
-
-// --- CONFIGURAÇÃO ---
-const firebaseConfig = { 
-  apiKey: "AIzaSyDncBYgIrudOBBwjsNFe9TS7Zr0b2nJLRo", 
-  authDomain: "cargofy-b4435.firebaseapp.com", 
-  projectId: "cargofy-b4435", 
-  storageBucket: "cargofy-b4435.firebasestorage.app", 
-  appId: "1:827918943476:web:a1a33a1e6dd84e4e8c8aa1" 
-};
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const appId = 'cargofy-b4435-prod';
+import { appId, auth, db } from './config/firebase';
+import { DATA_COLLECTIONS } from './constants/collections';
+import { INITIAL_FORM_DATA } from './data/formDefaults';
 
 // --- COMPONENTES DE UI ---
 
@@ -79,42 +67,7 @@ function App() {
   const [reportNumeroCarga, setReportNumeroCarga] = useState('');
   const [detailItem, setDetailItem] = useState(null);
 
-  const [formData, setFormData] = useState({
-    numeroNF: '', 
-    numeroCarga: '', 
-    numeroCTe: '', 
-    dataCTe: '', 
-    dataNF: '', 
-    dataSaida: '', 
-    dataEntrega: '', // Novo campo
-    contratante: '', // Novo campo
-    destinatario: '', // Novo campo
-    cidade: '', 
-    volume: '', // Novo campo
-    peso: '', // Novo campo
-    valorNF: '', // Novo campo
-    chaveID: '', 
-    status: 'Pendente', 
-    valorFrete: '', 
-    valorDistribuicao: '', 
-    lucro: '', 
-    metodoPagamento: '', 
-    numeroBoleto: '', 
-    dataVencimentoBoleto: '', 
-    motorista: '', 
-    veiculo: '', 
-    placa: '', 
-    urlComprovante: '', 
-    boleto: '', 
-    vencimento: '', 
-    statusFinanceiro: 'Pendente', 
-    nome: '', 
-    email: '', 
-    telefone: '', 
-    modelo: '', 
-    tipo: '',
-    observacao: ''
-  });
+  const [formData, setFormData] = useState(INITIAL_FORM_DATA);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, setUser);
@@ -123,8 +76,7 @@ function App() {
 
   useEffect(() => {
     if (!user) return;
-    const collections = ['viagens', 'financeiro', 'clientes', 'motoristas', 'veiculos'];
-    const unsubscribes = collections.map(colName => {
+    const unsubscribes = DATA_COLLECTIONS.map(colName => {
       const q = query(collection(db, 'artifacts', appId, 'public', 'data', colName));
       return onSnapshot(q, (snapshot) => {
         const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -828,14 +780,7 @@ function App() {
   };
 
   const resetForm = () => {
-    setFormData({ 
-      numeroNF: '', numeroCarga: '', numeroCTe: '', dataCTe: '', dataNF: '', dataSaida: '', dataEntrega: '', 
-      contratante: '', destinatario: '', cidade: '', 
-      volume: '', peso: '', valorNF: '', chaveID: '', status: 'Pendente', 
-      valorFrete: '', valorDistribuicao: '', lucro: '', metodoPagamento: '', numeroBoleto: '', dataVencimentoBoleto: '', motorista: '', veiculo: '', placa: '', urlComprovante: '', boleto: '', vencimento: '', 
-      statusFinanceiro: 'Pendente', nome: '', email: '', telefone: '', 
-      modelo: '', tipo: '', observacao: ''
-    });
+    setFormData({ ...INITIAL_FORM_DATA });
   };
 
   const lucroViagem = (parseFloat(formData.valorFrete) || 0) - (parseFloat(formData.valorDistribuicao) || 0);
