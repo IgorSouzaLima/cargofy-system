@@ -544,6 +544,12 @@ function App() {
   };
 
   const carregarCotacao = (cotacao) => {
+    if (!cotacao) return;
+
+    const cidades = Array.isArray(cotacao.cidadesEntrega)
+      ? cotacao.cidadesEntrega.filter((cidade) => (cidade || '').trim())
+      : [];
+
     setCotacaoAtualId(cotacao.id || '');
     setCotacaoDistanciaKm(parseFloat(cotacao.distanciaKm) || 0);
     setCotacaoData({
@@ -556,8 +562,25 @@ function App() {
       valorFrete: cotacao.valorFrete || '',
       validade: cotacao.validade || '3',
       observacoes: cotacao.observacoes || '',
-      cidadesEntrega: (cotacao.cidadesEntrega && cotacao.cidadesEntrega.length) ? cotacao.cidadesEntrega : ['']
+      cidadesEntrega: cidades.length ? cidades : ['']
     });
+
+    alert(`Cotação ${cotacao.numeroCotacao || ''} carregada com sucesso.`);
+  };
+
+  const getProximoNumeroCarga = () => {
+    const numeros = viagens
+      .map((viagem) => {
+        const numero = String(viagem?.numeroCarga || '').trim();
+        if (!numero) return NaN;
+        const partesNumericas = numero.match(/\d+/g);
+        if (!partesNumericas?.length) return NaN;
+        return parseInt(partesNumericas.join(''), 10);
+      })
+      .filter((num) => Number.isFinite(num));
+
+    const maiorNumero = numeros.length ? Math.max(...numeros) : 0;
+    return String(maiorNumero + 1);
   };
 
   const aprovarCotacao = async (cotacao) => {
@@ -570,7 +593,7 @@ function App() {
     try {
       const cargaPayload = {
         numeroNF: cotacao.numeroCotacao || '',
-        numeroCarga: (cotacao.numeroCotacao || '').replace('COT-', 'CG-'),
+        numeroCarga: getProximoNumeroCarga(),
         tipoCarga: cotacao.tipoCarga === 'dedicado' ? 'Dedicada' : 'Fracionada',
         contratante: cotacao.cliente || '',
         destinatario: cotacao.cidadesEntrega?.[0] || '',
