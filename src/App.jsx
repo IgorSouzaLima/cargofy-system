@@ -337,9 +337,16 @@ function App() {
       .filter(Boolean)
   ), [cotacaoData.cidadesEntrega]);
 
+  const rotaCotacao = useMemo(() => {
+    const origem = cotacaoData.origem.trim();
+    if (!origem) return '';
+    if (!formatarCidadesEntrega.length) return origem;
+    return [origem, ...formatarCidadesEntrega, origem].join(' ➜ ');
+  }, [cotacaoData.origem, formatarCidadesEntrega]);
+
   const mensagemCotacao = useMemo(() => {
     const valorFormatado = valorFreteCotacao.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-    const rota = [cotacaoData.origem.trim(), ...formatarCidadesEntrega, cotacaoData.origem.trim()].filter(Boolean).join(' ➜ ');
+    const rota = rotaCotacao;
     const tipoCargaLabel = cotacaoData.tipoCarga === 'dedicado' ? 'Dedicado' : 'Fracionado';
 
     return [
@@ -356,7 +363,7 @@ function App() {
       `Validade da proposta: ${cotacaoData.validade || '0'} dia(s)`,
       `Observações: ${cotacaoData.observacoes || '---'}`
     ].join('\n');
-  }, [cotacaoData, valorFreteCotacao, formatarCidadesEntrega, cotacaoDistanciaKm]);
+  }, [cotacaoData, valorFreteCotacao, formatarCidadesEntrega, cotacaoDistanciaKm, rotaCotacao]);
 
   const handleCotacaoChange = (field, value) => {
     setCotacaoData((prev) => ({ ...prev, [field]: value }));
@@ -481,6 +488,7 @@ function App() {
                 <div class="card"><div class="label">Cliente</div><div class="value">${cotacaoData.cliente || '---'}</div></div>
                 <div class="card"><div class="label">Tipo de Carga</div><div class="value">${tipoCargaLabel}</div></div>
                 <div class="card"><div class="label">Origem</div><div class="value">${cotacaoData.origem || '---'}</div></div>
+                <div class="card"><div class="label">Rota (ida e volta)</div><div class="value">${rotaCotacao || '---'}</div></div>
                 <div class="card"><div class="label">Prazo</div><div class="value">${cotacaoData.prazo || '---'}</div></div>
                 <div class="card"><div class="label">Peso</div><div class="value">${cotacaoData.peso || '---'}</div></div>
                 <div class="card"><div class="label">Volume</div><div class="value">${cotacaoData.volume || '---'}</div></div>
@@ -537,7 +545,7 @@ function App() {
       `Cliente: ${cotacaoData.cliente || '---'}`,
       `Tipo de carga: ${cotacaoData.tipoCarga === 'dedicado' ? 'Dedicado' : 'Fracionado'}`,
       `Origem: ${cotacaoData.origem || '---'}`,
-      `Entregas (ida e volta): ${([cotacaoData.origem.trim(), ...formatarCidadesEntrega, cotacaoData.origem.trim()].filter(Boolean).join(' | ')) || '---'}`,
+      `Rota (ida e volta): ${rotaCotacao || '---'}`,
       `KM estimado: ${cotacaoDistanciaKm ? `${cotacaoDistanciaKm.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} km` : 'Não calculado'}`,
       `Prazo: ${cotacaoData.prazo || '---'}`,
       `Peso/Volume: ${cotacaoData.peso || '---'} / ${cotacaoData.volume || '---'}`,
