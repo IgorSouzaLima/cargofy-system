@@ -404,6 +404,34 @@ function App() {
     return [parseFloat(data[0].lon), parseFloat(data[0].lat)];
   };
 
+  const calcularDistanciaAproximada = (origemCoord, destinoCoord) => {
+    const [lon1, lat1] = origemCoord;
+    const [lon2, lat2] = destinoCoord;
+    const toRad = (graus) => (graus * Math.PI) / 180;
+    const raioTerraKm = 6371;
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a = Math.sin(dLat / 2) ** 2
+      + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return raioTerraKm * c;
+  };
+
+  const ordenarEntregasPorDistancia = async (origem, entregas) => {
+    const origemCoord = await geocodificarCidade(origem);
+    const entregasComCoord = await Promise.all(
+      entregas.map(async (cidade) => {
+        const coord = await geocodificarCidade(cidade);
+        const distancia = calcularDistanciaAproximada(origemCoord, coord);
+        return { cidade, coord, distancia };
+      })
+    );
+
+    return entregasComCoord
+      .sort((a, b) => a.distancia - b.distancia)
+      .map((item) => item.cidade);
+  };
+
   const calcularDistanciaKm = async () => {
     const origem = cotacaoData.origem.trim();
     const entregas = formatarCidadesEntrega;
@@ -415,7 +443,10 @@ function App() {
 
     try {
       setCotacaoCalculandoKm(true);
-      const pontos = [origem, ...entregas, origem];
+      const entregasOrdenadas = await ordenarEntregasPorDistancia(origem, entregas);
+      setCotacaoData((prev) => ({ ...prev, cidadesEntrega: entregasOrdenadas }));
+
+      const pontos = [origem, ...entregasOrdenadas, origem];
       const coordenadas = await Promise.all(pontos.map(geocodificarCidade));
       const coordinatesParam = coordenadas.map(([lon, lat]) => `${lon},${lat}`).join(';');
       const rotaResponse = await fetch(`https://router.project-osrm.org/route/v1/driving/${coordinatesParam}?overview=false`);
@@ -426,7 +457,7 @@ function App() {
       setCotacaoDistanciaKm(km);
     } catch (error) {
       console.error(error);
-      alert('Não foi possível calcular o KM automaticamente. Verifique os nomes das cidades e tente novamente.');
+      alert('Não foi possível calcular/ordenar rota automaticamente. Verifique os nomes das cidades e tente novamente.');
     } finally {
       setCotacaoCalculandoKm(false);
     }
@@ -496,7 +527,7 @@ function App() {
                 <div class="card"><div class="label">Validade</div><div class="value">${cotacaoData.validade || '0'} dia(s)</div></div>
               </div>
               <div class="card deliveries">
-                <div class="label">Cidades de entrega</div>
+                <div class="label">Cidades de entrega (ordenadas da mais próxima para a mais distante)</div>
                 <ul>${entregasHtml}</ul>
               </div>
               <div class="card" style="margin-top: 12px;"><div class="label">Observações</div><div class="value">${cotacaoData.observacoes || '---'}</div></div>
@@ -1482,7 +1513,7 @@ function App() {
 
                 <div className="mt-6 rounded-2xl border border-slate-200 overflow-hidden">
                   <div className="px-4 py-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
-                    <h4 className="text-[11px] font-black text-slate-600 uppercase tracking-widest">Cidades de entrega</h4>
+                    <h4 className="text-[11px] font-black text-slate-600 uppercase tracking-widest">Cidades de entrega (ordenadas da mais próxima para a mais distante)</h4>
                     <button onClick={adicionarCidadeEntrega} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-[10px] font-black uppercase hover:bg-blue-700">
                       <Plus size={12} /> Adicionar cidade
                     </button>
@@ -1508,7 +1539,7 @@ function App() {
                 <div className="mt-4 grid grid-cols-1 lg:grid-cols-[1fr_auto_auto] gap-3 items-center">
                   <Input label="Observações" value={cotacaoData.observacoes} onChange={(value) => handleCotacaoChange('observacoes', value)} placeholder="Informações comerciais adicionais" />
                   <button onClick={calcularDistanciaKm} className="h-11 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-black uppercase transition-all">
-                    {cotacaoCalculandoKm ? 'Calculando...' : 'Calcular KM'}
+                    {cotacaoCalculandoKm ? 'Calculando...' : 'Calcular KM + Ordenar Rota'}
                   </button>
                   <div className="px-4 py-2.5 rounded-xl bg-emerald-50 text-emerald-700 text-xs font-black uppercase text-center">
                     KM: {cotacaoDistanciaKm ? cotacaoDistanciaKm.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) : '0'}
