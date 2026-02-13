@@ -56,6 +56,7 @@ function App() {
   const [clientes, setClientes] = useState([]);
   const [motoristas, setMotoristas] = useState([]);
   const [veiculos, setVeiculos] = useState([]);
+  const [cotacoes, setCotacoes] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [searchNF, setSearchNF] = useState('');
@@ -80,6 +81,7 @@ function App() {
   });
   const [cotacaoDistanciaKm, setCotacaoDistanciaKm] = useState(0);
   const [cotacaoCalculandoKm, setCotacaoCalculandoKm] = useState(false);
+  const [cotacaoAtualId, setCotacaoAtualId] = useState('');
 
   const [formData, setFormData] = useState(INITIAL_FORM_DATA);
 
@@ -99,6 +101,7 @@ function App() {
         if (colName === 'clientes') setClientes(data);
         if (colName === 'motoristas') setMotoristas(data);
         if (colName === 'veiculos') setVeiculos(data);
+        if (colName === 'cotacoes') setCotacoes(data);
       }, (error) => console.error(`Erro ao carregar ${colName}:`, error));
     });
     return () => unsubscribes.forEach(unsub => unsub());
@@ -472,6 +475,132 @@ function App() {
     }
   };
 
+  const gerarNumeroCotacao = () => {
+    const agora = new Date();
+    const data = `${agora.getFullYear()}${String(agora.getMonth() + 1).padStart(2, '0')}${String(agora.getDate()).padStart(2, '0')}`;
+    const hora = `${String(agora.getHours()).padStart(2, '0')}${String(agora.getMinutes()).padStart(2, '0')}${String(agora.getSeconds()).padStart(2, '0')}`;
+    const random = Math.random().toString(36).slice(2, 6).toUpperCase();
+    return `COT-${data}-${hora}-${random}`;
+  };
+
+  const montarPayloadCotacao = (numeroCotacaoExistente = '') => {
+    const numeroCotacao = numeroCotacaoExistente || gerarNumeroCotacao();
+    return {
+      numeroCotacao,
+      cliente: cotacaoData.cliente.trim(),
+      origem: cotacaoData.origem.trim(),
+      tipoCarga: cotacaoData.tipoCarga,
+      peso: cotacaoData.peso,
+      volume: cotacaoData.volume,
+      prazo: cotacaoData.prazo,
+      valorFrete: cotacaoData.valorFrete,
+      validade: cotacaoData.validade,
+      observacoes: cotacaoData.observacoes,
+      cidadesEntrega: formatarCidadesEntrega,
+      rota: rotaCotacao,
+      distanciaKm: cotacaoDistanciaKm,
+      statusCotacao: 'Em análise',
+      mensagemCotacao,
+      userId: user?.uid || ''
+    };
+  };
+
+  const salvarCotacao = async () => {
+    if (!cotacaoData.cliente.trim()) {
+      alert('Informe o cliente da cotação.');
+      return;
+    }
+
+    if (!cotacaoData.origem.trim() || !formatarCidadesEntrega.length) {
+      alert('Informe origem e ao menos uma cidade de entrega.');
+      return;
+    }
+
+    try {
+      const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'cotacoes');
+
+      if (cotacaoAtualId) {
+        const existente = cotacoes.find(c => c.id === cotacaoAtualId);
+        const payloadAtualizado = {
+          ...montarPayloadCotacao(existente?.numeroCotacao || ''),
+          updatedAt: serverTimestamp()
+        };
+        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'cotacoes', cotacaoAtualId), payloadAtualizado);
+        alert('Cotação atualizada com sucesso!');
+        return;
+      }
+
+      const payload = {
+        ...montarPayloadCotacao(),
+        createdAt: serverTimestamp()
+      };
+      const novoDoc = await addDoc(colRef, payload);
+      setCotacaoAtualId(novoDoc.id);
+      alert(`Cotação salva com sucesso! Número: ${payload.numeroCotacao}`);
+    } catch (error) {
+      console.error(error);
+      alert('Não foi possível salvar a cotação.');
+    }
+  };
+
+  const carregarCotacao = (cotacao) => {
+    setCotacaoAtualId(cotacao.id || '');
+    setCotacaoDistanciaKm(parseFloat(cotacao.distanciaKm) || 0);
+    setCotacaoData({
+      cliente: cotacao.cliente || '',
+      origem: cotacao.origem || '',
+      tipoCarga: cotacao.tipoCarga || 'fracionado',
+      peso: cotacao.peso || '',
+      volume: cotacao.volume || '',
+      prazo: cotacao.prazo || '',
+      valorFrete: cotacao.valorFrete || '',
+      validade: cotacao.validade || '3',
+      observacoes: cotacao.observacoes || '',
+      cidadesEntrega: (cotacao.cidadesEntrega && cotacao.cidadesEntrega.length) ? cotacao.cidadesEntrega : ['']
+    });
+  };
+
+  const aprovarCotacao = async (cotacao) => {
+    if (!cotacao?.id) return;
+    if ((cotacao.statusCotacao || '').toLowerCase() === 'aprovada') {
+      alert('Esta cotação já foi aprovada.');
+      return;
+    }
+
+    try {
+      const cargaPayload = {
+        numeroNF: cotacao.numeroCotacao || '',
+        numeroCarga: (cotacao.numeroCotacao || '').replace('COT-', 'CG-'),
+        tipoCarga: cotacao.tipoCarga === 'dedicado' ? 'Dedicada' : 'Fracionada',
+        contratante: cotacao.cliente || '',
+        destinatario: cotacao.cidadesEntrega?.[0] || '',
+        cidade: cotacao.cidadesEntrega?.join(' | ') || '',
+        status: 'Pendente',
+        valorFrete: cotacao.valorFrete || '',
+        valorDistribuicao: '',
+        observacao: `Origem: ${cotacao.origem || '---'} | Entregas: ${(cotacao.cidadesEntrega || []).join(', ')} | Cotação ${cotacao.numeroCotacao || ''}`,
+        motorista: '',
+        veiculo: '',
+        userId: user?.uid || '',
+        createdAt: serverTimestamp()
+      };
+
+      const viagemDoc = await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'viagens'), cargaPayload);
+
+      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'cotacoes', cotacao.id), {
+        statusCotacao: 'Aprovada',
+        origemViagemId: viagemDoc.id,
+        approvedAt: serverTimestamp()
+      });
+
+      alert(`Cotação ${cotacao.numeroCotacao} aprovada e convertida em carga!`);
+      setActiveTab('viagens');
+    } catch (error) {
+      console.error(error);
+      alert('Falha ao aprovar cotação e gerar carga.');
+    }
+  };
+
   const buildCotacaoHtml = () => {
     const logoUrl = `${window.location.origin}/logo-cargofy.svg`;
     const tipoCargaLabel = cotacaoData.tipoCarga === 'dedicado' ? 'Dedicado' : 'Fracionado';
@@ -615,6 +744,7 @@ function App() {
       cidadesEntrega: ['']
     });
     setCotacaoDistanciaKm(0);
+    setCotacaoAtualId('');
   };
 
 
@@ -1547,14 +1677,22 @@ function App() {
                 </div>
 
                 <div className="mt-6 flex flex-wrap gap-3 items-center">
+                  <button onClick={salvarCotacao} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase transition-all">
+                    <CheckCircle2 size={14} /> {cotacaoAtualId ? 'Atualizar Cotação' : 'Salvar Cotação'}
+                  </button>
                   <button onClick={handleCopyCotacao} className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase transition-all">
                     <Paperclip size={14} /> Copiar Texto
                   </button>
                   <button onClick={limparCotacao} className="flex items-center gap-2 px-4 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-black uppercase transition-all">
                     <X size={14} /> Limpar dados
                   </button>
-                  <div className="ml-auto px-4 py-2.5 rounded-xl bg-indigo-50 text-indigo-700 text-xs font-black uppercase">
-                    Valor: R$ {valorFreteCotacao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  <div className="ml-auto flex items-center gap-2">
+                    <div className="px-4 py-2.5 rounded-xl bg-slate-100 text-slate-700 text-xs font-black uppercase">
+                      Nº: {cotacoes.find(c => c.id === cotacaoAtualId)?.numeroCotacao || 'Não salvo'}
+                    </div>
+                    <div className="px-4 py-2.5 rounded-xl bg-indigo-50 text-indigo-700 text-xs font-black uppercase">
+                      Valor: R$ {valorFreteCotacao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1566,6 +1704,43 @@ function App() {
                   readOnly
                   className="w-full min-h-[240px] p-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 outline-none"
                 />
+              </div>
+
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest">Cotações salvas</h4>
+                  <span className="text-[10px] font-bold text-slate-400">{cotacoes.length} registro(s)</span>
+                </div>
+                <div className="space-y-3">
+                  {cotacoes
+                    .slice()
+                    .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
+                    .map((cotacao) => (
+                      <div key={cotacao.id} className="border border-slate-200 rounded-xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black text-indigo-600 uppercase">{cotacao.numeroCotacao || 'Sem número'}</p>
+                          <p className="text-sm font-bold text-slate-800">{cotacao.cliente || 'Cliente não informado'}</p>
+                          <p className="text-[11px] text-slate-500 font-semibold">Rota: {cotacao.rota || '---'}</p>
+                          <p className={`text-[10px] font-black uppercase mt-1 ${(cotacao.statusCotacao || 'Em análise') === 'Aprovada' ? 'text-emerald-600' : 'text-amber-600'}`}>
+                            {cotacao.statusCotacao || 'Em análise'}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => carregarCotacao(cotacao)} className="px-3 py-2 rounded-lg bg-blue-50 text-blue-700 text-[10px] font-black uppercase hover:bg-blue-100">
+                            Carregar
+                          </button>
+                          <button
+                            onClick={() => aprovarCotacao(cotacao)}
+                            disabled={(cotacao.statusCotacao || '').toLowerCase() === 'aprovada'}
+                            className="px-3 py-2 rounded-lg bg-emerald-600 text-white text-[10px] font-black uppercase hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Aprovar e virar carga
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  {!cotacoes.length && <p className="text-sm font-semibold text-slate-500">Nenhuma cotação salva ainda.</p>}
+                </div>
               </div>
             </div>
           )}
