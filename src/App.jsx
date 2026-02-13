@@ -77,6 +77,7 @@ function App() {
     valorFrete: '',
     validade: '3',
     observacoes: '',
+    numeroNotasFiscais: '1',
     cidadesEntrega: ['']
   });
   const [cotacaoDistanciaKm, setCotacaoDistanciaKm] = useState(0);
@@ -358,6 +359,7 @@ function App() {
       `Tipo de carga: ${tipoCargaLabel}`,
       `Rota: ${rota || '---'}`,
       `Qtd. de entregas: ${formatarCidadesEntrega.length}`,
+      `Qtd. de notas fiscais: ${cotacaoData.numeroNotasFiscais || '1'}`,
       `Quilometragem estimada: ${cotacaoDistanciaKm ? `${cotacaoDistanciaKm.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} km` : 'Não calculada'}`,
       `Peso: ${cotacaoData.peso || '---'}`,
       `Volume: ${cotacaoData.volume || '---'}`,
@@ -496,8 +498,13 @@ function App() {
       valorFrete: cotacaoData.valorFrete,
       validade: cotacaoData.validade,
       observacoes: cotacaoData.observacoes,
+      numeroNotasFiscais: Math.max(parseInt(cotacaoData.numeroNotasFiscais || '1', 10) || 1, 1),
       cidadesEntrega: formatarCidadesEntrega,
       rota: rotaCotacao,
+      rotasPorNota: Array.from({ length: Math.max(parseInt(cotacaoData.numeroNotasFiscais || '1', 10) || 1, 1) }, (_, idx) => ({
+        notaIndex: idx + 1,
+        rota: rotaCotacao
+      })),
       distanciaKm: cotacaoDistanciaKm,
       statusCotacao: 'Em análise',
       mensagemCotacao,
@@ -562,6 +569,7 @@ function App() {
       valorFrete: cotacao.valorFrete || '',
       validade: cotacao.validade || '3',
       observacoes: cotacao.observacoes || '',
+      numeroNotasFiscais: String(cotacao.numeroNotasFiscais || '1'),
       cidadesEntrega: cidades.length ? cidades : ['']
     });
 
@@ -583,6 +591,22 @@ function App() {
     return String(maiorNumero + 1);
   };
 
+  const excluirCotacao = async (cotacao) => {
+    if (!cotacao?.id) return;
+    if (!window.confirm(`Deseja excluir a cotação ${cotacao.numeroCotacao || ''}?`)) return;
+
+    try {
+      await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'cotacoes', cotacao.id));
+      if (cotacaoAtualId === cotacao.id) {
+        limparCotacao();
+      }
+      alert('Cotação excluída com sucesso.');
+    } catch (error) {
+      console.error(error);
+      alert('Não foi possível excluir a cotação.');
+    }
+  };
+
   const aprovarCotacao = async (cotacao) => {
     if (!cotacao?.id) return;
     if ((cotacao.statusCotacao || '').toLowerCase() === 'aprovada') {
@@ -591,32 +615,41 @@ function App() {
     }
 
     try {
-      const cargaPayload = {
-        numeroNF: cotacao.numeroCotacao || '',
-        numeroCarga: getProximoNumeroCarga(),
-        tipoCarga: cotacao.tipoCarga === 'dedicado' ? 'Dedicada' : 'Fracionada',
-        contratante: cotacao.cliente || '',
-        destinatario: cotacao.cidadesEntrega?.[0] || '',
-        cidade: cotacao.cidadesEntrega?.join(' | ') || '',
-        status: 'Pendente',
-        valorFrete: cotacao.valorFrete || '',
-        valorDistribuicao: '',
-        observacao: `Origem: ${cotacao.origem || '---'} | Entregas: ${(cotacao.cidadesEntrega || []).join(', ')} | Cotação ${cotacao.numeroCotacao || ''}`,
-        motorista: '',
-        veiculo: '',
-        userId: user?.uid || '',
-        createdAt: serverTimestamp()
-      };
+      const totalNotas = Math.max(parseInt(cotacao.numeroNotasFiscais || '1', 10) || 1, 1);
+      const primeiroNumeroCarga = parseInt(getProximoNumeroCarga(), 10) || 1;
+      const viagensCriadas = [];
 
-      const viagemDoc = await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'viagens'), cargaPayload);
+      for (let i = 0; i < totalNotas; i += 1) {
+        const numeroCarga = String(primeiroNumeroCarga + i);
+        const cargaPayload = {
+          numeroNF: totalNotas > 1 ? `${cotacao.numeroCotacao || ''}-NF${i + 1}` : (cotacao.numeroCotacao || ''),
+          numeroCarga,
+          tipoCarga: cotacao.tipoCarga === 'dedicado' ? 'Dedicada' : 'Fracionada',
+          contratante: cotacao.cliente || '',
+          destinatario: cotacao.cidadesEntrega?.[0] || '',
+          cidade: cotacao.cidadesEntrega?.join(' | ') || '',
+          status: 'Pendente',
+          valorFrete: cotacao.valorFrete || '',
+          valorDistribuicao: '',
+          observacao: `Origem: ${cotacao.origem || '---'} | Entregas: ${(cotacao.cidadesEntrega || []).join(', ')} | Cotação ${cotacao.numeroCotacao || ''} | Nota ${i + 1}/${totalNotas} | Rota: ${cotacao.rota || '---'}`,
+          motorista: '',
+          veiculo: '',
+          userId: user?.uid || '',
+          createdAt: serverTimestamp()
+        };
+
+        const viagemDoc = await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'viagens'), cargaPayload);
+        viagensCriadas.push(viagemDoc.id);
+      }
 
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'cotacoes', cotacao.id), {
         statusCotacao: 'Aprovada',
-        origemViagemId: viagemDoc.id,
+        origemViagemId: viagensCriadas[0] || '',
+        origemViagemIds: viagensCriadas,
         approvedAt: serverTimestamp()
       });
 
-      alert(`Cotação ${cotacao.numeroCotacao} aprovada e convertida em carga!`);
+      alert(`Cotação ${cotacao.numeroCotacao} aprovada e convertida em ${totalNotas} carga(s)!`);
       setActiveTab('viagens');
     } catch (error) {
       console.error(error);
@@ -677,6 +710,7 @@ function App() {
                 <div class="card"><div class="label">Volume</div><div class="value">${cotacaoData.volume || '---'}</div></div>
                 <div class="card"><div class="label">KM Estimado</div><div class="value">${cotacaoDistanciaKm ? `${cotacaoDistanciaKm.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} km` : 'Não calculado'}</div></div>
                 <div class="card"><div class="label">Validade</div><div class="value">${cotacaoData.validade || '0'} dia(s)</div></div>
+                <div class="card"><div class="label">Notas Fiscais</div><div class="value">${Math.max(parseInt(cotacaoData.numeroNotasFiscais || '1', 10) || 1, 1)}</div></div>
               </div>
               <div class="card deliveries">
                 <div class="label">Cidades de entrega (ordenadas da mais próxima para a mais distante)</div>
@@ -732,7 +766,8 @@ function App() {
       `KM estimado: ${cotacaoDistanciaKm ? `${cotacaoDistanciaKm.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} km` : 'Não calculado'}`,
       `Prazo: ${cotacaoData.prazo || '---'}`,
       `Peso/Volume: ${cotacaoData.peso || '---'} / ${cotacaoData.volume || '---'}`,
-      `Validade: ${cotacaoData.validade || '0'} dia(s)`
+      `Validade: ${cotacaoData.validade || '0'} dia(s)`,
+      `Notas fiscais: ${Math.max(parseInt(cotacaoData.numeroNotasFiscais || '1', 10) || 1, 1)}`
     ];
 
     ctx.fillStyle = '#0f172a';
@@ -764,6 +799,7 @@ function App() {
       valorFrete: '',
       validade: '3',
       observacoes: '',
+      numeroNotasFiscais: '1',
       cidadesEntrega: ['']
     });
     setCotacaoDistanciaKm(0);
@@ -1662,6 +1698,7 @@ function App() {
                   <Input label="Volume" value={cotacaoData.volume} onChange={(value) => handleCotacaoChange('volume', value)} placeholder="Ex.: 4 m³" />
                   <Input label="Valor do frete (R$)" type="number" value={cotacaoData.valorFrete} onChange={(value) => handleCotacaoChange('valorFrete', value)} placeholder="0,00" />
                   <Input label="Validade (dias)" type="number" value={cotacaoData.validade} onChange={(value) => handleCotacaoChange('validade', value)} placeholder="3" />
+                  <Input label="Quantidade de Notas Fiscais" type="number" value={cotacaoData.numeroNotasFiscais || '1'} onChange={(value) => handleCotacaoChange('numeroNotasFiscais', value)} placeholder="1" />
                 </div>
 
                 <div className="mt-6 rounded-2xl border border-slate-200 overflow-hidden">
@@ -1744,6 +1781,7 @@ function App() {
                           <p className="text-xs font-black text-indigo-600 uppercase">{cotacao.numeroCotacao || 'Sem número'}</p>
                           <p className="text-sm font-bold text-slate-800">{cotacao.cliente || 'Cliente não informado'}</p>
                           <p className="text-[11px] text-slate-500 font-semibold">Rota: {cotacao.rota || '---'}</p>
+                          <p className="text-[10px] font-bold text-slate-500">Notas: {cotacao.numeroNotasFiscais || 1} rota(s)</p>
                           <p className={`text-[10px] font-black uppercase mt-1 ${(cotacao.statusCotacao || 'Em análise') === 'Aprovada' ? 'text-emerald-600' : 'text-amber-600'}`}>
                             {cotacao.statusCotacao || 'Em análise'}
                           </p>
@@ -1758,6 +1796,12 @@ function App() {
                             className="px-3 py-2 rounded-lg bg-emerald-600 text-white text-[10px] font-black uppercase hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             Aprovar e virar carga
+                          </button>
+                          <button
+                            onClick={() => excluirCotacao(cotacao)}
+                            className="px-3 py-2 rounded-lg bg-rose-50 text-rose-700 text-[10px] font-black uppercase hover:bg-rose-100"
+                          >
+                            Excluir
                           </button>
                         </div>
                       </div>
