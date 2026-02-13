@@ -339,7 +339,7 @@ function App() {
 
   const mensagemCotacao = useMemo(() => {
     const valorFormatado = valorFreteCotacao.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-    const rota = [cotacaoData.origem.trim(), ...formatarCidadesEntrega].filter(Boolean).join(' ➜ ');
+    const rota = [cotacaoData.origem.trim(), ...formatarCidadesEntrega, cotacaoData.origem.trim()].filter(Boolean).join(' ➜ ');
     const tipoCargaLabel = cotacaoData.tipoCarga === 'dedicado' ? 'Dedicado' : 'Fracionado';
 
     return [
@@ -408,7 +408,7 @@ function App() {
 
     try {
       setCotacaoCalculandoKm(true);
-      const pontos = [origem, ...entregas];
+      const pontos = [origem, ...entregas, origem];
       const coordenadas = await Promise.all(pontos.map(geocodificarCidade));
       const coordinatesParam = coordenadas.map(([lon, lat]) => `${lon},${lat}`).join(';');
       const rotaResponse = await fetch(`https://router.project-osrm.org/route/v1/driving/${coordinatesParam}?overview=false`);
@@ -537,7 +537,7 @@ function App() {
       `Cliente: ${cotacaoData.cliente || '---'}`,
       `Tipo de carga: ${cotacaoData.tipoCarga === 'dedicado' ? 'Dedicado' : 'Fracionado'}`,
       `Origem: ${cotacaoData.origem || '---'}`,
-      `Entregas: ${formatarCidadesEntrega.join(' | ') || '---'}`,
+      `Entregas (ida e volta): ${([cotacaoData.origem.trim(), ...formatarCidadesEntrega, cotacaoData.origem.trim()].filter(Boolean).join(' | ')) || '---'}`,
       `KM estimado: ${cotacaoDistanciaKm ? `${cotacaoDistanciaKm.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} km` : 'Não calculado'}`,
       `Prazo: ${cotacaoData.prazo || '---'}`,
       `Peso/Volume: ${cotacaoData.peso || '---'} / ${cotacaoData.volume || '---'}`,
