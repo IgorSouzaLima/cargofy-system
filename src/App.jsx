@@ -69,14 +69,17 @@ function App() {
   const [cotacaoData, setCotacaoData] = useState({
     cliente: '',
     origem: '',
-    destino: '',
-    tipoCarga: '',
+    tipoCarga: 'fracionado',
     peso: '',
     volume: '',
     prazo: '',
     valorFrete: '',
-    validade: '3'
+    validade: '3',
+    observacoes: '',
+    cidadesEntrega: ['']
   });
+  const [cotacaoDistanciaKm, setCotacaoDistanciaKm] = useState(0);
+  const [cotacaoCalculandoKm, setCotacaoCalculandoKm] = useState(false);
 
   const [formData, setFormData] = useState(INITIAL_FORM_DATA);
 
@@ -328,24 +331,98 @@ function App() {
 
   const valorFreteCotacao = parseFloat(cotacaoData.valorFrete) || 0;
 
+  const formatarCidadesEntrega = useMemo(() => (
+    cotacaoData.cidadesEntrega
+      .map(cidade => cidade.trim())
+      .filter(Boolean)
+  ), [cotacaoData.cidadesEntrega]);
+
   const mensagemCotacao = useMemo(() => {
     const valorFormatado = valorFreteCotacao.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+    const rota = [cotacaoData.origem.trim(), ...formatarCidadesEntrega].filter(Boolean).join(' ➜ ');
+    const tipoCargaLabel = cotacaoData.tipoCarga === 'dedicado' ? 'Dedicado' : 'Fracionado';
+
     return [
-      `Cotação de Frete - CargoFy`,
+      `COTAÇÃO DE FRETE - CARGOFY`,
       `Cliente: ${cotacaoData.cliente || '---'}`,
-      `Origem: ${cotacaoData.origem || '---'}`,
-      `Destino: ${cotacaoData.destino || '---'}`,
-      `Tipo de carga: ${cotacaoData.tipoCarga || '---'}`,
+      `Tipo de carga: ${tipoCargaLabel}`,
+      `Rota: ${rota || '---'}`,
+      `Qtd. de entregas: ${formatarCidadesEntrega.length}`,
+      `Quilometragem estimada: ${cotacaoDistanciaKm ? `${cotacaoDistanciaKm.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} km` : 'Não calculada'}`,
       `Peso: ${cotacaoData.peso || '---'}`,
       `Volume: ${cotacaoData.volume || '---'}`,
       `Prazo estimado: ${cotacaoData.prazo || '---'}`,
       `Valor do frete: R$ ${valorFormatado}`,
-      `Validade da proposta: ${cotacaoData.validade || '0'} dia(s)`
+      `Validade da proposta: ${cotacaoData.validade || '0'} dia(s)`,
+      `Observações: ${cotacaoData.observacoes || '---'}`
     ].join('\n');
-  }, [cotacaoData, valorFreteCotacao]);
+  }, [cotacaoData, valorFreteCotacao, formatarCidadesEntrega, cotacaoDistanciaKm]);
 
   const handleCotacaoChange = (field, value) => {
     setCotacaoData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleCidadeEntregaChange = (index, value) => {
+    setCotacaoData((prev) => ({
+      ...prev,
+      cidadesEntrega: prev.cidadesEntrega.map((cidade, i) => (i === index ? value : cidade))
+    }));
+  };
+
+  const adicionarCidadeEntrega = () => {
+    setCotacaoData((prev) => ({
+      ...prev,
+      cidadesEntrega: [...prev.cidadesEntrega, '']
+    }));
+  };
+
+  const removerCidadeEntrega = (index) => {
+    setCotacaoData((prev) => {
+      if (prev.cidadesEntrega.length === 1) {
+        return { ...prev, cidadesEntrega: [''] };
+      }
+      return {
+        ...prev,
+        cidadesEntrega: prev.cidadesEntrega.filter((_, i) => i !== index)
+      };
+    });
+  };
+
+  const geocodificarCidade = async (cidade) => {
+    const queryCidade = encodeURIComponent(cidade);
+    const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${queryCidade}&limit=1`);
+    if (!response.ok) throw new Error('Falha ao geocodificar cidade');
+    const data = await response.json();
+    if (!data.length) throw new Error(`Cidade não encontrada: ${cidade}`);
+    return [parseFloat(data[0].lon), parseFloat(data[0].lat)];
+  };
+
+  const calcularDistanciaKm = async () => {
+    const origem = cotacaoData.origem.trim();
+    const entregas = formatarCidadesEntrega;
+
+    if (!origem || !entregas.length) {
+      alert('Informe a origem e pelo menos uma cidade de entrega para calcular o KM.');
+      return;
+    }
+
+    try {
+      setCotacaoCalculandoKm(true);
+      const pontos = [origem, ...entregas];
+      const coordenadas = await Promise.all(pontos.map(geocodificarCidade));
+      const coordinatesParam = coordenadas.map(([lon, lat]) => `${lon},${lat}`).join(';');
+      const rotaResponse = await fetch(`https://router.project-osrm.org/route/v1/driving/${coordinatesParam}?overview=false`);
+      if (!rotaResponse.ok) throw new Error('Falha ao calcular rota');
+      const rotaData = await rotaResponse.json();
+      const distanceMeters = rotaData?.routes?.[0]?.distance || 0;
+      const km = distanceMeters / 1000;
+      setCotacaoDistanciaKm(km);
+    } catch (error) {
+      console.error(error);
+      alert('Não foi possível calcular o KM automaticamente. Verifique os nomes das cidades e tente novamente.');
+    } finally {
+      setCotacaoCalculandoKm(false);
+    }
   };
 
   const handleCopyCotacao = async () => {
@@ -357,18 +434,148 @@ function App() {
     }
   };
 
+  const buildCotacaoHtml = () => {
+    const logoUrl = `${window.location.origin}/logo-cargofy.svg`;
+    const tipoCargaLabel = cotacaoData.tipoCarga === 'dedicado' ? 'Dedicado' : 'Fracionado';
+    const dataGeracao = new Date().toLocaleDateString('pt-BR');
+    const entregasHtml = formatarCidadesEntrega.length
+      ? formatarCidadesEntrega.map((cidade, idx) => `<li>${idx + 1}. ${cidade}</li>`).join('')
+      : '<li>---</li>';
+
+    return `
+      <!doctype html>
+      <html lang="pt-BR">
+        <head>
+          <meta charset="UTF-8" />
+          <title>Cotação CargoFy</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 0; background: #f1f5f9; color: #0f172a; }
+            .sheet { max-width: 860px; margin: 24px auto; background: #fff; border-radius: 18px; border: 1px solid #e2e8f0; overflow: hidden; }
+            .header { padding: 24px; background: linear-gradient(90deg, #0f172a, #1e293b); color: #fff; display: flex; justify-content: space-between; align-items: center; }
+            .header img { width: 56px; height: 56px; background: #fff; border-radius: 12px; padding: 4px; }
+            .title h1 { margin: 0; font-size: 24px; }
+            .title p { margin: 4px 0 0; font-size: 12px; color: #cbd5e1; }
+            .content { padding: 24px; }
+            .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-bottom: 18px; }
+            .card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; }
+            .label { font-size: 10px; font-weight: 700; text-transform: uppercase; color: #64748b; margin-bottom: 4px; }
+            .value { font-size: 14px; font-weight: 700; color: #0f172a; }
+            .deliveries { margin-top: 12px; }
+            .deliveries ul { margin: 8px 0 0; padding-left: 18px; }
+            .footer { margin-top: 20px; padding-top: 12px; border-top: 1px dashed #cbd5e1; font-size: 12px; color: #475569; }
+            .price { margin-top: 16px; background: #ecfeff; border: 1px solid #99f6e4; border-radius: 12px; padding: 14px; font-size: 22px; font-weight: 800; color: #0f766e; text-align: right; }
+            @media print { body { background: #fff; } .sheet { margin: 0; border: 0; border-radius: 0; } }
+          </style>
+        </head>
+        <body>
+          <div class="sheet">
+            <div class="header">
+              <div class="title">
+                <h1>Cotação de Frete</h1>
+                <p>CargoFy Transportes · Emissão: ${dataGeracao}</p>
+              </div>
+              <img src="${logoUrl}" alt="Logo CargoFy" />
+            </div>
+            <div class="content">
+              <div class="grid">
+                <div class="card"><div class="label">Cliente</div><div class="value">${cotacaoData.cliente || '---'}</div></div>
+                <div class="card"><div class="label">Tipo de Carga</div><div class="value">${tipoCargaLabel}</div></div>
+                <div class="card"><div class="label">Origem</div><div class="value">${cotacaoData.origem || '---'}</div></div>
+                <div class="card"><div class="label">Prazo</div><div class="value">${cotacaoData.prazo || '---'}</div></div>
+                <div class="card"><div class="label">Peso</div><div class="value">${cotacaoData.peso || '---'}</div></div>
+                <div class="card"><div class="label">Volume</div><div class="value">${cotacaoData.volume || '---'}</div></div>
+                <div class="card"><div class="label">KM Estimado</div><div class="value">${cotacaoDistanciaKm ? `${cotacaoDistanciaKm.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} km` : 'Não calculado'}</div></div>
+                <div class="card"><div class="label">Validade</div><div class="value">${cotacaoData.validade || '0'} dia(s)</div></div>
+              </div>
+              <div class="card deliveries">
+                <div class="label">Cidades de entrega</div>
+                <ul>${entregasHtml}</ul>
+              </div>
+              <div class="card" style="margin-top: 12px;"><div class="label">Observações</div><div class="value">${cotacaoData.observacoes || '---'}</div></div>
+              <div class="price">Valor do Frete: R$ ${valorFreteCotacao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+              <div class="footer">Esta cotação pode sofrer alterações conforme janela de coleta, restrições de acesso, pedágio e alterações de rota.</div>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+  };
+
+  const gerarCotacaoPDF = () => {
+    const janela = window.open('', '_blank');
+    if (!janela) {
+      alert('Não foi possível abrir a pré-visualização para PDF.');
+      return;
+    }
+    janela.document.write(buildCotacaoHtml());
+    janela.document.close();
+    janela.focus();
+    setTimeout(() => janela.print(), 350);
+  };
+
+  const gerarCotacaoImagem = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1400;
+    canvas.height = 900;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.fillStyle = '#f1f5f9';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(60, 60, 1280, 140);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 48px Arial';
+    ctx.fillText('Cotação de Frete - CargoFy', 100, 145);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '26px Arial';
+    ctx.fillText(new Date().toLocaleDateString('pt-BR'), 1100, 145);
+
+    const linhas = [
+      `Cliente: ${cotacaoData.cliente || '---'}`,
+      `Tipo de carga: ${cotacaoData.tipoCarga === 'dedicado' ? 'Dedicado' : 'Fracionado'}`,
+      `Origem: ${cotacaoData.origem || '---'}`,
+      `Entregas: ${formatarCidadesEntrega.join(' | ') || '---'}`,
+      `KM estimado: ${cotacaoDistanciaKm ? `${cotacaoDistanciaKm.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} km` : 'Não calculado'}`,
+      `Prazo: ${cotacaoData.prazo || '---'}`,
+      `Peso/Volume: ${cotacaoData.peso || '---'} / ${cotacaoData.volume || '---'}`,
+      `Validade: ${cotacaoData.validade || '0'} dia(s)`
+    ];
+
+    ctx.fillStyle = '#0f172a';
+    ctx.font = 'bold 34px Arial';
+    let y = 280;
+    linhas.forEach((linha) => {
+      ctx.fillText(linha, 90, y);
+      y += 68;
+    });
+
+    ctx.fillStyle = '#0f766e';
+    ctx.font = 'bold 56px Arial';
+    ctx.fillText(`Valor: R$ ${valorFreteCotacao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 90, 820);
+
+    const link = document.createElement('a');
+    link.href = canvas.toDataURL('image/png');
+    link.download = `cotacao-cargofy-${Date.now()}.png`;
+    link.click();
+  };
+
   const limparCotacao = () => {
     setCotacaoData({
       cliente: '',
       origem: '',
-      destino: '',
-      tipoCarga: '',
+      tipoCarga: 'fracionado',
       peso: '',
       volume: '',
       prazo: '',
       valorFrete: '',
-      validade: '3'
+      validade: '3',
+      observacoes: '',
+      cidadesEntrega: ['']
     });
+    setCotacaoDistanciaKm(0);
   };
 
 
@@ -1226,41 +1433,95 @@ function App() {
           {activeTab === 'cotacao' && (
             <div className="space-y-6 mb-8">
               <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
-                <div className="flex items-center justify-between mb-5">
-                  <div>
-                    <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Gerador de Cotação</h3>
-                    <p className="text-xs font-semibold text-slate-500">Preencha os dados para gerar a proposta rapidamente.</p>
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-5">
+                  <div className="flex items-center gap-4">
+                    <img src="/logo-cargofy.svg" alt="Logo CargoFy" className="h-14 w-14 rounded-xl object-contain border border-slate-200 p-1" />
+                    <div>
+                      <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Cotação Profissional</h3>
+                      <p className="text-xs font-semibold text-slate-500">Gere PDF ou imagem para envio ao cliente com identidade CargoFy.</p>
+                    </div>
                   </div>
-                  <div className="p-3 rounded-2xl bg-indigo-600 text-white"><FileText size={18} /></div>
+                  <div className="flex gap-2 flex-wrap">
+                    <button onClick={gerarCotacaoPDF} className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase transition-all">
+                      <FileText size={14} /> Gerar PDF
+                    </button>
+                    <button onClick={gerarCotacaoImagem} className="flex items-center gap-2 px-4 py-2.5 bg-slate-700 hover:bg-slate-800 text-white rounded-xl text-xs font-black uppercase transition-all">
+                      <Download size={14} /> Gerar Imagem
+                    </button>
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                  <Input label="Cliente" value={cotacaoData.cliente} onChange={(value) => handleCotacaoChange('cliente', value)} placeholder="Nome do cliente" />
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                  <Input label="Cliente" value={cotacaoData.cliente} onChange={(value) => handleCotacaoChange('cliente', value)} placeholder="Nome da empresa / contato" />
                   <Input label="Origem" value={cotacaoData.origem} onChange={(value) => handleCotacaoChange('origem', value)} placeholder="Cidade/UF de coleta" />
-                  <Input label="Destino" value={cotacaoData.destino} onChange={(value) => handleCotacaoChange('destino', value)} placeholder="Cidade/UF de entrega" />
-                  <Input label="Tipo de carga" value={cotacaoData.tipoCarga} onChange={(value) => handleCotacaoChange('tipoCarga', value)} placeholder="Fracionada, dedicada etc." />
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Tipo de Carga</label>
+                    <select
+                      value={cotacaoData.tipoCarga}
+                      onChange={(e) => handleCotacaoChange('tipoCarga', e.target.value)}
+                      className="w-full px-4 py-2.5 bg-slate-100 rounded-xl outline-none border border-transparent focus:border-blue-400 focus:bg-white text-sm font-semibold transition-all"
+                    >
+                      <option value="fracionado">Fracionado</option>
+                      <option value="dedicado">Dedicado</option>
+                    </select>
+                  </div>
+                  <Input label="Prazo" value={cotacaoData.prazo} onChange={(value) => handleCotacaoChange('prazo', value)} placeholder="Ex.: 24h úteis" />
                   <Input label="Peso" value={cotacaoData.peso} onChange={(value) => handleCotacaoChange('peso', value)} placeholder="Ex.: 850 kg" />
                   <Input label="Volume" value={cotacaoData.volume} onChange={(value) => handleCotacaoChange('volume', value)} placeholder="Ex.: 4 m³" />
-                  <Input label="Prazo" value={cotacaoData.prazo} onChange={(value) => handleCotacaoChange('prazo', value)} placeholder="Ex.: 24h úteis" />
                   <Input label="Valor do frete (R$)" type="number" value={cotacaoData.valorFrete} onChange={(value) => handleCotacaoChange('valorFrete', value)} placeholder="0,00" />
                   <Input label="Validade (dias)" type="number" value={cotacaoData.validade} onChange={(value) => handleCotacaoChange('validade', value)} placeholder="3" />
                 </div>
 
+                <div className="mt-6 rounded-2xl border border-slate-200 overflow-hidden">
+                  <div className="px-4 py-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                    <h4 className="text-[11px] font-black text-slate-600 uppercase tracking-widest">Cidades de entrega</h4>
+                    <button onClick={adicionarCidadeEntrega} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-[10px] font-black uppercase hover:bg-blue-700">
+                      <Plus size={12} /> Adicionar cidade
+                    </button>
+                  </div>
+                  <div className="p-4 space-y-3">
+                    {cotacaoData.cidadesEntrega.map((cidade, index) => (
+                      <div key={`cidade-${index}`} className="flex gap-2">
+                        <div className="flex-1">
+                          <Input label={`Entrega ${index + 1}`} value={cidade} onChange={(value) => handleCidadeEntregaChange(index, value)} placeholder="Cidade/UF de entrega" />
+                        </div>
+                        <button
+                          onClick={() => removerCidadeEntrega(index)}
+                          className="mt-6 p-2 h-fit rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100"
+                          title="Remover cidade"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 lg:grid-cols-[1fr_auto_auto] gap-3 items-center">
+                  <Input label="Observações" value={cotacaoData.observacoes} onChange={(value) => handleCotacaoChange('observacoes', value)} placeholder="Informações comerciais adicionais" />
+                  <button onClick={calcularDistanciaKm} className="h-11 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-black uppercase transition-all">
+                    {cotacaoCalculandoKm ? 'Calculando...' : 'Calcular KM'}
+                  </button>
+                  <div className="px-4 py-2.5 rounded-xl bg-emerald-50 text-emerald-700 text-xs font-black uppercase text-center">
+                    KM: {cotacaoDistanciaKm ? cotacaoDistanciaKm.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) : '0'}
+                  </div>
+                </div>
+
                 <div className="mt-6 flex flex-wrap gap-3 items-center">
                   <button onClick={handleCopyCotacao} className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase transition-all">
-                    <Paperclip size={14} /> Copiar cotação
+                    <Paperclip size={14} /> Copiar Texto
                   </button>
                   <button onClick={limparCotacao} className="flex items-center gap-2 px-4 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-black uppercase transition-all">
                     <X size={14} /> Limpar dados
                   </button>
-                  <div className="ml-auto px-4 py-2.5 rounded-xl bg-emerald-50 text-emerald-700 text-xs font-black uppercase">
+                  <div className="ml-auto px-4 py-2.5 rounded-xl bg-indigo-50 text-indigo-700 text-xs font-black uppercase">
                     Valor: R$ {valorFreteCotacao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                   </div>
                 </div>
               </div>
 
               <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
-                <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3">Prévia da mensagem</h4>
+                <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3">Prévia da mensagem para WhatsApp/E-mail</h4>
                 <textarea
                   value={mensagemCotacao}
                   readOnly
