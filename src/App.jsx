@@ -66,6 +66,17 @@ function App() {
   const [reportFim, setReportFim] = useState('');
   const [reportNumeroCarga, setReportNumeroCarga] = useState('');
   const [detailItem, setDetailItem] = useState(null);
+  const [cotacaoData, setCotacaoData] = useState({
+    cliente: '',
+    origem: '',
+    destino: '',
+    tipoCarga: '',
+    peso: '',
+    volume: '',
+    prazo: '',
+    valorFrete: '',
+    validade: '3'
+  });
 
   const [formData, setFormData] = useState(INITIAL_FORM_DATA);
 
@@ -315,6 +326,52 @@ function App() {
 
   const relatorioPorCarga = !!reportNumeroCarga.trim();
 
+  const valorFreteCotacao = parseFloat(cotacaoData.valorFrete) || 0;
+
+  const mensagemCotacao = useMemo(() => {
+    const valorFormatado = valorFreteCotacao.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+    return [
+      `Cotação de Frete - CargoFy`,
+      `Cliente: ${cotacaoData.cliente || '---'}`,
+      `Origem: ${cotacaoData.origem || '---'}`,
+      `Destino: ${cotacaoData.destino || '---'}`,
+      `Tipo de carga: ${cotacaoData.tipoCarga || '---'}`,
+      `Peso: ${cotacaoData.peso || '---'}`,
+      `Volume: ${cotacaoData.volume || '---'}`,
+      `Prazo estimado: ${cotacaoData.prazo || '---'}`,
+      `Valor do frete: R$ ${valorFormatado}`,
+      `Validade da proposta: ${cotacaoData.validade || '0'} dia(s)`
+    ].join('\n');
+  }, [cotacaoData, valorFreteCotacao]);
+
+  const handleCotacaoChange = (field, value) => {
+    setCotacaoData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleCopyCotacao = async () => {
+    try {
+      await navigator.clipboard.writeText(mensagemCotacao);
+      alert('Cotação copiada para a área de transferência!');
+    } catch (error) {
+      alert('Não foi possível copiar automaticamente. Copie manualmente o texto da cotação.');
+    }
+  };
+
+  const limparCotacao = () => {
+    setCotacaoData({
+      cliente: '',
+      origem: '',
+      destino: '',
+      tipoCarga: '',
+      peso: '',
+      volume: '',
+      prazo: '',
+      valorFrete: '',
+      validade: '3'
+    });
+  };
+
+
   const downloadRelatorioCSV = () => {
     const header = relatorioPorCarga
       ? ['Carga', 'NF', 'CT-e', 'Data CT-e', 'Empresa', 'Boleto', 'Vencimento Boleto', 'Frete']
@@ -473,6 +530,7 @@ function App() {
         break;
       case 'financeiro': list = financeiro; break;
       case 'relatorios': list = viagens; break;
+      case 'cotacao': list = []; break;
       case 'clientes': list = clientes; break;
       case 'motoristas': list = motoristas; break;
       case 'veiculos': list = veiculos; break;
@@ -902,6 +960,7 @@ function App() {
           <NavItem icon={LayoutDashboard} label="Painel" active={activeTab === 'dashboard'} onClick={() => {setActiveTab('dashboard'); setStatusFilter('Todos'); setDashboardCargaFilter(''); setDashboardBoletoFilter('');}} />
           <NavItem icon={Package} label="Viagens" active={activeTab === 'viagens'} onClick={() => {setActiveTab('viagens'); setStatusFilter('Todos');}} />
           <NavItem icon={DollarSign} label="Financeiro" active={activeTab === 'financeiro'} onClick={() => setActiveTab('financeiro')} />
+          <NavItem icon={FileText} label="Cotação" active={activeTab === 'cotacao'} onClick={() => setActiveTab('cotacao')} />
           <NavItem icon={FileText} label="Relatórios" active={activeTab === 'relatorios'} onClick={() => setActiveTab('relatorios')} />
           <div className="py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Gestão</div>
           <NavItem icon={Users} label="Clientes" active={activeTab === 'clientes'} onClick={() => setActiveTab('clientes')} />
@@ -1164,7 +1223,55 @@ function App() {
             </div>
           )}
 
-          {activeTab !== 'relatorios' && activeTab !== 'dashboard' && activeTab !== 'viagens' && activeTab !== 'financeiro' && (
+          {activeTab === 'cotacao' && (
+            <div className="space-y-6 mb-8">
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
+                <div className="flex items-center justify-between mb-5">
+                  <div>
+                    <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Gerador de Cotação</h3>
+                    <p className="text-xs font-semibold text-slate-500">Preencha os dados para gerar a proposta rapidamente.</p>
+                  </div>
+                  <div className="p-3 rounded-2xl bg-indigo-600 text-white"><FileText size={18} /></div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  <Input label="Cliente" value={cotacaoData.cliente} onChange={(value) => handleCotacaoChange('cliente', value)} placeholder="Nome do cliente" />
+                  <Input label="Origem" value={cotacaoData.origem} onChange={(value) => handleCotacaoChange('origem', value)} placeholder="Cidade/UF de coleta" />
+                  <Input label="Destino" value={cotacaoData.destino} onChange={(value) => handleCotacaoChange('destino', value)} placeholder="Cidade/UF de entrega" />
+                  <Input label="Tipo de carga" value={cotacaoData.tipoCarga} onChange={(value) => handleCotacaoChange('tipoCarga', value)} placeholder="Fracionada, dedicada etc." />
+                  <Input label="Peso" value={cotacaoData.peso} onChange={(value) => handleCotacaoChange('peso', value)} placeholder="Ex.: 850 kg" />
+                  <Input label="Volume" value={cotacaoData.volume} onChange={(value) => handleCotacaoChange('volume', value)} placeholder="Ex.: 4 m³" />
+                  <Input label="Prazo" value={cotacaoData.prazo} onChange={(value) => handleCotacaoChange('prazo', value)} placeholder="Ex.: 24h úteis" />
+                  <Input label="Valor do frete (R$)" type="number" value={cotacaoData.valorFrete} onChange={(value) => handleCotacaoChange('valorFrete', value)} placeholder="0,00" />
+                  <Input label="Validade (dias)" type="number" value={cotacaoData.validade} onChange={(value) => handleCotacaoChange('validade', value)} placeholder="3" />
+                </div>
+
+                <div className="mt-6 flex flex-wrap gap-3 items-center">
+                  <button onClick={handleCopyCotacao} className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase transition-all">
+                    <Paperclip size={14} /> Copiar cotação
+                  </button>
+                  <button onClick={limparCotacao} className="flex items-center gap-2 px-4 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-black uppercase transition-all">
+                    <X size={14} /> Limpar dados
+                  </button>
+                  <div className="ml-auto px-4 py-2.5 rounded-xl bg-emerald-50 text-emerald-700 text-xs font-black uppercase">
+                    Valor: R$ {valorFreteCotacao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
+                <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3">Prévia da mensagem</h4>
+                <textarea
+                  value={mensagemCotacao}
+                  readOnly
+                  className="w-full min-h-[240px] p-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 outline-none"
+                />
+              </div>
+            </div>
+          )}
+
+
+          {activeTab !== 'relatorios' && activeTab !== 'dashboard' && activeTab !== 'viagens' && activeTab !== 'financeiro' && activeTab !== 'cotacao' && (
           <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white">
               <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">{activeTab}</h3>
