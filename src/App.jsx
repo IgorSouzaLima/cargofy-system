@@ -2184,51 +2184,57 @@ function App() {
               </div>
 
               {/* Seção 4: Comprovante e conclusão */}
-              <div className="p-6 bg-emerald-50 border border-emerald-100 rounded-3xl space-y-4 animate-in fade-in slide-in-from-top-2 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-emerald-700">
-                    <CheckCircle2 size={18} />
-                    <h4 className="text-xs font-black uppercase tracking-wider">Comprovante de Entrega</h4>
+              {formData.status === 'Entregue' ? (
+                <div className="p-6 bg-emerald-50 border border-emerald-100 rounded-3xl space-y-4 animate-in fade-in slide-in-from-top-2 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-emerald-700">
+                      <CheckCircle2 size={18} />
+                      <h4 className="text-xs font-black uppercase tracking-wider">Comprovante de Entrega</h4>
+                    </div>
                   </div>
-                </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Input label="Data da Entrega Realizada" type="date" value={formData.dataEntrega} onChange={v => setFormData({...formData, dataEntrega: v})} />
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Foto do Comprovante</label>
-                    <p className="text-[10px] text-emerald-700 font-semibold">Você pode anexar o comprovante mesmo antes de marcar como entregue. Depois clique em salvar.</p>
-                    <div className="flex gap-2 items-start">
-                      <input 
-                        type="file"
-                        accept="image/*"
-                        onChange={async e => {
-                          const file = e.target.files?.[0];
-                          if (!file) return;
-                          try {
-                            const fotoProcessada = await processarFotoComprovante(file);
-                            setFormData((prev) => ({ ...prev, urlComprovante: fotoProcessada }));
-                          } catch (error) {
-                            alert('Não foi possível processar a foto do comprovante. Tente JPG ou PNG.');
-                          } finally {
-                            e.target.value = '';
-                          }
-                        }}
-                        className="flex-1 px-4 py-2.5 bg-white border border-emerald-200 rounded-xl text-xs font-semibold outline-none file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-emerald-100 file:text-emerald-700"
-                      />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Input label="Data da Entrega Realizada" type="date" value={formData.dataEntrega} onChange={v => setFormData({...formData, dataEntrega: v})} />
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Foto do Comprovante</label>
+                      <p className="text-[10px] text-emerald-700 font-semibold">Anexe o comprovante após marcar a carga como entregue e clique em salvar.</p>
+                      <div className="flex gap-2 items-start">
+                        <input 
+                          type="file"
+                          accept="image/*"
+                          onChange={async e => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            try {
+                              const fotoProcessada = await processarFotoComprovante(file);
+                              setFormData((prev) => ({ ...prev, urlComprovante: fotoProcessada }));
+                            } catch (error) {
+                              alert('Não foi possível processar a foto do comprovante. Tente JPG ou PNG.');
+                            } finally {
+                              e.target.value = '';
+                            }
+                          }}
+                          className="flex-1 px-4 py-2.5 bg-white border border-emerald-200 rounded-xl text-xs font-semibold outline-none file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-emerald-100 file:text-emerald-700"
+                        />
+                        {formData.urlComprovante && (
+                          <a href={formData.urlComprovante} target="_blank" rel="noreferrer" onClick={(e) => { e.preventDefault(); openInNewWindow(formData.urlComprovante); }} className="p-2.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors">
+                            <ExternalLink size={18} />
+                          </a>
+                        )}
+                      </div>
                       {formData.urlComprovante && (
-                        <a href={formData.urlComprovante} target="_blank" rel="noreferrer" onClick={(e) => { e.preventDefault(); openInNewWindow(formData.urlComprovante); }} className="p-2.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors">
-                          <ExternalLink size={18} />
+                        <a href={formData.urlComprovante} target="_blank" rel="noreferrer" onClick={(e) => { e.preventDefault(); openInNewWindow(formData.urlComprovante); }} title="Abrir comprovante em nova aba" className="inline-block mt-2">
+                          <img src={formData.urlComprovante} alt="Pré-visualização do comprovante" className="h-20 w-20 object-cover rounded-lg border border-emerald-200 hover:opacity-90 transition-opacity cursor-pointer" />
                         </a>
                       )}
                     </div>
-                    {formData.urlComprovante && (
-                      <a href={formData.urlComprovante} target="_blank" rel="noreferrer" onClick={(e) => { e.preventDefault(); openInNewWindow(formData.urlComprovante); }} title="Abrir comprovante em nova aba" className="inline-block mt-2">
-                        <img src={formData.urlComprovante} alt="Pré-visualização do comprovante" className="h-20 w-20 object-cover rounded-lg border border-emerald-200 hover:opacity-90 transition-opacity cursor-pointer" />
-                      </a>
-                    )}
                   </div>
                 </div>
-              </div>
+              ) : (
+                <div className="p-4 rounded-2xl border border-amber-200 bg-amber-50">
+                  <p className="text-[11px] font-black text-amber-700 uppercase">Comprovante disponível quando status for Entregue.</p>
+                </div>
+              )}
             </div>
           )}
 
