@@ -1174,6 +1174,7 @@ function App() {
 
   const handleOpenEdit = (item) => {
     setFormData({
+      ...INITIAL_FORM_DATA,
       ...item,
       boleto: item.boleto || item.urlBoleto || item.urlComprovante || '',
       statusFinanceiro: item.statusFinanceiro || 'Pendente',
@@ -1269,6 +1270,11 @@ function App() {
     sincronizarPendentes();
   }, [user, viagens, financeiro]);
 
+  const sanitizeFirestorePayload = (payload) => {
+    const entries = Object.entries(payload || {}).filter(([, value]) => value !== undefined);
+    return Object.fromEntries(entries);
+  };
+
   const handleSave = async (e) => {
     e.preventDefault();
     const colName = (activeTab === 'dashboard' || activeTab === 'viagens') ? 'viagens' : activeTab;
@@ -1288,7 +1294,7 @@ function App() {
       return;
     }
 
-    const payload = colName === 'financeiro'
+    const payloadBruto = colName === 'financeiro'
       ? {
           ...formData,
           dataVencimentoBoleto: formData.vencimento || formData.dataVencimentoBoleto || '',
@@ -1307,6 +1313,9 @@ function App() {
             lucro: ((parseFloat(formData.valorFrete) || 0) - (parseFloat(formData.valorDistribuicao) || 0)).toFixed(2)
           }
         : formData;
+
+    const payload = sanitizeFirestorePayload(payloadBruto);
+
     try {
       let savedViagemId = editingId || '';
       if (editingId) {
@@ -1325,7 +1334,10 @@ function App() {
       setModalOpen(false);
       setEditingId(null);
       resetForm();
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      console.error(err);
+      alert('Não foi possível salvar as alterações da viagem. Verifique os campos obrigatórios e tente novamente.');
+    }
   };
 
   const resetForm = () => {
@@ -2184,6 +2196,7 @@ function App() {
                     <Input label="Data da Entrega Realizada" type="date" value={formData.dataEntrega} onChange={v => setFormData({...formData, dataEntrega: v})} />
                     <div className="space-y-1">
                       <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Foto do Comprovante</label>
+                      <p className="text-[10px] text-emerald-700 font-semibold">Adicione a imagem e salve a viagem para persistir o comprovante.</p>
                       <div className="flex gap-2 items-start">
                         <input 
                           type="file"
@@ -2193,7 +2206,7 @@ function App() {
                             if (!file) return;
                             try {
                               const fotoProcessada = await processarFotoComprovante(file);
-                              setFormData({...formData, urlComprovante: fotoProcessada});
+                              setFormData((prev) => ({ ...prev, urlComprovante: fotoProcessada }));
                             } catch (error) {
                               alert('Não foi possível processar a foto do comprovante. Tente outra imagem.');
                             }
