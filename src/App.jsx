@@ -817,6 +817,7 @@ function App() {
     const tipoArquivo = (file?.type || '').toLowerCase();
     const extensaoValida = /\.(jpg|jpeg|png|webp)$/i.test(nomeArquivo);
     const mimeValido = tipoArquivo.startsWith('image/');
+    const TAMANHO_MAX_BASE64 = 700_000;
 
     if (!mimeValido && !extensaoValida) {
       reject(new Error('Formato inválido. Use JPG, JPEG, PNG ou WEBP.'));
@@ -832,14 +833,20 @@ function App() {
           reject(new Error('Arquivo de imagem inválido.'));
           return;
         }
+
+        if (rawDataUrl.length > TAMANHO_MAX_BASE64) {
+          reject(new Error('A imagem está muito grande. Envie uma foto menor.'));
+          return;
+        }
+
         resolve(rawDataUrl);
       };
 
       const img = new Image();
       img.onerror = () => resolveOriginal();
       img.onload = () => {
-        const maxW = 1280;
-        const maxH = 1280;
+        const maxW = 960;
+        const maxH = 960;
         let { width, height } = img;
 
         if (!width || !height) {
@@ -848,8 +855,8 @@ function App() {
         }
 
         const ratio = Math.min(maxW / width, maxH / height, 1);
-        width = Math.round(width * ratio);
-        height = Math.round(height * ratio);
+        width = Math.max(Math.round(width * ratio), 1);
+        height = Math.max(Math.round(height * ratio), 1);
 
         const canvas = document.createElement('canvas');
         canvas.width = width;
@@ -862,8 +869,22 @@ function App() {
 
         try {
           ctx.drawImage(img, 0, 0, width, height);
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.75);
-          resolve(dataUrl || rawDataUrl);
+
+          const qualidades = [0.68, 0.58, 0.48, 0.4];
+          let melhor = '';
+
+          qualidades.forEach((q) => {
+            const candidato = canvas.toDataURL('image/jpeg', q);
+            if (!melhor || candidato.length < melhor.length) melhor = candidato;
+          });
+
+          const resultado = melhor || rawDataUrl;
+          if (resultado.length > TAMANHO_MAX_BASE64) {
+            reject(new Error('A imagem está muito grande após compressão. Tente recortar ou reduzir a foto.'));
+            return;
+          }
+
+          resolve(resultado);
         } catch (error) {
           resolveOriginal();
         }
