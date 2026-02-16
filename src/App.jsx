@@ -512,6 +512,75 @@ function App() {
     }
   };
 
+  const gerarOrdemCarregamentoPDF = (cotacao, dadosCarregamento = {}) => {
+    const janela = window.open('', '_blank');
+    if (!janela) {
+      alert('Não foi possível abrir a ordem de carregamento para impressão.');
+      return;
+    }
+
+    const cidadesEntrega = Array.isArray(cotacao?.cidadesEntrega)
+      ? cotacao.cidadesEntrega.filter((cidade) => (cidade || '').trim())
+      : [];
+    const listaCidades = cidadesEntrega.length
+      ? cidadesEntrega.map((cidade, idx) => `<li>${idx + 1}. ${cidade}</li>`).join('')
+      : '<li>---</li>';
+
+    const html = `
+      <!doctype html>
+      <html lang="pt-BR">
+        <head>
+          <meta charset="UTF-8" />
+          <title>Ordem de Carregamento</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 0; background: #f1f5f9; color: #0f172a; }
+            .sheet { max-width: 840px; margin: 24px auto; background: #fff; border-radius: 14px; border: 1px solid #e2e8f0; overflow: hidden; }
+            .header { background: linear-gradient(90deg, #0f172a, #1e293b); color: #fff; padding: 20px 24px; display: flex; justify-content: space-between; align-items: center; }
+            .header img { width: 54px; height: 54px; background: #fff; border-radius: 10px; padding: 4px; }
+            .title { font-size: 24px; font-weight: 800; margin: 0; }
+            .subtitle { margin: 4px 0 0; color: #cbd5e1; font-size: 12px; }
+            .content { padding: 24px; }
+            .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+            .card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; }
+            .label { font-size: 10px; text-transform: uppercase; font-weight: 700; color: #64748b; margin-bottom: 4px; }
+            .value { font-size: 14px; font-weight: 700; }
+            ul { margin: 6px 0 0; padding-left: 18px; }
+            .footer { margin-top: 18px; border-top: 1px dashed #cbd5e1; padding-top: 10px; font-size: 12px; color: #475569; }
+            @media print { body { background: #fff; } .sheet { margin: 0; border: 0; border-radius: 0; } }
+          </style>
+        </head>
+        <body>
+          <div class="sheet">
+            <div class="header">
+              <div>
+                <p class="title">Ordem de Carregamento</p>
+                <p class="subtitle">CargoFy Transportes · ${new Date().toLocaleDateString('pt-BR')}</p>
+              </div>
+              <img src="${window.location.origin}/logo-cargofy.svg" alt="Logo CargoFy" />
+            </div>
+            <div class="content">
+              <div class="grid">
+                <div class="card"><div class="label">Cliente</div><div class="value">${cotacao?.cliente || '---'}</div></div>
+                <div class="card"><div class="label">Cotação</div><div class="value">${cotacao?.numeroCotacao || '---'}</div></div>
+                <div class="card"><div class="label">Motorista</div><div class="value">${dadosCarregamento.motorista || '---'}</div></div>
+                <div class="card"><div class="label">Placa</div><div class="value">${dadosCarregamento.placa || '---'}</div></div>
+                <div class="card"><div class="label">Data e hora do carregamento</div><div class="value">${dadosCarregamento.dataHora || '---'}</div></div>
+                <div class="card"><div class="label">Peso</div><div class="value">${cotacao?.peso || '---'}</div></div>
+                <div class="card" style="grid-column: 1 / -1;"><div class="label">Cidades para carregamento/entrega</div><ul>${listaCidades}</ul></div>
+              </div>
+              <div class="footer">Documento operacional para conferência de coleta e rota antes da saída.</div>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+
+    janela.document.write(html);
+    janela.document.close();
+    janela.focus();
+    setTimeout(() => janela.print(), 350);
+  };
+
   const carregarCotacao = (cotacao) => {
     if (!cotacao) return;
 
@@ -535,7 +604,32 @@ function App() {
       cidadesEntrega: cidades.length ? cidades : ['']
     });
 
-    alert(`Cotação ${cotacao.numeroCotacao || ''} carregada com sucesso.`);
+    const motorista = window.prompt('Informe o nome do motorista para gerar a ordem de carregamento:', '');
+    if (motorista === null) {
+      alert(`Cotação ${cotacao.numeroCotacao || ''} carregada com sucesso.`);
+      return;
+    }
+
+    const placa = window.prompt('Informe a placa do veículo:', '');
+    if (placa === null) {
+      alert(`Cotação ${cotacao.numeroCotacao || ''} carregada com sucesso.`);
+      return;
+    }
+
+    const dataHoraSugerida = new Date().toLocaleString('pt-BR');
+    const dataHora = window.prompt('Informe a data e hora do carregamento:', dataHoraSugerida);
+    if (dataHora === null) {
+      alert(`Cotação ${cotacao.numeroCotacao || ''} carregada com sucesso.`);
+      return;
+    }
+
+    gerarOrdemCarregamentoPDF(cotacao, {
+      motorista: motorista.trim(),
+      placa: placa.trim().toUpperCase(),
+      dataHora: dataHora.trim()
+    });
+
+    alert(`Cotação ${cotacao.numeroCotacao || ''} carregada com sucesso e ordem de carregamento gerada.`);
   };
 
   const getProximoNumeroCarga = () => {
