@@ -578,11 +578,10 @@ function App() {
 
     try {
       const totalNotas = Math.max(parseInt(cotacao.numeroNotasFiscais || '1', 10) || 1, 1);
-      const primeiroNumeroCarga = parseInt(getProximoNumeroCarga(), 10) || 1;
+      const numeroCarga = getProximoNumeroCarga();
       const viagensCriadas = [];
 
       for (let i = 0; i < totalNotas; i += 1) {
-        const numeroCarga = String(primeiroNumeroCarga + i);
         const cargaPayload = {
           numeroNF: totalNotas > 1 ? `${cotacao.numeroCotacao || ''}-NF${i + 1}` : (cotacao.numeroCotacao || ''),
           numeroCarga,
@@ -606,12 +605,13 @@ function App() {
 
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'cotacoes', cotacao.id), {
         statusCotacao: 'Aprovada',
+        numeroCarga,
         origemViagemId: viagensCriadas[0] || '',
         origemViagemIds: viagensCriadas,
         approvedAt: serverTimestamp()
       });
 
-      alert(`Cotação ${cotacao.numeroCotacao} aprovada e convertida em ${totalNotas} carga(s)!`);
+      alert(`Cotação ${cotacao.numeroCotacao} aprovada e convertida na carga ${numeroCarga} com ${totalNotas} nota(s)!`);
       setActiveTab('viagens');
     } catch (error) {
       console.error(error);
