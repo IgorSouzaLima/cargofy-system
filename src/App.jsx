@@ -817,7 +817,7 @@ function App() {
     const tipoArquivo = (file?.type || '').toLowerCase();
     const extensaoValida = /\.(jpg|jpeg|png|webp)$/i.test(nomeArquivo);
     const mimeValido = tipoArquivo.startsWith('image/');
-    const TAMANHO_MAX_BASE64 = 700_000;
+    const TAMANHO_MAX_BASE64 = 320_000;
 
     if (!mimeValido && !extensaoValida) {
       reject(new Error('Formato inválido. Use JPG, JPEG, PNG ou WEBP.'));
@@ -828,71 +828,58 @@ function App() {
     reader.onerror = () => reject(new Error('Falha ao ler imagem.'));
     reader.onload = () => {
       const rawDataUrl = String(reader.result || '');
-      const resolveOriginal = () => {
-        if (!rawDataUrl.startsWith('data:image/')) {
-          reject(new Error('Arquivo de imagem inválido.'));
-          return;
-        }
-
-        if (rawDataUrl.length > TAMANHO_MAX_BASE64) {
-          reject(new Error('A imagem está muito grande. Envie uma foto menor.'));
-          return;
-        }
-
-        resolve(rawDataUrl);
-      };
+      if (!rawDataUrl.startsWith('data:image/')) {
+        reject(new Error('Arquivo de imagem inválido.'));
+        return;
+      }
 
       const img = new Image();
-      img.onerror = () => resolveOriginal();
+      img.onerror = () => reject(new Error('Não foi possível interpretar a imagem enviada.'));
       img.onload = () => {
-        const maxW = 960;
-        const maxH = 960;
-        let { width, height } = img;
+        const escalaTentativas = [1, 0.85, 0.7, 0.55];
+        const qualidadeTentativas = [0.7, 0.58, 0.48, 0.38, 0.3, 0.24];
+        let melhorResultado = '';
 
-        if (!width || !height) {
-          resolveOriginal();
-          return;
-        }
+        for (const escala of escalaTentativas) {
+          const largura = Math.max(Math.round(Math.min(img.width, 1280) * escala), 1);
+          const altura = Math.max(Math.round(Math.min(img.height, 1280) * escala), 1);
 
-        const ratio = Math.min(maxW / width, maxH / height, 1);
-        width = Math.max(Math.round(width * ratio), 1);
-        height = Math.max(Math.round(height * ratio), 1);
+          const canvas = document.createElement('canvas');
+          canvas.width = largura;
+          canvas.height = altura;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) continue;
 
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          resolveOriginal();
-          return;
-        }
-
-        try {
-          ctx.drawImage(img, 0, 0, width, height);
-
-          const qualidades = [0.68, 0.58, 0.48, 0.4];
-          let melhor = '';
-
-          qualidades.forEach((q) => {
-            const candidato = canvas.toDataURL('image/jpeg', q);
-            if (!melhor || candidato.length < melhor.length) melhor = candidato;
-          });
-
-          const resultado = melhor || rawDataUrl;
-          if (resultado.length > TAMANHO_MAX_BASE64) {
-            reject(new Error('A imagem está muito grande após compressão. Tente recortar ou reduzir a foto.'));
-            return;
+          try {
+            ctx.drawImage(img, 0, 0, largura, altura);
+          } catch (error) {
+            continue;
           }
 
-          resolve(resultado);
-        } catch (error) {
-          resolveOriginal();
+          for (const qualidade of qualidadeTentativas) {
+            const candidato = canvas.toDataURL('image/jpeg', qualidade);
+            if (!melhorResultado || candidato.length < melhorResultado.length) {
+              melhorResultado = candidato;
+            }
+            if (candidato.length <= TAMANHO_MAX_BASE64) {
+              resolve(candidato);
+              return;
+            }
+          }
         }
+
+        if (melhorResultado && melhorResultado.length <= TAMANHO_MAX_BASE64) {
+          resolve(melhorResultado);
+          return;
+        }
+
+        reject(new Error('A imagem ficou acima do limite para salvar. Tire print/recorte e tente novamente.'));
       };
       img.src = rawDataUrl;
     };
     reader.readAsDataURL(file);
   });
+
 
   const gerarRelatorioPDF = () => {
     const janela = window.open('', '_blank');
@@ -1306,6 +1293,11 @@ function App() {
 
     if (colName === 'viagens' && formData.metodoPagamento === 'Boleto' && (!formData.numeroBoleto || !formData.dataVencimentoBoleto)) {
       alert('Para pagamento via boleto, informe o número e a data de vencimento.');
+      return;
+    }
+
+    if (colName === 'viagens' && (formData.urlComprovante || '').length > 320000) {
+      alert('O comprovante está muito pesado para salvar. Envie uma imagem menor (JPG/PNG comprimido).');
       return;
     }
 
@@ -2224,7 +2216,7 @@ function App() {
                               const fotoProcessada = await processarFotoComprovante(file);
                               setFormData((prev) => ({ ...prev, urlComprovante: fotoProcessada }));
                             } catch (error) {
-                              alert('Não foi possível processar a foto do comprovante. Tente JPG ou PNG.');
+                              alert(error?.message || 'Não foi possível processar a foto do comprovante. Tente JPG ou PNG.');
                             } finally {
                               e.target.value = '';
                             }
