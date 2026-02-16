@@ -813,15 +813,40 @@ function App() {
   };
 
   const processarFotoComprovante = (file) => new Promise((resolve, reject) => {
+    const nomeArquivo = (file?.name || '').toLowerCase();
+    const tipoArquivo = (file?.type || '').toLowerCase();
+    const extensaoValida = /\.(jpg|jpeg|png|webp)$/i.test(nomeArquivo);
+    const mimeValido = tipoArquivo.startsWith('image/');
+
+    if (!mimeValido && !extensaoValida) {
+      reject(new Error('Formato inválido. Use JPG, JPEG, PNG ou WEBP.'));
+      return;
+    }
+
     const reader = new FileReader();
     reader.onerror = () => reject(new Error('Falha ao ler imagem.'));
     reader.onload = () => {
+      const rawDataUrl = String(reader.result || '');
+      const resolveOriginal = () => {
+        if (!rawDataUrl.startsWith('data:image/')) {
+          reject(new Error('Arquivo de imagem inválido.'));
+          return;
+        }
+        resolve(rawDataUrl);
+      };
+
       const img = new Image();
-      img.onerror = () => reject(new Error('Arquivo de imagem inválido.'));
+      img.onerror = () => resolveOriginal();
       img.onload = () => {
         const maxW = 1280;
         const maxH = 1280;
         let { width, height } = img;
+
+        if (!width || !height) {
+          resolveOriginal();
+          return;
+        }
+
         const ratio = Math.min(maxW / width, maxH / height, 1);
         width = Math.round(width * ratio);
         height = Math.round(height * ratio);
@@ -830,13 +855,20 @@ function App() {
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext('2d');
-        if (!ctx) return reject(new Error('Falha ao processar imagem.'));
-        ctx.drawImage(img, 0, 0, width, height);
+        if (!ctx) {
+          resolveOriginal();
+          return;
+        }
 
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.75);
-        resolve(dataUrl);
+        try {
+          ctx.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.75);
+          resolve(dataUrl || rawDataUrl);
+        } catch (error) {
+          resolveOriginal();
+        }
       };
-      img.src = String(reader.result);
+      img.src = rawDataUrl;
     };
     reader.readAsDataURL(file);
   });
