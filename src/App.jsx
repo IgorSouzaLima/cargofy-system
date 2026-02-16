@@ -580,19 +580,29 @@ function App() {
       const totalNotas = Math.max(parseInt(cotacao.numeroNotasFiscais || '1', 10) || 1, 1);
       const numeroCarga = getProximoNumeroCarga();
       const viagensCriadas = [];
+      const cidadesEntrega = Array.isArray(cotacao.cidadesEntrega)
+        ? cotacao.cidadesEntrega.filter((cidade) => (cidade || '').trim())
+        : [];
+      const valorTotalFrete = parseFloat(cotacao.valorFrete) || 0;
+      const valorBasePorNota = totalNotas > 0 ? Number((valorTotalFrete / totalNotas).toFixed(2)) : 0;
 
       for (let i = 0; i < totalNotas; i += 1) {
+        const destinoNota = cidadesEntrega.length ? cidadesEntrega[i % cidadesEntrega.length] : '';
+        const valorFreteNota = i === totalNotas - 1
+          ? Number((valorTotalFrete - (valorBasePorNota * (totalNotas - 1))).toFixed(2))
+          : valorBasePorNota;
+
         const cargaPayload = {
           numeroNF: totalNotas > 1 ? `${cotacao.numeroCotacao || ''}-NF${i + 1}` : (cotacao.numeroCotacao || ''),
           numeroCarga,
           tipoCarga: cotacao.tipoCarga === 'dedicado' ? 'Dedicada' : 'Fracionada',
           contratante: cotacao.cliente || '',
-          destinatario: cotacao.cidadesEntrega?.[0] || '',
-          cidade: cotacao.cidadesEntrega?.join(' | ') || '',
+          destinatario: destinoNota,
+          cidade: destinoNota,
           status: 'Pendente',
-          valorFrete: cotacao.valorFrete || '',
+          valorFrete: valorFreteNota.toFixed(2),
           valorDistribuicao: '',
-          observacao: `Origem: ${cotacao.origem || '---'} | Entregas: ${(cotacao.cidadesEntrega || []).join(', ')} | Cotação ${cotacao.numeroCotacao || ''} | Nota ${i + 1}/${totalNotas} | Rota: ${cotacao.rota || '---'}`,
+          observacao: `Origem: ${cotacao.origem || '---'} | Destino da nota: ${destinoNota || '---'} | Entregas: ${cidadesEntrega.join(', ')} | Cotação ${cotacao.numeroCotacao || ''} | Nota ${i + 1}/${totalNotas} | Rota: ${cotacao.rota || '---'}`,
           motorista: '',
           veiculo: '',
           userId: user?.uid || '',
