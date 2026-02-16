@@ -108,34 +108,6 @@ function App() {
     return () => unsubscribes.forEach(unsub => unsub());
   }, [user]);
 
-  const cargaStatusMap = useMemo(() => {
-    const agrupado = {};
-    viagens.forEach(v => {
-      const chave = (v.numeroCarga || '').trim();
-      if (!chave) return;
-      if (!agrupado[chave]) agrupado[chave] = [];
-      agrupado[chave].push(v);
-    });
-
-    const mapa = {};
-    Object.entries(agrupado).forEach(([chave, itens]) => {
-      const pendentes = itens.filter(i => (i.status || 'Pendente') === 'Pendente').length;
-      const emRota = itens.filter(i => (i.status || 'Pendente') === 'Em rota').length;
-      const entregues = itens.filter(i => (i.status || 'Pendente') === 'Entregue').length;
-
-      mapa[chave] = {
-        total: itens.length,
-        pendentes,
-        emRota,
-        entregues,
-        allEntregues: entregues === itens.length,
-        allPendentes: pendentes === itens.length,
-        hasEmRota: emRota > 0
-      };
-    });
-    return mapa;
-  }, [viagens]);
-
   const mapaCTePorReferencia = useMemo(() => {
     const mapa = {};
     viagens.forEach(v => {
@@ -202,17 +174,7 @@ function App() {
     return placaItem || ref;
   };
 
-  const getStatusViagem = (viagem) => {
-    const chave = (viagem.numeroCarga || '').trim();
-    if (chave && cargaStatusMap[chave]) {
-      const resumo = cargaStatusMap[chave];
-      if (resumo.allEntregues) return 'Entregue';
-      if (resumo.hasEmRota) return 'Em rota';
-      if (resumo.allPendentes) return 'Pendente';
-      return 'Em rota';
-    }
-    return viagem.status || 'Pendente';
-  };
+  const getStatusViagem = (viagem) => viagem.status || 'Pendente';
 
   const getCargaLabel = (item) => {
     const numero = (item?.numeroCarga || '').trim();
