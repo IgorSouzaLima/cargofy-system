@@ -83,6 +83,14 @@ function App() {
   const [cotacaoDistanciaKm, setCotacaoDistanciaKm] = useState(0);
   const [cotacaoCalculandoKm, setCotacaoCalculandoKm] = useState(false);
   const [cotacaoAtualId, setCotacaoAtualId] = useState('');
+  const [ordemCarregamentoModalOpen, setOrdemCarregamentoModalOpen] = useState(false);
+  const [ordemCarregamentoCotacao, setOrdemCarregamentoCotacao] = useState(null);
+  const [ordemCarregamentoData, setOrdemCarregamentoData] = useState({
+    motorista: '',
+    veiculoId: '',
+    placa: '',
+    dataHora: ''
+  });
 
   const [formData, setFormData] = useState(INITIAL_FORM_DATA);
 
@@ -563,6 +571,7 @@ function App() {
                 <div class="card"><div class="label">Cliente</div><div class="value">${cotacao?.cliente || '---'}</div></div>
                 <div class="card"><div class="label">Cotação</div><div class="value">${cotacao?.numeroCotacao || '---'}</div></div>
                 <div class="card"><div class="label">Motorista</div><div class="value">${dadosCarregamento.motorista || '---'}</div></div>
+                <div class="card"><div class="label">Veículo</div><div class="value">${dadosCarregamento.veiculo || '---'}</div></div>
                 <div class="card"><div class="label">Placa</div><div class="value">${dadosCarregamento.placa || '---'}</div></div>
                 <div class="card"><div class="label">Data e hora do carregamento</div><div class="value">${dadosCarregamento.dataHora || '---'}</div></div>
                 <div class="card"><div class="label">Peso</div><div class="value">${cotacao?.peso || '---'}</div></div>
@@ -579,6 +588,52 @@ function App() {
     janela.document.close();
     janela.focus();
     setTimeout(() => janela.print(), 350);
+  };
+
+  const abrirModalOrdemCarregamento = (cotacao) => {
+    const dataHoraPadrao = new Date().toISOString().slice(0, 16);
+    setOrdemCarregamentoCotacao(cotacao);
+    setOrdemCarregamentoData({
+      motorista: '',
+      veiculoId: '',
+      placa: '',
+      dataHora: dataHoraPadrao
+    });
+    setOrdemCarregamentoModalOpen(true);
+  };
+
+  const confirmarOrdemCarregamento = () => {
+    if (!ordemCarregamentoCotacao) return;
+
+    if (!ordemCarregamentoData.motorista.trim()) {
+      alert('Selecione o motorista cadastrado.');
+      return;
+    }
+
+    if (!ordemCarregamentoData.veiculoId.trim()) {
+      alert('Selecione o veículo cadastrado.');
+      return;
+    }
+
+    if (!ordemCarregamentoData.dataHora.trim()) {
+      alert('Informe a data e hora do carregamento.');
+      return;
+    }
+
+    const veiculoSelecionado = veiculos.find(v => v.id === ordemCarregamentoData.veiculoId);
+    const veiculoLabel = [veiculoSelecionado?.modelo, veiculoSelecionado?.placa].filter(Boolean).join(' - ') || '---';
+    const dataHoraFormatada = new Date(ordemCarregamentoData.dataHora).toLocaleString('pt-BR');
+
+    gerarOrdemCarregamentoPDF(ordemCarregamentoCotacao, {
+      motorista: ordemCarregamentoData.motorista,
+      veiculo: veiculoLabel,
+      placa: ordemCarregamentoData.placa,
+      dataHora: dataHoraFormatada
+    });
+
+    setOrdemCarregamentoModalOpen(false);
+    setOrdemCarregamentoCotacao(null);
+    alert(`Cotação ${ordemCarregamentoCotacao.numeroCotacao || ''} carregada com sucesso e ordem de carregamento gerada.`);
   };
 
   const carregarCotacao = (cotacao) => {
@@ -604,32 +659,7 @@ function App() {
       cidadesEntrega: cidades.length ? cidades : ['']
     });
 
-    const motorista = window.prompt('Informe o nome do motorista para gerar a ordem de carregamento:', '');
-    if (motorista === null) {
-      alert(`Cotação ${cotacao.numeroCotacao || ''} carregada com sucesso.`);
-      return;
-    }
-
-    const placa = window.prompt('Informe a placa do veículo:', '');
-    if (placa === null) {
-      alert(`Cotação ${cotacao.numeroCotacao || ''} carregada com sucesso.`);
-      return;
-    }
-
-    const dataHoraSugerida = new Date().toLocaleString('pt-BR');
-    const dataHora = window.prompt('Informe a data e hora do carregamento:', dataHoraSugerida);
-    if (dataHora === null) {
-      alert(`Cotação ${cotacao.numeroCotacao || ''} carregada com sucesso.`);
-      return;
-    }
-
-    gerarOrdemCarregamentoPDF(cotacao, {
-      motorista: motorista.trim(),
-      placa: placa.trim().toUpperCase(),
-      dataHora: dataHora.trim()
-    });
-
-    alert(`Cotação ${cotacao.numeroCotacao || ''} carregada com sucesso e ordem de carregamento gerada.`);
+    abrirModalOrdemCarregamento(cotacao);
   };
 
   const getProximoNumeroCarga = () => {
@@ -2424,6 +2454,57 @@ function App() {
             </button>
           </div>
         </form>
+      </Modal>
+
+      <Modal isOpen={ordemCarregamentoModalOpen} onClose={() => setOrdemCarregamentoModalOpen(false)} title="Gerar Ordem de Carregamento">
+        <div className="space-y-5">
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+            <p className="text-[10px] font-black uppercase text-slate-500">Cotação selecionada</p>
+            <p className="text-sm font-black text-slate-800">{ordemCarregamentoCotacao?.numeroCotacao || '---'} · {ordemCarregamentoCotacao?.cliente || '---'}</p>
+            <p className="text-xs font-semibold text-slate-500 mt-1">Peso: {ordemCarregamentoCotacao?.peso || '---'} · Cidades: {(ordemCarregamentoCotacao?.cidadesEntrega || []).filter(cidade => (cidade || '').trim()).join(' | ') || '---'}</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Motorista Cadastrado</label>
+              <select
+                className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold outline-none border border-transparent focus:border-indigo-200"
+                value={ordemCarregamentoData.motorista}
+                onChange={(e) => setOrdemCarregamentoData(prev => ({ ...prev, motorista: e.target.value }))}
+              >
+                <option value="">Selecionar Motorista...</option>
+                {motoristas.map(m => <option key={`ordem-motorista-${m.id}`} value={m.nome}>{m.nome}</option>)}
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Veículo Cadastrado</label>
+              <select
+                className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold outline-none border border-transparent focus:border-indigo-200"
+                value={ordemCarregamentoData.veiculoId}
+                onChange={(e) => {
+                  const selecionado = veiculos.find(v => v.id === e.target.value);
+                  setOrdemCarregamentoData(prev => ({
+                    ...prev,
+                    veiculoId: e.target.value,
+                    placa: selecionado?.placa || ''
+                  }));
+                }}
+              >
+                <option value="">Selecionar Veículo...</option>
+                {veiculos.map(v => <option key={`ordem-veiculo-${v.id}`} value={v.id}>{v.modelo || 'Veículo'} {v.placa ? `- ${v.placa}` : ''}</option>)}
+              </select>
+            </div>
+
+            <Input label="Placa" value={ordemCarregamentoData.placa} onChange={(value) => setOrdemCarregamentoData(prev => ({ ...prev, placa: value.toUpperCase() }))} placeholder="ABC-1234" />
+            <Input label="Data e hora do carregamento" type="datetime-local" value={ordemCarregamentoData.dataHora} onChange={(value) => setOrdemCarregamentoData(prev => ({ ...prev, dataHora: value }))} />
+          </div>
+
+          <div className="flex gap-3 pt-4 border-t border-slate-100">
+            <button type="button" onClick={() => setOrdemCarregamentoModalOpen(false)} className="flex-1 py-3 text-xs font-black uppercase text-slate-400 hover:text-slate-600 transition-colors">Cancelar</button>
+            <button type="button" onClick={confirmarOrdemCarregamento} className="flex-[2] py-3 bg-blue-600 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all">Gerar PDF da Ordem</button>
+          </div>
+        </div>
       </Modal>
 
       <Modal isOpen={!!detailItem} onClose={() => setDetailItem(null)} title="Detalhes da Carga">
