@@ -15,12 +15,12 @@ import { INITIAL_FORM_DATA } from './data/formDefaults';
 const Card = ({ title, value, icon: Icon, color, onClick, active }) => (
   <button 
     onClick={onClick}
-    className={`w-full text-left bg-white p-6 rounded-2xl shadow-sm border ${active ? 'border-blue-500 ring-2 ring-blue-500/10' : 'border-slate-100'} flex items-start justify-between transition-all hover:shadow-md hover:scale-[1.02] active:scale-95`}
+    className={`w-full text-left bg-white p-6 rounded-2xl shadow-sm border ${active ? 'border-red-500 ring-2 ring-red-500/10' : 'border-slate-100'} flex items-start justify-between transition-all hover:shadow-md hover:scale-[1.02] active:scale-95`}
   >
     <div>
       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{title}</p>
       <h3 className="text-xl font-black text-slate-800 mt-1">{value}</h3>
-      {onClick && <p className="text-[9px] font-bold text-blue-500 mt-2 flex items-center gap-1 uppercase">Ver detalhes <ArrowRight size={10}/></p>}
+      {onClick && <p className="text-[9px] font-bold text-red-500 mt-2 flex items-center gap-1 uppercase">Ver detalhes <ArrowRight size={10}/></p>}
     </div>
     <div className={`p-3 rounded-xl ${color} text-white shadow-lg`}>
       <Icon size={20} />
@@ -353,7 +353,7 @@ function App() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'relatorio_cargofy.csv';
+    link.download = 'relatorio_rjlima_transportes_logistica.csv';
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -394,7 +394,7 @@ function App() {
       return;
     }
 
-    const logoUrl = `${window.location.origin}/logo-cargofy.svg`;
+    const logoUrl = `${window.location.origin}/logo-rjlima.svg`;
 
     const gruposPorCarga = relatorioData.reduce((acc, item) => {
       const chave = (item.numeroCarga || 'Sem carga').trim() || 'Sem carga';
@@ -429,7 +429,7 @@ function App() {
     janela.document.write(`
       <html>
         <head>
-          <title>Relatório CargoFy</title>
+          <title>Relatório RJLima Transportes e Logística</title>
           <style>
             body { font-family: Arial, sans-serif; padding: 24px; color: #0f172a; }
             .header { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
@@ -444,7 +444,7 @@ function App() {
           </style>
         </head>
         <body>
-          <div class="header"><img src="${logoUrl}" alt="Logo CargoFy" class="logo" /><h1>Relatório CargoFy</h1></div>
+          <div class="header"><img src="${logoUrl}" alt="Logo RJLima Transportes e Logística" class="logo" /><h1>Relatório RJLima Transportes e Logística</h1></div>
           <p>Empresa: ${reportEmpresa} | Carga: ${reportNumeroCarga || 'Todas'} | Período: ${reportInicio || 'Início'} até ${reportFim || 'Hoje'} | Registros: ${relatorioData.length}</p>
           <div class="resumo">
             <span>Faturamento: R$ ${resumoRelatorio.faturou.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
@@ -895,8 +895,8 @@ function App() {
     <div className="flex h-screen bg-[#f1f5f9] text-slate-900 font-sans">
       <aside className="w-64 bg-[#0f172a] text-white flex flex-col p-6 shadow-2xl shrink-0">
         <div className="flex items-center gap-3 mb-10 px-2 cursor-pointer" onClick={() => {setActiveTab('dashboard'); setStatusFilter('Todos'); setDashboardCargaFilter(''); setDashboardBoletoFilter('');}}>
-          <Truck className="text-blue-500" size={28} />
-          <h1 className="text-xl font-black tracking-tighter uppercase">CargoFy</h1>
+          <img src="/logo-rjlima.svg" alt="Logo RJLima Transportes e Logística" className="h-9 w-9 rounded-lg object-contain bg-white p-1" />
+          <h1 className="text-sm font-black tracking-tight uppercase leading-tight">RJLima Transportes e Logística</h1>
         </div>
         <nav className="flex-1 space-y-1 overflow-y-auto">
           <NavItem icon={LayoutDashboard} label="Painel" active={activeTab === 'dashboard'} onClick={() => {setActiveTab('dashboard'); setStatusFilter('Todos'); setDashboardCargaFilter(''); setDashboardBoletoFilter('');}} />
@@ -921,11 +921,11 @@ function App() {
                 placeholder="Pesquisar por NF, CT-e, Contratante ou Cidade..." 
                 value={searchNF}
                 onChange={(e) => setSearchNF(e.target.value)}
-                className="w-full pl-12 pr-4 py-2.5 bg-slate-100 rounded-xl outline-none focus:ring-2 ring-blue-500/20 text-sm font-medium transition-all"
+                className="w-full pl-12 pr-4 py-2.5 bg-slate-100 rounded-xl outline-none focus:ring-2 ring-red-500/20 text-sm font-medium transition-all"
               />
             </div>
             {statusFilter !== 'Todos' && (
-              <button onClick={() => setStatusFilter('Todos')} className="bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase flex items-center gap-2">
+              <button onClick={() => setStatusFilter('Todos')} className="bg-red-50 text-red-600 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase flex items-center gap-2">
                 Filtro: {statusFilter} <X size={12}/>
               </button>
             )}
@@ -953,7 +953,7 @@ function App() {
               </button>
             )}
             {(activeTab === 'dashboard' || activeTab === 'viagens' || activeTab === 'clientes' || activeTab === 'motoristas' || activeTab === 'veiculos') && (
-              <button onClick={() => { resetForm(); setEditingId(null); setModalOpen(true); }} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-blue-500/20 transition-all">
+              <button onClick={() => { resetForm(); setEditingId(null); setModalOpen(true); }} className="flex items-center gap-2 px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-red-500/20 transition-all">
                 <Plus size={16} /> {novoRegistroLabel}
               </button>
             )}
@@ -1004,7 +1004,7 @@ function App() {
                                     <p className="text-[10px] font-bold text-slate-500 uppercase">{item.contratante || 'Sem contratante'}</p>
                                   </div>
                                   <div className="flex items-center gap-2">
-                                    <button onClick={() => handleOpenEdit(item)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 text-[10px] font-black uppercase hover:bg-blue-100">
+                                    <button onClick={() => handleOpenEdit(item)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-50 text-red-700 text-[10px] font-black uppercase hover:bg-red-100">
                                       <Edit3 size={12}/> Editar
                                     </button>
                                     <button onClick={() => setDetailItem(item)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase hover:bg-indigo-100">
@@ -1026,7 +1026,7 @@ function App() {
                               <p className="text-[10px] font-bold text-slate-500 uppercase">{item.contratante || 'Sem contratante'}</p>
                             </div>
                             <div className="flex items-center gap-2">
-                              <button onClick={() => handleOpenEdit(item)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 text-[10px] font-black uppercase hover:bg-blue-100">
+                              <button onClick={() => handleOpenEdit(item)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-50 text-red-700 text-[10px] font-black uppercase hover:bg-red-100">
                                 <Edit3 size={12}/> Editar
                               </button>
                               <button onClick={() => setDetailItem(item)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase hover:bg-indigo-100">
@@ -1055,10 +1055,10 @@ function App() {
                           <p className="text-[10px] font-bold text-slate-500 uppercase">{item.contratante || 'Sem contratante'} · Destino: {item.destinatario || item.cidade || 'Sem destino'} · Motorista: {item.motorista || 'Sem motorista'}</p>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className={`w-fit px-2 py-0.5 rounded text-[9px] font-black uppercase ${getStatusViagem(item) === 'Em rota' ? 'bg-blue-100 text-blue-600' : getStatusViagem(item) === 'Entregue' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
+                          <span className={`w-fit px-2 py-0.5 rounded text-[9px] font-black uppercase ${getStatusViagem(item) === 'Em rota' ? 'bg-red-100 text-red-600' : getStatusViagem(item) === 'Entregue' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
                             {getStatusViagem(item)}
                           </span>
-                          <button onClick={() => handleOpenEdit(item)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg" title="Editar"><Edit3 size={16}/></button>
+                          <button onClick={() => handleOpenEdit(item)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg" title="Editar"><Edit3 size={16}/></button>
                           <button onClick={() => setDetailItem(item)} className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg" title="Ver dados"><Eye size={16}/></button>
                           <button onClick={async () => { if (confirm('Deseja realmente excluir este registro?')) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'viagens', item.id)); }} className="p-2 text-red-400 hover:bg-red-50 rounded-lg" title="Excluir"><Trash2 size={16}/></button>
                         </div>
@@ -1073,7 +1073,7 @@ function App() {
           {activeTab === 'dashboard' && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
               <Card title="Cargas Pendentes" value={stats.pendentes} icon={Clock} color="bg-amber-500" active={dashboardCargaFilter === 'Pendente'} onClick={() => setDashboardCargaFilter(prev => prev === 'Pendente' ? '' : 'Pendente')} />
-              <Card title="Cargas em Rota" value={stats.emRota} icon={MapPin} color="bg-blue-600" active={dashboardCargaFilter === 'Em rota'} onClick={() => setDashboardCargaFilter(prev => prev === 'Em rota' ? '' : 'Em rota')} />
+              <Card title="Cargas em Rota" value={stats.emRota} icon={MapPin} color="bg-red-600" active={dashboardCargaFilter === 'Em rota'} onClick={() => setDashboardCargaFilter(prev => prev === 'Em rota' ? '' : 'Em rota')} />
               <Card title="Concluídas" value={stats.entregues} icon={CheckCircle2} color="bg-emerald-500" active={dashboardCargaFilter === 'Entregue'} onClick={() => setDashboardCargaFilter(prev => prev === 'Entregue' ? '' : 'Entregue')} />
             </div>
           )}
@@ -1092,16 +1092,16 @@ function App() {
           {activeTab === 'relatorios' && (
             <div className="space-y-6 mb-8">
               <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-5 flex items-center gap-4">
-                <img src="/logo-cargofy.svg" alt="Logo CargoFy" className="h-14 w-14 rounded-xl object-contain border border-slate-200 p-1" />
+                <img src="/logo-rjlima.svg" alt="Logo RJLima Transportes e Logística" className="h-14 w-14 rounded-xl object-contain border border-slate-200 p-1" />
                 <div>
-                  <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Relatórios CargoFy</h3>
+                  <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Relatórios RJLima Transportes e Logística</h3>
                   <p className="text-xs font-semibold text-slate-500">Exportação em CSV/PDF com identidade visual da operação.</p>
                 </div>
               </div>
               <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 grid grid-cols-1 md:grid-cols-6 gap-4">
                 <div className="space-y-1">
                   <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Empresa</label>
-                  <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold outline-none border border-transparent focus:border-blue-400" value={reportEmpresa} onChange={e => setReportEmpresa(e.target.value)}>
+                  <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold outline-none border border-transparent focus:border-red-400" value={reportEmpresa} onChange={e => setReportEmpresa(e.target.value)}>
                     {empresasRelatorio.map(emp => <option key={emp} value={emp}>{emp}</option>)}
                   </select>
                 </div>
@@ -1149,7 +1149,7 @@ function App() {
                           <p className="text-[10px] font-black text-indigo-600 uppercase">Carga #{getCargaLabel(item)}</p>
                           <p className="font-bold text-slate-800">{item.numeroNF || '---'}</p>
                           <p className="text-[10px] font-black text-slate-500">CT-e: {item.numeroCTe || '---'}</p>
-                          <p className="text-[10px] font-black text-blue-600 uppercase tracking-tight">{item.contratante || 'Sem empresa'}</p>
+                          <p className="text-[10px] font-black text-red-600 uppercase tracking-tight">{item.contratante || 'Sem empresa'}</p>
                         </td>
                         <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.dataCTe ? new Date(item.dataCTe + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</td>
                         <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.dataSaida || item.dataNF || item.dataEntrega ? new Date((item.dataSaida || item.dataNF || item.dataEntrega) + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</td>
@@ -1195,7 +1195,7 @@ function App() {
                         </div>
                         <div className="flex items-center gap-1 mt-0.5">
                           <Building2 size={10} className="text-slate-400" />
-                          <p className="text-[10px] font-black text-blue-600 uppercase tracking-tight">
+                          <p className="text-[10px] font-black text-red-600 uppercase tracking-tight">
                             {item.contratante || "Contratante não informado"}
                           </p>
                         </div>
@@ -1217,7 +1217,7 @@ function App() {
                     <td className="px-6 py-4">
                       <div className="flex flex-col gap-1">
                         <span className={`w-fit px-2 py-0.5 rounded text-[9px] font-black uppercase ${
-                          ((activeTab === 'dashboard' || activeTab === 'viagens') ? getStatusViagem(item) : (activeTab === 'financeiro' ? getStatusFinanceiro(item) : item.status)) === 'Em rota' ? 'bg-blue-100 text-blue-600' : 
+                          ((activeTab === 'dashboard' || activeTab === 'viagens') ? getStatusViagem(item) : (activeTab === 'financeiro' ? getStatusFinanceiro(item) : item.status)) === 'Em rota' ? 'bg-red-100 text-red-600' : 
                           ((activeTab === 'dashboard' || activeTab === 'viagens') ? getStatusViagem(item) : (activeTab === 'financeiro' ? getStatusFinanceiro(item) : item.status)) === 'Entregue' ? 'bg-emerald-100 text-emerald-600' :
                           ((activeTab === 'dashboard' || activeTab === 'viagens') ? getStatusViagem(item) : (activeTab === 'financeiro' ? getStatusFinanceiro(item) : item.status)) === 'Pendente' ? 'bg-amber-100 text-amber-600' :
                           'bg-slate-100 text-slate-500'
@@ -1234,7 +1234,7 @@ function App() {
                         {(activeTab === 'dashboard' || activeTab === 'viagens' || activeTab === 'financeiro') && (
                           <button onClick={() => setDetailItem(item)} className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg" title="Ver detalhes"><Eye size={16}/></button>
                         )}
-                        <button onClick={() => handleOpenEdit(item)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg"><Edit3 size={16}/></button>
+                        <button onClick={() => handleOpenEdit(item)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><Edit3 size={16}/></button>
                         <button onClick={async () => { 
                           if(confirm('Deseja realmente excluir este registro?')) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', (activeTab === 'dashboard' || activeTab === 'viagens' ? 'viagens' : activeTab), item.id));
                         }} className="p-2 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 size={16}/></button>
@@ -1277,7 +1277,7 @@ function App() {
                             <p className="text-xs font-bold text-slate-700">Venc: {(item.dataVencimentoBoleto || item.vencimento) ? new Date(((item.dataVencimentoBoleto || item.vencimento) + 'T12:00:00')).toLocaleDateString('pt-BR') : '---'}</p>
                             <span className={`w-fit ml-auto px-2 py-0.5 rounded text-[9px] font-black uppercase ${getStatusFinanceiro(item) === 'Pago' ? 'bg-emerald-100 text-emerald-600' : getStatusFinanceiro(item) === 'Vencido' ? 'bg-rose-100 text-rose-600' : 'bg-amber-100 text-amber-600'}`}>{getStatusFinanceiro(item)}</span>
                           </div>
-                          <button onClick={() => handleOpenEdit(item)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg" title="Editar"><Edit3 size={16}/></button>
+                          <button onClick={() => handleOpenEdit(item)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg" title="Editar"><Edit3 size={16}/></button>
                           <button onClick={() => setDetailItem(item)} className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg" title="Ver dados"><Eye size={16}/></button>
                           <button onClick={async () => { if (confirm('Deseja realmente excluir este registro?')) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'financeiro', item.id)); }} className="p-2 text-red-400 hover:bg-red-50 rounded-lg" title="Excluir"><Trash2 size={16}/></button>
                         </div>
@@ -1309,11 +1309,11 @@ function App() {
                           <div key={`dash-v-${item.id}`} className="px-4 py-3 hover:bg-slate-50/60 transition-colors flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                             <div>
                               <p className="font-bold text-slate-800">NF {item.numeroNF || '---'} · CT-e {getNumeroCTeResolvido(item) || '---'}</p>
-                              <p className="text-[10px] font-black text-blue-600 uppercase tracking-tight">{item.contratante || 'Contratante não informado'}</p>
+                              <p className="text-[10px] font-black text-red-600 uppercase tracking-tight">{item.contratante || 'Contratante não informado'}</p>
                               <p className="text-[10px] font-black text-slate-500 uppercase">{item.cidade || 'Destino não informado'} · {item.motorista || 'Sem motorista'}</p>
                             </div>
                             <div className="flex items-center gap-2">
-                              <span className={`w-fit px-2 py-0.5 rounded text-[9px] font-black uppercase ${dashboardCargaFilter === 'Em rota' ? 'bg-blue-100 text-blue-600' : 'bg-emerald-100 text-emerald-600'}`}>{dashboardCargaFilter}</span>
+                              <span className={`w-fit px-2 py-0.5 rounded text-[9px] font-black uppercase ${dashboardCargaFilter === 'Em rota' ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'}`}>{dashboardCargaFilter}</span>
                               <button onClick={() => setDetailItem(item)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase hover:bg-indigo-100">
                                 <Eye size={12}/> Ver dados
                               </button>
@@ -1340,7 +1340,7 @@ function App() {
                     <tr key={`dash-v-${item.id}`} className="hover:bg-slate-50/50 transition-colors">
                       <td className="px-6 py-4">
                         <p className="font-bold text-slate-800">Carga {getCargaLabel(item)} · NF {item.numeroNF || '---'}</p>
-                        <p className="text-[10px] font-black text-blue-600 uppercase tracking-tight">{item.contratante || 'Contratante não informado'}</p>
+                        <p className="text-[10px] font-black text-red-600 uppercase tracking-tight">{item.contratante || 'Contratante não informado'}</p>
                       </td>
                       <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.numeroCTe || '---'}</td>
                       <td className="px-6 py-4">
@@ -1348,7 +1348,7 @@ function App() {
                         <p className="text-[10px] font-black text-slate-500 uppercase">{item.motorista || 'Sem motorista'}</p>
                       </td>
                       <td className="px-6 py-4">
-                        <span className={`w-fit px-2 py-0.5 rounded text-[9px] font-black uppercase ${getStatusViagem(item) === 'Em rota' ? 'bg-blue-100 text-blue-600' : getStatusViagem(item) === 'Entregue' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
+                        <span className={`w-fit px-2 py-0.5 rounded text-[9px] font-black uppercase ${getStatusViagem(item) === 'Em rota' ? 'bg-red-100 text-red-600' : getStatusViagem(item) === 'Entregue' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
                           {getStatusViagem(item)}
                         </span>
                       </td>
@@ -1420,8 +1420,8 @@ function App() {
           {(activeTab === 'dashboard' || activeTab === 'viagens') && (
             <div className="space-y-6">
               {/* Seção 1: Identificação */}
-              <div className="space-y-4 p-5 rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50/60 to-white">
-                <div className="flex items-center gap-2 border-l-4 border-blue-500 pl-3">
+              <div className="space-y-4 p-5 rounded-2xl border border-red-100 bg-gradient-to-br from-red-50/60 to-white">
+                <div className="flex items-center gap-2 border-l-4 border-red-500 pl-3">
                   <h4 className="text-[11px] font-black text-slate-800 uppercase tracking-widest">Documentação e Contrato</h4>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -1429,7 +1429,7 @@ function App() {
                   <Input label="Número da Carga" value={formData.numeroCarga} onChange={v => setFormData({...formData, numeroCarga: v})} />
                   <div className="space-y-1">
                     <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Tipo da Carga</label>
-                    <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold uppercase outline-none border border-transparent focus:border-blue-400" value={formData.tipoCarga || ''} onChange={e => setFormData({...formData, tipoCarga: e.target.value})}>
+                    <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold uppercase outline-none border border-transparent focus:border-red-400" value={formData.tipoCarga || ''} onChange={e => setFormData({...formData, tipoCarga: e.target.value})}>
                       <option value="">Selecionar...</option>
                       <option value="Dedicada">Dedicada</option>
                       <option value="Fracionada">Fracionada</option>
@@ -1494,7 +1494,7 @@ function App() {
                   </div>
                   <div className="space-y-1">
                     <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Status da Viagem</label>
-                    <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold uppercase outline-none border border-transparent focus:border-blue-400" value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})}>
+                    <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold uppercase outline-none border border-transparent focus:border-red-400" value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})}>
                       <option value="Pendente">Pendente (Aguardando)</option>
                       <option value="Em rota">Em rota (Transportando)</option>
                       <option value="Entregue">Entregue (Concluído)</option>
@@ -1505,7 +1505,7 @@ function App() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
                   <div className="space-y-1">
                     <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Método de Pagamento</label>
-                    <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold uppercase outline-none border border-transparent focus:border-blue-400" value={formData.metodoPagamento || ''} onChange={e => setFormData({...formData, metodoPagamento: e.target.value, numeroBoleto: e.target.value === 'Boleto' ? formData.numeroBoleto : '', dataVencimentoBoleto: e.target.value === 'Boleto' ? formData.dataVencimentoBoleto : ''})}>
+                    <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold uppercase outline-none border border-transparent focus:border-red-400" value={formData.metodoPagamento || ''} onChange={e => setFormData({...formData, metodoPagamento: e.target.value, numeroBoleto: e.target.value === 'Boleto' ? formData.numeroBoleto : '', dataVencimentoBoleto: e.target.value === 'Boleto' ? formData.dataVencimentoBoleto : ''})}>
                       <option value="">Selecionar...</option>
                       <option value="Boleto">Boleto</option>
                       <option value="Pix">Pix</option>
@@ -1590,7 +1590,7 @@ function App() {
                 <Input label="Vencimento" type="date" value={formData.vencimento} onChange={v => setFormData({...formData, vencimento: v})} />
                 <div className="space-y-1">
                   <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Status Financeiro</label>
-                  <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold uppercase outline-none border border-transparent focus:border-blue-400" value={formData.statusFinanceiro || 'Pendente'} onChange={e => setFormData({...formData, statusFinanceiro: e.target.value})}>
+                  <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold uppercase outline-none border border-transparent focus:border-red-400" value={formData.statusFinanceiro || 'Pendente'} onChange={e => setFormData({...formData, statusFinanceiro: e.target.value})}>
                     <option value="Pendente">Pendente</option>
                     <option value="Pago">Pago</option>
                   </select>
@@ -1632,14 +1632,14 @@ function App() {
                 onChange={e => setFormData({...formData, observacao: e.target.value})}
                 placeholder="Digite uma observação adicional..."
                 rows={3}
-                className="w-full p-3 bg-slate-100 rounded-xl text-sm font-medium outline-none border border-transparent focus:border-blue-400"
+                className="w-full p-3 bg-slate-100 rounded-xl text-sm font-medium outline-none border border-transparent focus:border-red-400"
               />
             </div>
           )}
 
           <div className="flex gap-3 pt-8 border-t">
             <button type="button" onClick={() => setModalOpen(false)} className="flex-1 py-4 text-xs font-black uppercase text-slate-400 hover:text-slate-600 transition-colors">Descartar</button>
-            <button type="submit" className="flex-[2] py-4 bg-blue-600 text-white rounded-2xl text-xs font-black uppercase shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all">
+            <button type="submit" className="flex-[2] py-4 bg-red-600 text-white rounded-2xl text-xs font-black uppercase shadow-lg shadow-red-500/20 hover:bg-red-700 transition-all">
               {editingId ? "Atualizar Registro" : "Confirmar Cadastro"}
             </button>
           </div>
@@ -1695,7 +1695,7 @@ function Info({ label, value }) {
 
 function NavItem({ icon: Icon, label, active, onClick }) {
   return (
-    <button onClick={onClick} className={`w-full flex items-center gap-4 px-5 py-3 rounded-xl transition-all ${active ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}>
+    <button onClick={onClick} className={`w-full flex items-center gap-4 px-5 py-3 rounded-xl transition-all ${active ? 'bg-red-600 text-white shadow-lg shadow-red-600/20' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}>
       <Icon size={18} /> <span className="text-[10px] font-black uppercase tracking-widest">{label}</span>
     </button>
   );
@@ -1711,7 +1711,7 @@ function Input({ label, type = "text", value, onChange, placeholder = "", disabl
         value={value || ''} 
         onChange={e => onChange(e.target.value)} 
         disabled={disabled}
-        className="w-full px-4 py-2.5 bg-slate-100 rounded-xl outline-none border border-transparent focus:border-blue-400 focus:bg-white text-sm font-semibold transition-all disabled:opacity-60 disabled:cursor-not-allowed" 
+        className="w-full px-4 py-2.5 bg-slate-100 rounded-xl outline-none border border-transparent focus:border-red-400 focus:bg-white text-sm font-semibold transition-all disabled:opacity-60 disabled:cursor-not-allowed" 
       />
     </div>
   );
@@ -1728,13 +1728,13 @@ function Login() {
   };
   return (
     <div className="min-h-screen bg-slate-950 text-white font-sans relative overflow-hidden">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(59,130,246,0.22),transparent_38%),radial-gradient(circle_at_15%_85%,_rgba(14,165,233,0.2),transparent_34%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(239,68,68,0.24),transparent_38%),radial-gradient(circle_at_15%_85%,_rgba(250,204,21,0.18),transparent_34%)]" />
       <div className="relative min-h-screen grid grid-cols-1 xl:grid-cols-[1.1fr_0.9fr] gap-8 p-6 lg:p-10 items-center">
         <section className="hidden xl:flex flex-col justify-between rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-md p-10 min-h-[78vh]">
           <div>
-            <div className="inline-flex items-center gap-3 px-4 py-2 rounded-full bg-blue-500/15 border border-blue-300/20">
-              <Truck size={18} className="text-blue-300" />
-              <span className="text-xs font-black tracking-[0.2em] uppercase text-blue-100">CargoFy TMS</span>
+            <div className="inline-flex items-center gap-3 px-4 py-2 rounded-full bg-red-500/15 border border-red-300/20">
+              <img src="/logo-rjlima.svg" alt="Logo RJLima Transportes e Logística" className="h-5 w-5 rounded object-contain bg-white p-0.5" />
+              <span className="text-xs font-black tracking-[0.18em] uppercase text-red-100">RJLima Transportes e Logística</span>
             </div>
             <h1 className="mt-8 text-4xl font-black leading-tight tracking-tight max-w-xl">Plataforma profissional para gestão operacional de transporte e frete.</h1>
             <p className="mt-5 text-slate-300 max-w-xl">Controle cargas, documentos, financeiro e comprovantes em um único painel com visão de operação em tempo real.</p>
@@ -1749,11 +1749,9 @@ function Login() {
         <section className="w-full max-w-lg mx-auto">
           <div className="rounded-3xl border border-slate-200/20 bg-white shadow-2xl p-8 md:p-10 text-slate-900">
             <div className="flex items-center gap-3 mb-8">
-              <div className="h-12 w-12 rounded-2xl bg-blue-600 text-white grid place-items-center shadow-lg shadow-blue-600/30">
-                <Truck size={22} />
-              </div>
+              <img src="/logo-rjlima.svg" alt="Logo RJLima Transportes e Logística" className="h-12 w-12 rounded-2xl object-contain border border-red-100 p-1" />
               <div>
-                <h2 className="text-2xl font-black tracking-tight">CargoFy TMS</h2>
+                <h2 className="text-2xl font-black tracking-tight">RJLima Transportes e Logística</h2>
                 <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Acesso seguro ao painel operacional</p>
               </div>
             </div>
@@ -1762,12 +1760,12 @@ function Login() {
               <Input label="E-mail corporativo" value={email} onChange={setEmail} placeholder="seuemail@empresa.com" />
               <Input label="Senha" type="password" value={pass} onChange={setPass} placeholder="••••••••" />
 
-              <button className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black uppercase tracking-widest shadow-xl shadow-blue-500/20 transition-all">
+              <button className="w-full py-3.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-black uppercase tracking-widest shadow-xl shadow-red-500/20 transition-all">
                 {isReg ? 'Criar Conta' : 'Entrar no TMS'}
               </button>
 
               <div className="pt-3 border-t border-slate-100 text-center">
-                <button type="button" onClick={() => setIsReg(!isReg)} className="text-xs font-bold text-slate-500 uppercase tracking-wider hover:text-blue-600 transition-colors">
+                <button type="button" onClick={() => setIsReg(!isReg)} className="text-xs font-bold text-slate-500 uppercase tracking-wider hover:text-red-600 transition-colors">
                   {isReg ? 'Já possui conta? Fazer login' : 'Primeiro acesso? Criar conta'}
                 </button>
               </div>

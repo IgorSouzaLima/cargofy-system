@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 220" role="img" aria-label="Logo RJLima Transportes e Logística">
+  <defs>
+    <linearGradient id="rj" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#ff2d2d"/>
+      <stop offset="100%" stop-color="#c40000"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="820" height="220" fill="transparent"/>
+  <path d="M560 174 C640 135, 700 128, 802 164" stroke="#ffe000" stroke-width="12" fill="none" stroke-linecap="round"/>
+  <path d="M540 188 C640 125, 730 126, 812 170" stroke="#ffffff" stroke-opacity="0.75" stroke-width="4" fill="none"/>
+
+  <text x="30" y="108" font-family="Inter, Arial, sans-serif" font-size="88" font-style="italic" font-weight="900" fill="#111111">R</text>
+  <text x="95" y="108" font-family="Inter, Arial, sans-serif" font-size="88" font-style="italic" font-weight="900" fill="url(#rj)">J</text>
+  <text x="165" y="110" font-family="Inter, Arial, sans-serif" font-size="90" font-style="italic" font-weight="700" fill="#111111">Lima</text>
+
+  <rect x="20" y="126" width="520" height="68" rx="8" fill="#0f0f10"/>
+  <text x="42" y="173" font-family="Inter, Arial, sans-serif" font-size="52" font-weight="800" fill="#ffffff" letter-spacing="1">TRANSPORTES</text>
+</svg>
