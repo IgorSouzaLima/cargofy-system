@@ -544,7 +544,7 @@ function App() {
             body { font-family: Arial, sans-serif; margin: 0; background: #f1f5f9; color: #0f172a; }
             .sheet { max-width: 840px; margin: 24px auto; background: #fff; border-radius: 14px; border: 1px solid #e2e8f0; overflow: hidden; }
             .header { background: linear-gradient(90deg, #0f172a, #1e293b); color: #fff; padding: 20px 24px; display: flex; justify-content: space-between; align-items: center; }
-            .header img { width: 54px; height: 54px; background: #fff; border-radius: 10px; padding: 4px; }
+            .header img { width: 180px; height: 56px; background: #fff; border-radius: 10px; padding: 4px 8px; object-fit: contain; }
             .title { font-size: 24px; font-weight: 800; margin: 0; }
             .subtitle { margin: 4px 0 0; color: #cbd5e1; font-size: 12px; }
             .content { padding: 24px; }
@@ -771,7 +771,7 @@ function App() {
             body { font-family: Arial, sans-serif; margin: 0; background: #f1f5f9; color: #0f172a; }
             .sheet { max-width: 860px; margin: 24px auto; background: #fff; border-radius: 18px; border: 1px solid #e2e8f0; overflow: hidden; }
             .header { padding: 24px; background: linear-gradient(90deg, #0f172a, #1e293b); color: #fff; display: flex; justify-content: space-between; align-items: center; }
-            .header img { width: 56px; height: 56px; background: #fff; border-radius: 12px; padding: 4px; }
+            .header img { width: 180px; height: 58px; background: #fff; border-radius: 12px; padding: 4px 8px; object-fit: contain; }
             .title h1 { margin: 0; font-size: 24px; }
             .title p { margin: 4px 0 0; font-size: 12px; color: #cbd5e1; }
             .content { padding: 24px; }
@@ -1061,7 +1061,7 @@ function App() {
           <style>
             body { font-family: Arial, sans-serif; padding: 24px; color: #0f172a; }
             .header { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
-            .logo { width: 44px; height: 44px; object-fit: contain; }
+            .logo { width: 170px; height: 52px; object-fit: contain; }
             h1 { margin: 0; font-size: 20px; }
             p { margin: 4px 0 16px; font-size: 12px; color: #475569; }
             table { width: 100%; border-collapse: collapse; margin-top: 12px; }
@@ -1739,7 +1739,7 @@ function App() {
           {activeTab === 'relatorios' && (
             <div className="space-y-6 mb-8">
               <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-5 flex items-center gap-4">
-                <img src="/logo-rjlima.svg" alt="Logo RJLima Transportes e Logística" className="h-14 w-14 rounded-xl object-contain border border-slate-200 p-1" />
+                <img src="/logo-rjlima.svg" alt="Logo RJLima Transportes e Logística" className="h-14 w-auto max-w-[220px] rounded-xl object-contain border border-slate-200 bg-white px-2 py-1" />
                 <div>
                   <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Relatórios RJLima Transportes e Logística</h3>
                   <p className="text-xs font-semibold text-slate-500">Exportação em CSV/PDF com identidade visual da operação.</p>
@@ -1816,7 +1816,7 @@ function App() {
               <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-5">
                   <div className="flex items-center gap-4">
-                    <img src="/logo-rjlima.svg" alt="Logo RJLima Transportes e Logística" className="h-14 w-14 rounded-xl object-contain border border-slate-200 p-1" />
+                    <img src="/logo-rjlima.svg" alt="Logo RJLima Transportes e Logística" className="h-14 w-auto max-w-[220px] rounded-xl object-contain border border-slate-200 bg-white px-2 py-1" />
                     <div>
                       <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Cotação Profissional</h3>
                       <p className="text-xs font-semibold text-slate-500">Gere PDF ou imagem para envio ao cliente com identidade RJLima Transportes e Logística.</p>
