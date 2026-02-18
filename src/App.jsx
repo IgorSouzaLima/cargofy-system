@@ -1594,7 +1594,7 @@ function App() {
               <button
                 type="button"
                 onClick={handleOpenSheetUrl}
-                className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-emerald-500/20 transition-all"
+                className="flex items-center gap-2 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-amber-500/20 transition-all"
               >
                 <Upload size={14} /> Upload Sheets
               </button>
@@ -1702,7 +1702,7 @@ function App() {
                           <p className="text-[10px] font-bold text-slate-500 uppercase">{item.contratante || 'Sem contratante'} · Destino: {item.destinatario || item.cidade || 'Sem destino'} · Motorista: {item.motorista || 'Sem motorista'}</p>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className={`w-fit px-2 py-0.5 rounded text-[9px] font-black uppercase ${getStatusViagem(item) === 'Em rota' ? 'bg-red-100 text-red-600' : getStatusViagem(item) === 'Entregue' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
+                          <span className={`w-fit px-2 py-0.5 rounded text-[9px] font-black uppercase ${getStatusViagem(item) === 'Em rota' ? 'bg-red-100 text-red-600' : getStatusViagem(item) === 'Entregue' ? 'bg-amber-100 text-amber-600' : 'bg-amber-100 text-amber-600'}`}>
                             {getStatusViagem(item)}
                           </span>
                           <button onClick={() => handleOpenEdit(item)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg" title="Editar"><Edit3 size={16}/></button>
@@ -1721,7 +1721,7 @@ function App() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
               <Card title="Cargas Pendentes" value={stats.pendentes} icon={Clock} color="bg-amber-500" active={dashboardCargaFilter === 'Pendente'} onClick={() => setDashboardCargaFilter(prev => prev === 'Pendente' ? '' : 'Pendente')} />
               <Card title="Cargas em Rota" value={stats.emRota} icon={MapPin} color="bg-red-600" active={dashboardCargaFilter === 'Em rota'} onClick={() => setDashboardCargaFilter(prev => prev === 'Em rota' ? '' : 'Em rota')} />
-              <Card title="Concluídas" value={stats.entregues} icon={CheckCircle2} color="bg-emerald-500" active={dashboardCargaFilter === 'Entregue'} onClick={() => setDashboardCargaFilter(prev => prev === 'Entregue' ? '' : 'Entregue')} />
+              <Card title="Concluídas" value={stats.entregues} icon={CheckCircle2} color="bg-amber-500" active={dashboardCargaFilter === 'Entregue'} onClick={() => setDashboardCargaFilter(prev => prev === 'Entregue' ? '' : 'Entregue')} />
             </div>
           )}
 
@@ -1730,7 +1730,7 @@ function App() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Card title="Quanto Faturou" value={`R$ ${financeiroResumo.faturou.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={DollarSign} color="bg-amber-600" />
                 <Card title="Gasto Distribuição" value={`R$ ${financeiroResumo.gastouDistribuicao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={Truck} color="bg-amber-500" />
-                <Card title="Lucro" value={`R$ ${financeiroResumo.lucroTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={CheckCircle2} color="bg-emerald-600" />
+                <Card title="Lucro" value={`R$ ${financeiroResumo.lucroTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={CheckCircle2} color="bg-amber-600" />
               </div>
 
             </div>
@@ -1770,7 +1770,7 @@ function App() {
               <div className={`grid grid-cols-1 ${relatorioPorCarga ? 'md:grid-cols-1' : 'md:grid-cols-3'} gap-4`}>
                 <Card title="Faturamento" value={`R$ ${resumoRelatorio.faturou.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={DollarSign} color="bg-amber-600" />
                 {!relatorioPorCarga && <Card title="Distribuição" value={`R$ ${resumoRelatorio.distribuicao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={Truck} color="bg-amber-500" />}
-                {!relatorioPorCarga && <Card title="Lucro" value={`R$ ${resumoRelatorio.lucro.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={CheckCircle2} color="bg-emerald-600" />}
+                {!relatorioPorCarga && <Card title="Lucro" value={`R$ ${resumoRelatorio.lucro.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={CheckCircle2} color="bg-amber-600" />}
               </div>
 
               <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
@@ -1802,7 +1802,7 @@ function App() {
                         <td className="px-6 py-4 text-sm font-bold text-slate-700">{item.dataSaida || item.dataNF || item.dataEntrega ? new Date((item.dataSaida || item.dataNF || item.dataEntrega) + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</td>
                         <td className="px-6 py-4 text-sm font-bold text-slate-700">R$ {(parseFloat(item.valorFrete) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                         {!relatorioPorCarga && <td className="px-6 py-4 text-sm font-bold text-slate-700">R$ {(parseFloat(item.valorDistribuicao) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
-                        {!relatorioPorCarga && <td className="px-6 py-4 text-sm font-black text-emerald-700">R$ {((parseFloat(item.valorFrete) || 0) - (parseFloat(item.valorDistribuicao) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
+                        {!relatorioPorCarga && <td className="px-6 py-4 text-sm font-black text-amber-700">R$ {((parseFloat(item.valorFrete) || 0) - (parseFloat(item.valorDistribuicao) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
                       </tr>
                     ))}
                   </tbody>
@@ -1884,13 +1884,13 @@ function App() {
                   <button onClick={calcularDistanciaKm} className="h-11 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-black uppercase transition-all">
                     {cotacaoCalculandoKm ? 'Calculando...' : 'Calcular KM + Ordenar Rota'}
                   </button>
-                  <div className="px-4 py-2.5 rounded-xl bg-emerald-50 text-emerald-700 text-xs font-black uppercase text-center">
+                  <div className="px-4 py-2.5 rounded-xl bg-amber-50 text-amber-700 text-xs font-black uppercase text-center">
                     KM: {cotacaoDistanciaKm ? cotacaoDistanciaKm.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) : '0'}
                   </div>
                 </div>
 
                 <div className="mt-6 flex flex-wrap gap-3 items-center">
-                  <button onClick={salvarCotacao} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase transition-all">
+                  <button onClick={salvarCotacao} className="flex items-center gap-2 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-black uppercase transition-all">
                     <CheckCircle2 size={14} /> {cotacaoAtualId ? 'Atualizar Cotação' : 'Salvar Cotação'}
                   </button>
                   <button onClick={handleCopyCotacao} className="flex items-center gap-2 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-black uppercase transition-all">
@@ -1935,7 +1935,7 @@ function App() {
                           <p className="text-sm font-bold text-slate-800">{cotacao.cliente || 'Cliente não informado'}</p>
                           <p className="text-[11px] text-slate-500 font-semibold">Rota: {cotacao.rota || '---'}</p>
                           <p className="text-[10px] font-bold text-slate-500">Notas: {cotacao.numeroNotasFiscais || 1} rota(s)</p>
-                          <p className={`text-[10px] font-black uppercase mt-1 ${(cotacao.statusCotacao || 'Em análise') === 'Aprovada' ? 'text-emerald-600' : 'text-amber-600'}`}>
+                          <p className={`text-[10px] font-black uppercase mt-1 ${(cotacao.statusCotacao || 'Em análise') === 'Aprovada' ? 'text-amber-600' : 'text-amber-600'}`}>
                             {cotacao.statusCotacao || 'Em análise'}
                           </p>
                         </div>
@@ -1946,7 +1946,7 @@ function App() {
                           <button
                             onClick={() => aprovarCotacao(cotacao)}
                             disabled={(cotacao.statusCotacao || '').toLowerCase() === 'aprovada'}
-                            className="px-3 py-2 rounded-lg bg-emerald-600 text-white text-[10px] font-black uppercase hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="px-3 py-2 rounded-lg bg-amber-600 text-white text-[10px] font-black uppercase hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             Aprovar e virar carga
                           </button>
@@ -1990,7 +1990,7 @@ function App() {
                           <p className="font-bold text-slate-800">{item.numeroNF || item.nome || item.modelo || "---"}</p>
                           {item.numeroCarga && <p className="text-[10px] font-black text-amber-600 uppercase">Carga #{getCargaLabel(item)}</p>}
                           {(item.boleto || item.urlBoleto || item.urlComprovante) && (
-                            <a href={item.boleto || item.urlBoleto || item.urlComprovante} target="_blank" rel="noreferrer" title="Ver Comprovante" onClick={(e) => { e.preventDefault(); openInNewWindow(item.boleto || item.urlBoleto || item.urlComprovante); }} className="text-emerald-500 hover:scale-110 transition-transform">
+                            <a href={item.boleto || item.urlBoleto || item.urlComprovante} target="_blank" rel="noreferrer" title="Ver Comprovante" onClick={(e) => { e.preventDefault(); openInNewWindow(item.boleto || item.urlBoleto || item.urlComprovante); }} className="text-amber-500 hover:scale-110 transition-transform">
                               <Paperclip size={14} />
                             </a>
                           )}
@@ -2010,7 +2010,7 @@ function App() {
                       <div className="flex items-center gap-1.5 mt-0.5">
                         <p className="text-[10px] text-slate-400 font-black uppercase">{item.motorista || item.telefone || 'Sem Motorista'}</p>
                         {item.status === 'Entregue' && item.dataEntrega && (
-                          <span className="text-[9px] font-bold text-emerald-500 flex items-center gap-1">
+                          <span className="text-[9px] font-bold text-amber-500 flex items-center gap-1">
                             <Clock size={10} /> Entregue em {new Date(item.dataEntrega + 'T12:00:00').toLocaleDateString('pt-BR')}
                           </span>
                         )}
@@ -2020,7 +2020,7 @@ function App() {
                       <div className="flex flex-col gap-1">
                         <span className={`w-fit px-2 py-0.5 rounded text-[9px] font-black uppercase ${
                           ((activeTab === 'dashboard' || activeTab === 'viagens') ? getStatusViagem(item) : (activeTab === 'financeiro' ? getStatusFinanceiro(item) : item.status)) === 'Em rota' ? 'bg-red-100 text-red-600' : 
-                          ((activeTab === 'dashboard' || activeTab === 'viagens') ? getStatusViagem(item) : (activeTab === 'financeiro' ? getStatusFinanceiro(item) : item.status)) === 'Entregue' ? 'bg-emerald-100 text-emerald-600' :
+                          ((activeTab === 'dashboard' || activeTab === 'viagens') ? getStatusViagem(item) : (activeTab === 'financeiro' ? getStatusFinanceiro(item) : item.status)) === 'Entregue' ? 'bg-amber-100 text-amber-600' :
                           ((activeTab === 'dashboard' || activeTab === 'viagens') ? getStatusViagem(item) : (activeTab === 'financeiro' ? getStatusFinanceiro(item) : item.status)) === 'Pendente' ? 'bg-amber-100 text-amber-600' :
                           'bg-slate-100 text-slate-500'
                         }`}>
@@ -2028,7 +2028,7 @@ function App() {
                         </span>
                         {activeTab !== 'dashboard' && item.valorFrete && <p className="font-black text-slate-900 text-sm">Frete: R$ {parseFloat(item.valorFrete).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>}
                         {activeTab !== 'dashboard' && (item.valorDistribuicao || activeTab === 'financeiro') && <p className="text-[10px] font-black text-amber-700">Custo: R$ {(parseFloat(item.valorDistribuicao) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>}
-                        {activeTab !== 'dashboard' && (item.valorDistribuicao || item.lucro || activeTab === 'financeiro') && <p className="text-[10px] font-black text-emerald-700">Lucro: R$ {((parseFloat(item.valorFrete) || 0) - (parseFloat(item.valorDistribuicao) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>}
+                        {activeTab !== 'dashboard' && (item.valorDistribuicao || item.lucro || activeTab === 'financeiro') && <p className="text-[10px] font-black text-amber-700">Lucro: R$ {((parseFloat(item.valorFrete) || 0) - (parseFloat(item.valorDistribuicao) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>}
                       </div>
                     </td>
                     <td className="px-6 py-4 text-right">
@@ -2077,7 +2077,7 @@ function App() {
                         <div className="flex items-center gap-2">
                           <div className="text-right">
                             <p className="text-xs font-bold text-slate-700">Venc: {(item.dataVencimentoBoleto || item.vencimento) ? new Date(((item.dataVencimentoBoleto || item.vencimento) + 'T12:00:00')).toLocaleDateString('pt-BR') : '---'}</p>
-                            <span className={`w-fit ml-auto px-2 py-0.5 rounded text-[9px] font-black uppercase ${getStatusFinanceiro(item) === 'Pago' ? 'bg-emerald-100 text-emerald-600' : getStatusFinanceiro(item) === 'Vencido' ? 'bg-rose-100 text-rose-600' : 'bg-amber-100 text-amber-600'}`}>{getStatusFinanceiro(item)}</span>
+                            <span className={`w-fit ml-auto px-2 py-0.5 rounded text-[9px] font-black uppercase ${getStatusFinanceiro(item) === 'Pago' ? 'bg-amber-100 text-amber-600' : getStatusFinanceiro(item) === 'Vencido' ? 'bg-rose-100 text-rose-600' : 'bg-amber-100 text-amber-600'}`}>{getStatusFinanceiro(item)}</span>
                           </div>
                           <button onClick={() => handleOpenEdit(item)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg" title="Editar"><Edit3 size={16}/></button>
                           <button onClick={() => setDetailItem(item)} className="p-2 text-amber-500 hover:bg-amber-50 rounded-lg" title="Ver dados"><Eye size={16}/></button>
@@ -2115,7 +2115,7 @@ function App() {
                               <p className="text-[10px] font-black text-slate-500 uppercase">{item.cidade || 'Destino não informado'} · {item.motorista || 'Sem motorista'}</p>
                             </div>
                             <div className="flex items-center gap-2">
-                              <span className={`w-fit px-2 py-0.5 rounded text-[9px] font-black uppercase ${dashboardCargaFilter === 'Em rota' ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'}`}>{dashboardCargaFilter}</span>
+                              <span className={`w-fit px-2 py-0.5 rounded text-[9px] font-black uppercase ${dashboardCargaFilter === 'Em rota' ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'}`}>{dashboardCargaFilter}</span>
                               <button onClick={() => setDetailItem(item)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-50 text-amber-700 text-[10px] font-black uppercase hover:bg-amber-100">
                                 <Eye size={12}/> Ver dados
                               </button>
@@ -2150,7 +2150,7 @@ function App() {
                         <p className="text-[10px] font-black text-slate-500 uppercase">{item.motorista || 'Sem motorista'}</p>
                       </td>
                       <td className="px-6 py-4">
-                        <span className={`w-fit px-2 py-0.5 rounded text-[9px] font-black uppercase ${getStatusViagem(item) === 'Em rota' ? 'bg-red-100 text-red-600' : getStatusViagem(item) === 'Entregue' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
+                        <span className={`w-fit px-2 py-0.5 rounded text-[9px] font-black uppercase ${getStatusViagem(item) === 'Em rota' ? 'bg-red-100 text-red-600' : getStatusViagem(item) === 'Entregue' ? 'bg-amber-100 text-amber-600' : 'bg-amber-100 text-amber-600'}`}>
                           {getStatusViagem(item)}
                         </span>
                       </td>
@@ -2173,7 +2173,7 @@ function App() {
                 <Card title="Boletos Gerados" value={boletoStats.boletosGerados} icon={FileText} color="bg-amber-600" active={dashboardBoletoFilter === 'Todos'} onClick={() => setDashboardBoletoFilter(prev => prev === 'Todos' ? '' : 'Todos')} />
                 <Card title="Boletos Pendentes" value={boletoStats.boletosPendentes} icon={Clock} color="bg-amber-500" active={dashboardBoletoFilter === 'Pendente'} onClick={() => setDashboardBoletoFilter(prev => prev === 'Pendente' ? '' : 'Pendente')} />
                 <Card title="Boletos Atrasados" value={boletoStats.boletosAtrasados} icon={AlertCircle} color="bg-rose-600" active={dashboardBoletoFilter === 'Vencido'} onClick={() => setDashboardBoletoFilter(prev => prev === 'Vencido' ? '' : 'Vencido')} />
-                <Card title="Boletos Pagos" value={boletoStats.boletosPagos} icon={CheckCircle2} color="bg-emerald-600" active={dashboardBoletoFilter === 'Pago'} onClick={() => setDashboardBoletoFilter(prev => prev === 'Pago' ? '' : 'Pago')} />
+                <Card title="Boletos Pagos" value={boletoStats.boletosPagos} icon={CheckCircle2} color="bg-amber-600" active={dashboardBoletoFilter === 'Pago'} onClick={() => setDashboardBoletoFilter(prev => prev === 'Pago' ? '' : 'Pago')} />
               </div>
               {dashboardBoletoFilter && (
               <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
@@ -2196,12 +2196,12 @@ function App() {
                               <p className="text-[10px] font-black text-slate-500 uppercase">Vencimento: {(item.dataVencimentoBoleto || item.vencimento) ? new Date(((item.dataVencimentoBoleto || item.vencimento) + 'T12:00:00')).toLocaleDateString('pt-BR') : '---'}</p>
                             </div>
                             <div className="flex items-center gap-2">
-                              <span className={`w-fit px-2 py-0.5 rounded text-[9px] font-black uppercase ${getStatusFinanceiro(item) === 'Pago' ? 'bg-emerald-100 text-emerald-600' : getStatusFinanceiro(item) === 'Vencido' ? 'bg-rose-100 text-rose-600' : 'bg-amber-100 text-amber-600'}`}>
+                              <span className={`w-fit px-2 py-0.5 rounded text-[9px] font-black uppercase ${getStatusFinanceiro(item) === 'Pago' ? 'bg-amber-100 text-amber-600' : getStatusFinanceiro(item) === 'Vencido' ? 'bg-rose-100 text-rose-600' : 'bg-amber-100 text-amber-600'}`}>
                                 {getStatusFinanceiro(item)}
                               </span>
                               <button onClick={() => setDetailItem(item)} className="p-2 text-amber-500 hover:bg-amber-50 rounded-lg" title="Ver dados"><Eye size={16}/></button>
                               {(item.boleto || item.urlBoleto || item.urlComprovante) ? (
-                                <a href={item.boleto || item.urlBoleto || item.urlComprovante} target="_blank" rel="noreferrer" onClick={(e) => { e.preventDefault(); openInNewWindow(item.boleto || item.urlBoleto || item.urlComprovante); }} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase">Abrir <ExternalLink size={12} /></a>
+                                <a href={item.boleto || item.urlBoleto || item.urlComprovante} target="_blank" rel="noreferrer" onClick={(e) => { e.preventDefault(); openInNewWindow(item.boleto || item.urlBoleto || item.urlComprovante); }} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-50 text-amber-700 text-[10px] font-black uppercase">Abrir <ExternalLink size={12} /></a>
                               ) : <span className="text-[10px] font-bold text-slate-400">Sem link</span>}
                             </div>
                           </div>
@@ -2261,9 +2261,9 @@ function App() {
                   <Input label="Valor da Distribuição (R$)" type="number" value={formData.valorDistribuicao} onChange={v => setFormData({...formData, valorDistribuicao: v})} />
                   <Input label="Data Saída" type="date" value={formData.dataSaida} onChange={v => setFormData({...formData, dataSaida: v})} />
                 </div>
-                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl">
-                  <p className="text-[10px] font-black text-emerald-700 uppercase tracking-wider">Lucro estimado (Frete - Distribuição)</p>
-                  <p className="text-lg font-black text-emerald-800">R$ {lucroViagem.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl">
+                  <p className="text-[10px] font-black text-amber-700 uppercase tracking-wider">Lucro estimado (Frete - Distribuição)</p>
+                  <p className="text-lg font-black text-amber-800">R$ {lucroViagem.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                 </div>
               </div>
 
@@ -2326,9 +2326,9 @@ function App() {
 
               {/* Seção 4: Comprovante e conclusão */}
               {formData.status === 'Entregue' ? (
-                <div className="p-6 bg-emerald-50 border border-emerald-100 rounded-3xl space-y-4 animate-in fade-in slide-in-from-top-2 shadow-sm">
+                <div className="p-6 bg-amber-50 border border-amber-100 rounded-3xl space-y-4 animate-in fade-in slide-in-from-top-2 shadow-sm">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-emerald-700">
+                    <div className="flex items-center gap-2 text-amber-700">
                       <CheckCircle2 size={18} />
                       <h4 className="text-xs font-black uppercase tracking-wider">Comprovante de Entrega</h4>
                     </div>
@@ -2338,7 +2338,7 @@ function App() {
                     <Input label="Data da Entrega Realizada" type="date" value={formData.dataEntrega} onChange={v => setFormData({...formData, dataEntrega: v})} />
                     <div className="space-y-1">
                       <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Foto do Comprovante</label>
-                      <p className="text-[10px] text-emerald-700 font-semibold">Anexe o comprovante após marcar a carga como entregue e clique em salvar.</p>
+                      <p className="text-[10px] text-amber-700 font-semibold">Anexe o comprovante após marcar a carga como entregue e clique em salvar.</p>
                       <div className="flex gap-2 items-start">
                         <input 
                           type="file"
@@ -2355,17 +2355,17 @@ function App() {
                               e.target.value = '';
                             }
                           }}
-                          className="flex-1 px-4 py-2.5 bg-white border border-emerald-200 rounded-xl text-xs font-semibold outline-none file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-emerald-100 file:text-emerald-700"
+                          className="flex-1 px-4 py-2.5 bg-white border border-amber-200 rounded-xl text-xs font-semibold outline-none file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-amber-100 file:text-amber-700"
                         />
                         {formData.urlComprovante && (
-                          <a href={formData.urlComprovante} target="_blank" rel="noreferrer" onClick={(e) => { e.preventDefault(); openInNewWindow(formData.urlComprovante); }} className="p-2.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors">
+                          <a href={formData.urlComprovante} target="_blank" rel="noreferrer" onClick={(e) => { e.preventDefault(); openInNewWindow(formData.urlComprovante); }} className="p-2.5 bg-amber-600 text-white rounded-xl hover:bg-amber-700 transition-colors">
                             <ExternalLink size={18} />
                           </a>
                         )}
                       </div>
                       {formData.urlComprovante && (
                         <a href={formData.urlComprovante} target="_blank" rel="noreferrer" onClick={(e) => { e.preventDefault(); openInNewWindow(formData.urlComprovante); }} title="Abrir comprovante em nova aba" className="inline-block mt-2">
-                          <img src={formData.urlComprovante} alt="Pré-visualização do comprovante" className="h-20 w-20 object-cover rounded-lg border border-emerald-200 hover:opacity-90 transition-opacity cursor-pointer" />
+                          <img src={formData.urlComprovante} alt="Pré-visualização do comprovante" className="h-20 w-20 object-cover rounded-lg border border-amber-200 hover:opacity-90 transition-opacity cursor-pointer" />
                         </a>
                       )}
                     </div>
@@ -2395,7 +2395,7 @@ function App() {
                 <Input label="Valor do Frete (R$)" type="number" value={formData.valorFrete} onChange={v => setFormData({...formData, valorFrete: v})} />
                 <Input label="Valor do Custo (R$)" type="number" value={formData.valorDistribuicao || ''} onChange={v => setFormData({...formData, valorDistribuicao: v})} />
               </div>
-              <p className="text-xs font-black text-emerald-700">Lucro: R$ {((parseFloat(formData.valorFrete) || 0) - (parseFloat(formData.valorDistribuicao) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+              <p className="text-xs font-black text-amber-700">Lucro: R$ {((parseFloat(formData.valorFrete) || 0) - (parseFloat(formData.valorDistribuicao) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Input label="Vencimento" type="date" value={formData.vencimento} onChange={v => setFormData({...formData, vencimento: v})} />
                 <div className="space-y-1">
@@ -2589,7 +2589,7 @@ function Login() {
   };
   return (
     <div className="min-h-screen bg-slate-950 text-white font-sans relative overflow-hidden">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(59,130,246,0.22),transparent_38%),radial-gradient(circle_at_15%_85%,_rgba(14,165,233,0.2),transparent_34%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(239,68,68,0.24),transparent_38%),radial-gradient(circle_at_15%_85%,_rgba(245,158,11,0.20),transparent_34%)]" />
       <div className="relative min-h-screen grid grid-cols-1 xl:grid-cols-[1.1fr_0.9fr] gap-8 p-6 lg:p-10 items-center">
         <section className="hidden xl:flex flex-col justify-between rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-md p-10 min-h-[78vh]">
           <div>

@@ -1,20 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1536 1024" role="img" aria-label="Logo RJLima Transportes e Logística">
-  <defs>
-    <linearGradient id="base" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stop-color="#050505"/>
-      <stop offset="100%" stop-color="#0b0b0b"/>
-    </linearGradient>
-  </defs>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1468 1024" role="img" aria-label="Logo RJLima Transportes e Logística">
+  <rect width="1468" height="1024" fill="#e5e5e5"/>
 
-  <rect x="20" y="560" width="1496" height="190" rx="22" fill="url(#base)" stroke="#f2f2f2" stroke-width="2"/>
+  <path d="M938 520 C1090 540, 1245 595, 1418 760 L1418 850 L960 850 C1122 748, 1173 648, 938 520Z" fill="#09090b"/>
+  <path d="M938 520 C1095 545, 1240 600, 1400 753" fill="none" stroke="#f5e700" stroke-width="24" stroke-linecap="round"/>
 
-  <path d="M1160 747 C1260 650, 1370 570, 1510 520" fill="none" stroke="#f4e800" stroke-width="28" stroke-linecap="round"/>
-  <path d="M1020 747 C1200 620, 1365 545, 1510 520" fill="none" stroke="#f2f2f2" stroke-opacity="0.5" stroke-width="5"/>
+  <rect x="16" y="748" width="1400" height="142" fill="#09090b"/>
+  <text x="48" y="878" font-size="128" font-family="'Segoe UI', Arial, sans-serif" font-style="italic" font-weight="700" fill="#ffffff" letter-spacing="2">TRANSPORTES</text>
 
-  <text x="35" y="560" font-size="420" font-family="'Segoe UI', Arial, sans-serif" font-weight="900" fill="#ffffff" stroke="#111" stroke-width="8">R</text>
-  <text x="278" y="560" font-size="420" font-family="'Segoe UI', Arial, sans-serif" font-weight="900" fill="#ff1414" stroke="#111" stroke-width="8">J</text>
-  <text x="520" y="560" font-size="320" font-family="'Brush Script MT', 'Segoe Script', cursive" font-weight="700" fill="#ffffff" stroke="#111" stroke-width="6">Lima</text>
-
-  <text x="70" y="700" font-size="150" font-family="'Segoe UI', Arial, sans-serif" font-style="italic" font-weight="700" letter-spacing="3" fill="#ffffff">TRANSPORTES</text>
-  <text x="75" y="785" font-size="64" font-family="'Segoe UI', Arial, sans-serif" font-weight="700" letter-spacing="2" fill="#d1d5db">E LOGÍSTICA</text>
+  <text x="40" y="710" font-size="420" font-family="'Segoe Script','Brush Script MT',cursive" fill="#0a0a0f">R</text>
+  <text x="260" y="710" font-size="420" font-family="'Segoe Script','Brush Script MT',cursive" fill="#ef111b">J</text>
+  <text x="455" y="700" font-size="360" font-family="'Segoe Script','Brush Script MT',cursive" fill="#0a0a0f">Lima</text>
 </svg>
