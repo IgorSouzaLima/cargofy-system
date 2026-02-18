@@ -3,5 +3,6 @@ export const DATA_COLLECTIONS = [
   'financeiro',
   'clientes',
   'motoristas',
-  'veiculos'
+  'veiculos',
+  'orcamentos'
 ];

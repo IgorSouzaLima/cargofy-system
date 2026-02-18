@@ -56,6 +56,7 @@ function App() {
   const [clientes, setClientes] = useState([]);
   const [motoristas, setMotoristas] = useState([]);
   const [veiculos, setVeiculos] = useState([]);
+  const [orcamentos, setOrcamentos] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [searchNF, setSearchNF] = useState('');
@@ -85,6 +86,7 @@ function App() {
         if (colName === 'clientes') setClientes(data);
         if (colName === 'motoristas') setMotoristas(data);
         if (colName === 'veiculos') setVeiculos(data);
+        if (colName === 'orcamentos') setOrcamentos(data);
       }, (error) => console.error(`Erro ao carregar ${colName}:`, error));
     });
     return () => unsubscribes.forEach(unsub => unsub());
@@ -476,6 +478,7 @@ function App() {
       case 'clientes': list = clientes; break;
       case 'motoristas': list = motoristas; break;
       case 'veiculos': list = veiculos; break;
+      case 'orcamentos': list = orcamentos; break;
       default: list = [];
     }
 
@@ -500,7 +503,7 @@ function App() {
       (item.cidade?.toLowerCase().includes(term)) ||
       (item.motorista?.toLowerCase().includes(term))
     );
-  }, [activeTab, statusFilter, viagens, financeiro, clientes, motoristas, veiculos, searchNF, monthFilter]);
+  }, [activeTab, statusFilter, viagens, financeiro, clientes, motoristas, veiculos, orcamentos, searchNF, monthFilter]);
 
   const dashboardViagensFiltradas = useMemo(() => {
     if (!dashboardCargaFilter) return [];
@@ -887,7 +890,9 @@ function App() {
       ? 'Adicionar Motorista'
       : activeTab === 'veiculos'
         ? 'Adicionar Veículo'
-        : 'Novo Registro';
+        : activeTab === 'orcamentos'
+          ? 'Adicionar Orçamento'
+          : 'Novo Registro';
 
   if (!user) return <Login />;
 
@@ -907,6 +912,7 @@ function App() {
           <NavItem icon={Users} label="Clientes" active={activeTab === 'clientes'} onClick={() => setActiveTab('clientes')} />
           <NavItem icon={Briefcase} label="Motoristas" active={activeTab === 'motoristas'} onClick={() => setActiveTab('motoristas')} />
           <NavItem icon={Layers} label="Veículos" active={activeTab === 'veiculos'} onClick={() => setActiveTab('veiculos')} />
+          <NavItem icon={FileText} label="Orçamentos" active={activeTab === 'orcamentos'} onClick={() => setActiveTab('orcamentos')} />
         </nav>
         <button onClick={() => signOut(auth)} className="mt-auto flex items-center gap-2 text-slate-400 hover:text-white text-xs font-bold uppercase py-4 border-t border-white/10"><LogOut size={16}/> Sair</button>
       </aside>
@@ -929,7 +935,7 @@ function App() {
                 Filtro: {statusFilter} <X size={12}/>
               </button>
             )}
-            {(activeTab === 'dashboard' || activeTab === 'viagens' || activeTab === 'financeiro') && (
+            {(activeTab === 'dashboard' || activeTab === 'viagens' || activeTab === 'financeiro' || activeTab === 'orcamentos') && (
               <label className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-100 text-slate-600 text-[10px] font-black uppercase">
                 <Calendar size={14} />
                 <span>Mês</span>
@@ -952,7 +958,7 @@ function App() {
                 <Upload size={14} /> Upload Sheets
               </button>
             )}
-            {(activeTab === 'dashboard' || activeTab === 'viagens' || activeTab === 'clientes' || activeTab === 'motoristas' || activeTab === 'veiculos') && (
+            {(activeTab === 'dashboard' || activeTab === 'viagens' || activeTab === 'clientes' || activeTab === 'motoristas' || activeTab === 'veiculos' || activeTab === 'orcamentos') && (
               <button onClick={() => { resetForm(); setEditingId(null); setModalOpen(true); }} className="flex items-center gap-2 px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-red-500/20 transition-all">
                 <Plus size={16} /> {novoRegistroLabel}
               </button>
@@ -1164,7 +1170,7 @@ function App() {
             </div>
           )}
 
-          {activeTab !== 'relatorios' && activeTab !== 'dashboard' && activeTab !== 'viagens' && activeTab !== 'financeiro' && (
+          {activeTab !== 'relatorios' && activeTab !== 'dashboard' && activeTab !== 'viagens' && activeTab !== 'financeiro' && activeTab !== 'orcamentos' && (
           <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white">
               <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">{activeTab}</h3>
@@ -1231,7 +1237,7 @@ function App() {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        {(activeTab === 'dashboard' || activeTab === 'viagens' || activeTab === 'financeiro') && (
+                        {(activeTab === 'dashboard' || activeTab === 'viagens' || activeTab === 'financeiro' || activeTab === 'orcamentos') && (
                           <button onClick={() => setDetailItem(item)} className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg" title="Ver detalhes"><Eye size={16}/></button>
                         )}
                         <button onClick={() => handleOpenEdit(item)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><Edit3 size={16}/></button>
@@ -1287,6 +1293,47 @@ function App() {
                 </div>
               );
               })}
+            </div>
+          )}
+
+          {activeTab === 'orcamentos' && (
+            <div className="space-y-4 mb-8">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card title="Total de Orçamentos" value={filteredData.length} icon={FileText} color="bg-slate-700" />
+                <Card title="Aprovados" value={filteredData.filter(o => (o.statusOrcamento || '').toLowerCase() === 'aprovado').length} icon={CheckCircle2} color="bg-emerald-600" />
+                <Card title="Valor Total" value={`R$ ${filteredData.reduce((acc, o) => acc + (parseFloat(o.valorOrcamento) || 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={DollarSign} color="bg-red-600" />
+              </div>
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white">
+                  <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Orçamentos</h3>
+                  <span className="text-[10px] font-bold text-slate-400">{filteredData.length} registros</span>
+                </div>
+                <div className="divide-y divide-slate-100">
+                  {filteredData.map((item) => {
+                    const status = item.statusOrcamento || 'Em análise';
+                    const statusClass = status === 'Aprovado' ? 'bg-emerald-100 text-emerald-700' : status === 'Reprovado' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700';
+                    return (
+                      <div key={`orc-${item.id}`} className="px-6 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3 hover:bg-slate-50/70">
+                        <div>
+                          <p className="text-sm font-black text-slate-800">{item.tituloOrcamento || 'Sem título'}</p>
+                          <p className="text-[11px] font-bold text-red-600 uppercase">{item.clienteOrcamento || 'Cliente não informado'}</p>
+                          <p className="text-[10px] font-semibold text-slate-500">{item.dataOrcamento ? `Data: ${new Date(`${item.dataOrcamento}T12:00:00`).toLocaleDateString('pt-BR')}` : 'Data não informada'} · {item.validadeOrcamento ? `Validade: ${new Date(`${item.validadeOrcamento}T12:00:00`).toLocaleDateString('pt-BR')}` : 'Sem validade'}</p>
+                          {item.descricaoOrcamento && <p className="text-[11px] text-slate-500 mt-1 max-w-3xl">{item.descricaoOrcamento}</p>}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-black text-slate-900">R$ {(parseFloat(item.valorOrcamento) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                          <span className={`px-2 py-1 rounded text-[10px] font-black uppercase ${statusClass}`}>{status}</span>
+                          <button onClick={() => handleOpenEdit(item)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg" title="Editar"><Edit3 size={16}/></button>
+                          <button onClick={async () => { if (confirm('Deseja realmente excluir este orçamento?')) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'orcamentos', item.id)); }} className="p-2 text-red-400 hover:bg-red-50 rounded-lg" title="Excluir"><Trash2 size={16}/></button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {!filteredData.length && (
+                    <div className="px-6 py-8 text-center text-sm font-semibold text-slate-400">Nenhum orçamento encontrado para os filtros atuais.</div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
@@ -1624,7 +1671,37 @@ function App() {
             </div>
           )}
 
-          {(activeTab === 'dashboard' || activeTab === 'viagens' || activeTab === 'financeiro') && (
+          {activeTab === 'orcamentos' && (
+            <div className="space-y-4">
+              <Input label="Título do Orçamento" value={formData.tituloOrcamento || ''} onChange={v => setFormData({...formData, tituloOrcamento: v})} />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input label="Cliente" value={formData.clienteOrcamento || ''} onChange={v => setFormData({...formData, clienteOrcamento: v})} />
+                <Input label="Valor (R$)" type="number" value={formData.valorOrcamento || ''} onChange={v => setFormData({...formData, valorOrcamento: v})} />
+                <Input label="Data do Orçamento" type="date" value={formData.dataOrcamento || ''} onChange={v => setFormData({...formData, dataOrcamento: v})} />
+                <Input label="Validade" type="date" value={formData.validadeOrcamento || ''} onChange={v => setFormData({...formData, validadeOrcamento: v})} />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Status do Orçamento</label>
+                <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold uppercase outline-none border border-transparent focus:border-red-400" value={formData.statusOrcamento || 'Em análise'} onChange={e => setFormData({...formData, statusOrcamento: e.target.value})}>
+                  <option value="Em análise">Em análise</option>
+                  <option value="Aprovado">Aprovado</option>
+                  <option value="Reprovado">Reprovado</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Descrição</label>
+                <textarea
+                  value={formData.descricaoOrcamento || ''}
+                  onChange={e => setFormData({...formData, descricaoOrcamento: e.target.value})}
+                  placeholder="Descreva o escopo do orçamento..."
+                  rows={3}
+                  className="w-full p-3 bg-slate-100 rounded-xl text-sm font-medium outline-none border border-transparent focus:border-red-400"
+                />
+              </div>
+            </div>
+          )}
+
+          {(activeTab === 'dashboard' || activeTab === 'viagens' || activeTab === 'financeiro' || activeTab === 'orcamentos') && (
             <div className="space-y-1">
               <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Observação</label>
               <textarea

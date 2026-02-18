@@ -33,5 +33,12 @@ export const INITIAL_FORM_DATA = {
   telefone: '',
   modelo: '',
   tipo: '',
-  observacao: ''
+  observacao: '',
+  tituloOrcamento: '',
+  clienteOrcamento: '',
+  descricaoOrcamento: '',
+  valorOrcamento: '',
+  dataOrcamento: '',
+  validadeOrcamento: '',
+  statusOrcamento: 'Em análise'
 };
