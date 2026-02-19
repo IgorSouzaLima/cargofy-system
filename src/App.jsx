@@ -903,47 +903,78 @@ function App() {
   };
 
 
-  const downloadRelatorioCSV = () => {
-    const header = relatorioPorCarga
-      ? ['Carga', 'NF', 'CT-e', 'Data CT-e', 'Empresa', 'Boleto', 'Vencimento Boleto', 'Frete']
-      : ['Carga', 'NF', 'CT-e', 'Data CT-e', 'Empresa', 'Data', 'Frete', 'Distribuicao', 'Lucro'];
+  const gerarRelatorioPDFD2C = () => {
+    const janela = window.open('', '_blank');
+    if (!janela) {
+      alert('Não foi possível abrir a janela de impressão. Verifique se o bloqueador de pop-up está ativo.');
+      return;
+    }
 
-    const rows = relatorioData.map(item => {
-      const vencBoleto = item.dataVencimentoBoleto || item.vencimento || '';
-      const base = [
-        item.numeroCarga || '',
-        item.numeroNF || '',
-        item.numeroCTe || '',
-        item.dataCTe || '',
-        item.contratante || '',
-        item.numeroBoleto || '',
-        vencBoleto,
-        (parseFloat(item.valorFrete) || 0).toFixed(2)
-      ];
+    const logoUrl = `${window.location.origin}/logo-cargofy.svg`;
+    const formatarData = (valor) => {
+      if (!valor) return '---';
+      const data = new Date(`${valor}T12:00:00`);
+      if (Number.isNaN(data.getTime())) return '---';
+      return data.toLocaleDateString('pt-BR');
+    };
 
-      if (relatorioPorCarga) return base;
+    const linhas = relatorioData
+      .map((item) => {
+        const custo = (parseFloat(item.valorDistribuicao) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+        return `
+          <tr>
+            <td>${item.numeroNF || '---'}</td>
+            <td>${item.cidade || item.destinatario || '---'}</td>
+            <td>${item.motorista || '---'}</td>
+            <td>${item.placa || '---'}</td>
+            <td>${formatarData(item.dataSaida || item.dataNF)}</td>
+            <td>${formatarData(item.dataEntrega)}</td>
+            <td>${formatarData(item.dataVencimentoBoleto || item.vencimento)}</td>
+            <td>R$ ${custo}</td>
+          </tr>
+        `;
+      })
+      .join('');
 
-      return [
-        item.numeroCarga || '',
-        item.numeroNF || '',
-        item.numeroCTe || '',
-        item.dataCTe || '',
-        item.contratante || '',
-        item.dataSaida || item.dataNF || item.dataEntrega || '',
-        (parseFloat(item.valorFrete) || 0).toFixed(2),
-        (parseFloat(item.valorDistribuicao) || 0).toFixed(2),
-        ((parseFloat(item.valorFrete) || 0) - (parseFloat(item.valorDistribuicao) || 0)).toFixed(2)
-      ];
-    });
-
-    const csv = [header, ...rows].map(r => r.map(c => `"${String(c).replaceAll('\"', '\"\"')}"`).join(';')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'relatorio_cargofy.csv';
-    link.click();
-    URL.revokeObjectURL(url);
+    janela.document.write(`
+      <html>
+        <head>
+          <title>Relatório PDF D2C</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 24px; color: #0f172a; }
+            .header { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+            .logo { width: 44px; height: 44px; object-fit: contain; }
+            h1 { margin: 0; font-size: 20px; }
+            p { margin: 4px 0 16px; font-size: 12px; color: #475569; }
+            table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+            th, td { border: 1px solid #cbd5e1; padding: 8px; font-size: 12px; text-align: left; }
+            th { background: #f1f5f9; text-transform: uppercase; font-size: 11px; }
+          </style>
+        </head>
+        <body>
+          <div class="header"><img src="${logoUrl}" alt="Logo CargoFy" class="logo" /><h1>Relatório PDF D2C</h1></div>
+          <p>Empresa: ${reportEmpresa} | Carga: ${reportNumeroCarga || 'Todas'} | Período: ${reportInicio || 'Início'} até ${reportFim || 'Hoje'} | Registros: ${relatorioData.length}</p>
+          <table>
+            <thead>
+              <tr>
+                <th>Número NF</th>
+                <th>Cidade</th>
+                <th>Motorista</th>
+                <th>Placa Veículo</th>
+                <th>Data Saída</th>
+                <th>Data Entrega</th>
+                <th>Vencimento Boleto</th>
+                <th>Valor Custo</th>
+              </tr>
+            </thead>
+            <tbody>${linhas || '<tr><td colspan="8">Sem registros para o filtro.</td></tr>'}</tbody>
+          </table>
+        </body>
+      </html>
+    `);
+    janela.document.close();
+    janela.focus();
+    janela.print();
   };
 
   const processarFotoComprovante = (file) => new Promise((resolve, reject) => {
@@ -1756,8 +1787,8 @@ function App() {
                 <Input label="Data Inicial" type="date" value={reportInicio} onChange={setReportInicio} />
                 <Input label="Data Final" type="date" value={reportFim} onChange={setReportFim} />
                 <div className="flex items-end">
-                  <button onClick={downloadRelatorioCSV} className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase transition-all">
-                    <Download size={16} /> Gerar Relatório CSV
+                  <button onClick={gerarRelatorioPDFD2C} className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase transition-all">
+                    <Download size={16} /> Gerar Relatório PDF D2C
                   </button>
                 </div>
                 <div className="flex items-end">
