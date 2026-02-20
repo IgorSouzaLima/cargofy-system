@@ -56,6 +56,7 @@ function App() {
   const [clientes, setClientes] = useState([]);
   const [motoristas, setMotoristas] = useState([]);
   const [veiculos, setVeiculos] = useState([]);
+  const [cotacoes, setCotacoes] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [searchNF, setSearchNF] = useState('');
@@ -66,6 +67,30 @@ function App() {
   const [reportFim, setReportFim] = useState('');
   const [reportNumeroCarga, setReportNumeroCarga] = useState('');
   const [detailItem, setDetailItem] = useState(null);
+  const [cotacaoData, setCotacaoData] = useState({
+    cliente: '',
+    origem: '',
+    tipoCarga: 'fracionado',
+    peso: '',
+    volume: '',
+    prazo: '',
+    valorFrete: '',
+    validade: '3',
+    observacoes: '',
+    numeroNotasFiscais: '1',
+    cidadesEntrega: ['']
+  });
+  const [cotacaoDistanciaKm, setCotacaoDistanciaKm] = useState(0);
+  const [cotacaoCalculandoKm, setCotacaoCalculandoKm] = useState(false);
+  const [cotacaoAtualId, setCotacaoAtualId] = useState('');
+  const [ordemCarregamentoModalOpen, setOrdemCarregamentoModalOpen] = useState(false);
+  const [ordemCarregamentoCotacao, setOrdemCarregamentoCotacao] = useState(null);
+  const [ordemCarregamentoData, setOrdemCarregamentoData] = useState({
+    motorista: '',
+    veiculoId: '',
+    placa: '',
+    dataHora: ''
+  });
 
   const [formData, setFormData] = useState(INITIAL_FORM_DATA);
 
@@ -85,38 +110,11 @@ function App() {
         if (colName === 'clientes') setClientes(data);
         if (colName === 'motoristas') setMotoristas(data);
         if (colName === 'veiculos') setVeiculos(data);
+        if (colName === 'cotacoes') setCotacoes(data);
       }, (error) => console.error(`Erro ao carregar ${colName}:`, error));
     });
     return () => unsubscribes.forEach(unsub => unsub());
   }, [user]);
-
-  const cargaStatusMap = useMemo(() => {
-    const agrupado = {};
-    viagens.forEach(v => {
-      const chave = (v.numeroCarga || '').trim();
-      if (!chave) return;
-      if (!agrupado[chave]) agrupado[chave] = [];
-      agrupado[chave].push(v);
-    });
-
-    const mapa = {};
-    Object.entries(agrupado).forEach(([chave, itens]) => {
-      const pendentes = itens.filter(i => (i.status || 'Pendente') === 'Pendente').length;
-      const emRota = itens.filter(i => (i.status || 'Pendente') === 'Em rota').length;
-      const entregues = itens.filter(i => (i.status || 'Pendente') === 'Entregue').length;
-
-      mapa[chave] = {
-        total: itens.length,
-        pendentes,
-        emRota,
-        entregues,
-        allEntregues: entregues === itens.length,
-        allPendentes: pendentes === itens.length,
-        hasEmRota: emRota > 0
-      };
-    });
-    return mapa;
-  }, [viagens]);
 
   const mapaCTePorReferencia = useMemo(() => {
     const mapa = {};
@@ -184,17 +182,7 @@ function App() {
     return placaItem || ref;
   };
 
-  const getStatusViagem = (viagem) => {
-    const chave = (viagem.numeroCarga || '').trim();
-    if (chave && cargaStatusMap[chave]) {
-      const resumo = cargaStatusMap[chave];
-      if (resumo.allEntregues) return 'Entregue';
-      if (resumo.hasEmRota) return 'Em rota';
-      if (resumo.allPendentes) return 'Pendente';
-      return 'Em rota';
-    }
-    return viagem.status || 'Pendente';
-  };
+  const getStatusViagem = (viagem) => viagem.status || 'Pendente';
 
   const getCargaLabel = (item) => {
     const numero = (item?.numeroCarga || '').trim();
@@ -315,6 +303,606 @@ function App() {
 
   const relatorioPorCarga = !!reportNumeroCarga.trim();
 
+  const valorFreteCotacao = parseFloat(cotacaoData.valorFrete) || 0;
+
+  const formatarCidadesEntrega = useMemo(() => (
+    cotacaoData.cidadesEntrega
+      .map(cidade => cidade.trim())
+      .filter(Boolean)
+  ), [cotacaoData.cidadesEntrega]);
+
+  const rotaCotacao = useMemo(() => {
+    const origem = cotacaoData.origem.trim();
+    if (!origem) return '';
+    if (!formatarCidadesEntrega.length) return origem;
+    return [origem, ...formatarCidadesEntrega, origem].join(' ➜ ');
+  }, [cotacaoData.origem, formatarCidadesEntrega]);
+
+  const mensagemCotacao = useMemo(() => {
+    const valorFormatado = valorFreteCotacao.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+    const rota = rotaCotacao;
+    const tipoCargaLabel = cotacaoData.tipoCarga === 'dedicado' ? 'Dedicado' : 'Fracionado';
+
+    return [
+      `COTAÇÃO DE FRETE - CARGOFY`,
+      `Cliente: ${cotacaoData.cliente || '---'}`,
+      `Tipo de carga: ${tipoCargaLabel}`,
+      `Rota: ${rota || '---'}`,
+      `Qtd. de entregas: ${formatarCidadesEntrega.length}`,
+      `Qtd. de notas fiscais: ${cotacaoData.numeroNotasFiscais || '1'}`,
+      `Quilometragem estimada: ${cotacaoDistanciaKm ? `${cotacaoDistanciaKm.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} km` : 'Não calculada'}`,
+      `Peso: ${cotacaoData.peso || '---'}`,
+      `Volume: ${cotacaoData.volume || '---'}`,
+      `Prazo estimado: ${cotacaoData.prazo || '---'}`,
+      `Valor do frete: R$ ${valorFormatado}`,
+      `Validade da proposta: ${cotacaoData.validade || '0'} dia(s)`,
+      `Observações: ${cotacaoData.observacoes || '---'}`
+    ].join('\n');
+  }, [cotacaoData, valorFreteCotacao, formatarCidadesEntrega, cotacaoDistanciaKm, rotaCotacao]);
+
+  const handleCotacaoChange = (field, value) => {
+    setCotacaoData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleCidadeEntregaChange = (index, value) => {
+    setCotacaoData((prev) => ({
+      ...prev,
+      cidadesEntrega: prev.cidadesEntrega.map((cidade, i) => (i === index ? value : cidade))
+    }));
+  };
+
+  const adicionarCidadeEntrega = () => {
+    setCotacaoData((prev) => ({
+      ...prev,
+      cidadesEntrega: [...prev.cidadesEntrega, '']
+    }));
+  };
+
+  const removerCidadeEntrega = (index) => {
+    setCotacaoData((prev) => {
+      if (prev.cidadesEntrega.length === 1) {
+        return { ...prev, cidadesEntrega: [''] };
+      }
+      return {
+        ...prev,
+        cidadesEntrega: prev.cidadesEntrega.filter((_, i) => i !== index)
+      };
+    });
+  };
+
+  const geocodificarCidade = async (cidade) => {
+    const queryCidade = encodeURIComponent(cidade);
+    const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${queryCidade}&limit=1`);
+    if (!response.ok) throw new Error('Falha ao geocodificar cidade');
+    const data = await response.json();
+    if (!data.length) throw new Error(`Cidade não encontrada: ${cidade}`);
+    return [parseFloat(data[0].lon), parseFloat(data[0].lat)];
+  };
+
+  const calcularDistanciaAproximada = (origemCoord, destinoCoord) => {
+    const [lon1, lat1] = origemCoord;
+    const [lon2, lat2] = destinoCoord;
+    const toRad = (graus) => (graus * Math.PI) / 180;
+    const raioTerraKm = 6371;
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a = Math.sin(dLat / 2) ** 2
+      + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return raioTerraKm * c;
+  };
+
+  const ordenarEntregasPorDistancia = async (origem, entregas) => {
+    const origemCoord = await geocodificarCidade(origem);
+    const entregasComCoord = await Promise.all(
+      entregas.map(async (cidade) => {
+        const coord = await geocodificarCidade(cidade);
+        const distancia = calcularDistanciaAproximada(origemCoord, coord);
+        return { cidade, coord, distancia };
+      })
+    );
+
+    return entregasComCoord
+      .sort((a, b) => a.distancia - b.distancia)
+      .map((item) => item.cidade);
+  };
+
+  const calcularDistanciaKm = async () => {
+    const origem = cotacaoData.origem.trim();
+    const entregas = formatarCidadesEntrega;
+
+    if (!origem || !entregas.length) {
+      alert('Informe a origem e pelo menos uma cidade de entrega para calcular o KM.');
+      return;
+    }
+
+    try {
+      setCotacaoCalculandoKm(true);
+      const entregasOrdenadas = await ordenarEntregasPorDistancia(origem, entregas);
+      setCotacaoData((prev) => ({ ...prev, cidadesEntrega: entregasOrdenadas }));
+
+      const pontos = [origem, ...entregasOrdenadas, origem];
+      const coordenadas = await Promise.all(pontos.map(geocodificarCidade));
+      const coordinatesParam = coordenadas.map(([lon, lat]) => `${lon},${lat}`).join(';');
+      const rotaResponse = await fetch(`https://router.project-osrm.org/route/v1/driving/${coordinatesParam}?overview=false`);
+      if (!rotaResponse.ok) throw new Error('Falha ao calcular rota');
+      const rotaData = await rotaResponse.json();
+      const distanceMeters = rotaData?.routes?.[0]?.distance || 0;
+      const km = distanceMeters / 1000;
+      setCotacaoDistanciaKm(km);
+    } catch (error) {
+      console.error(error);
+      alert('Não foi possível calcular/ordenar rota automaticamente. Verifique os nomes das cidades e tente novamente.');
+    } finally {
+      setCotacaoCalculandoKm(false);
+    }
+  };
+
+  const handleCopyCotacao = async () => {
+    try {
+      await navigator.clipboard.writeText(mensagemCotacao);
+      alert('Cotação copiada para a área de transferência!');
+    } catch (error) {
+      alert('Não foi possível copiar automaticamente. Copie manualmente o texto da cotação.');
+    }
+  };
+
+  const gerarNumeroCotacao = () => {
+    const agora = new Date();
+    const data = `${agora.getFullYear()}${String(agora.getMonth() + 1).padStart(2, '0')}${String(agora.getDate()).padStart(2, '0')}`;
+    const hora = `${String(agora.getHours()).padStart(2, '0')}${String(agora.getMinutes()).padStart(2, '0')}${String(agora.getSeconds()).padStart(2, '0')}`;
+    const random = Math.random().toString(36).slice(2, 6).toUpperCase();
+    return `COT-${data}-${hora}-${random}`;
+  };
+
+  const montarPayloadCotacao = (numeroCotacaoExistente = '') => {
+    const numeroCotacao = numeroCotacaoExistente || gerarNumeroCotacao();
+    return {
+      numeroCotacao,
+      cliente: cotacaoData.cliente.trim(),
+      origem: cotacaoData.origem.trim(),
+      tipoCarga: cotacaoData.tipoCarga,
+      peso: cotacaoData.peso,
+      volume: cotacaoData.volume,
+      prazo: cotacaoData.prazo,
+      valorFrete: cotacaoData.valorFrete,
+      validade: cotacaoData.validade,
+      observacoes: cotacaoData.observacoes,
+      numeroNotasFiscais: Math.max(parseInt(cotacaoData.numeroNotasFiscais || '1', 10) || 1, 1),
+      cidadesEntrega: formatarCidadesEntrega,
+      rota: rotaCotacao,
+      rotasPorNota: Array.from({ length: Math.max(parseInt(cotacaoData.numeroNotasFiscais || '1', 10) || 1, 1) }, (_, idx) => ({
+        notaIndex: idx + 1,
+        rota: rotaCotacao
+      })),
+      distanciaKm: cotacaoDistanciaKm,
+      statusCotacao: 'Em análise',
+      mensagemCotacao,
+      userId: user?.uid || ''
+    };
+  };
+
+  const salvarCotacao = async () => {
+    if (!cotacaoData.cliente.trim()) {
+      alert('Informe o cliente da cotação.');
+      return;
+    }
+
+    if (!cotacaoData.origem.trim() || !formatarCidadesEntrega.length) {
+      alert('Informe origem e ao menos uma cidade de entrega.');
+      return;
+    }
+
+    try {
+      const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'cotacoes');
+
+      if (cotacaoAtualId) {
+        const existente = cotacoes.find(c => c.id === cotacaoAtualId);
+        const payloadAtualizado = {
+          ...montarPayloadCotacao(existente?.numeroCotacao || ''),
+          updatedAt: serverTimestamp()
+        };
+        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'cotacoes', cotacaoAtualId), payloadAtualizado);
+        alert('Cotação atualizada com sucesso!');
+        return;
+      }
+
+      const payload = {
+        ...montarPayloadCotacao(),
+        createdAt: serverTimestamp()
+      };
+      const novoDoc = await addDoc(colRef, payload);
+      setCotacaoAtualId(novoDoc.id);
+      alert(`Cotação salva com sucesso! Número: ${payload.numeroCotacao}`);
+    } catch (error) {
+      console.error(error);
+      alert('Não foi possível salvar a cotação.');
+    }
+  };
+
+  const gerarOrdemCarregamentoPDF = (cotacao, dadosCarregamento = {}) => {
+    const janela = window.open('', '_blank');
+    if (!janela) {
+      alert('Não foi possível abrir a ordem de carregamento para impressão.');
+      return;
+    }
+
+    const cidadesEntrega = Array.isArray(cotacao?.cidadesEntrega)
+      ? cotacao.cidadesEntrega.filter((cidade) => (cidade || '').trim())
+      : [];
+    const listaCidades = cidadesEntrega.length
+      ? cidadesEntrega.map((cidade, idx) => `<li>${idx + 1}. ${cidade}</li>`).join('')
+      : '<li>---</li>';
+
+    const html = `
+      <!doctype html>
+      <html lang="pt-BR">
+        <head>
+          <meta charset="UTF-8" />
+          <title>Ordem de Carregamento</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 0; background: #f1f5f9; color: #0f172a; }
+            .sheet { max-width: 840px; margin: 24px auto; background: #fff; border-radius: 14px; border: 1px solid #e2e8f0; overflow: hidden; }
+            .header { background: linear-gradient(90deg, #0f172a, #1e293b); color: #fff; padding: 20px 24px; display: flex; justify-content: space-between; align-items: center; }
+            .header img { width: 54px; height: 54px; background: #fff; border-radius: 10px; padding: 4px; }
+            .title { font-size: 24px; font-weight: 800; margin: 0; }
+            .subtitle { margin: 4px 0 0; color: #cbd5e1; font-size: 12px; }
+            .content { padding: 24px; }
+            .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+            .card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; }
+            .label { font-size: 10px; text-transform: uppercase; font-weight: 700; color: #64748b; margin-bottom: 4px; }
+            .value { font-size: 14px; font-weight: 700; }
+            ul { margin: 6px 0 0; padding-left: 18px; }
+            .footer { margin-top: 18px; border-top: 1px dashed #cbd5e1; padding-top: 10px; font-size: 12px; color: #475569; }
+            @media print { body { background: #fff; } .sheet { margin: 0; border: 0; border-radius: 0; } }
+          </style>
+        </head>
+        <body>
+          <div class="sheet">
+            <div class="header">
+              <div>
+                <p class="title">Ordem de Carregamento</p>
+                <p class="subtitle">CargoFy Transportes · ${new Date().toLocaleDateString('pt-BR')}</p>
+              </div>
+              <img src="${window.location.origin}/logo-cargofy.svg" alt="Logo CargoFy" />
+            </div>
+            <div class="content">
+              <div class="grid">
+                <div class="card"><div class="label">Cliente</div><div class="value">${cotacao?.cliente || '---'}</div></div>
+                <div class="card"><div class="label">Cotação</div><div class="value">${cotacao?.numeroCotacao || '---'}</div></div>
+                <div class="card"><div class="label">Motorista</div><div class="value">${dadosCarregamento.motorista || '---'}</div></div>
+                <div class="card"><div class="label">Veículo</div><div class="value">${dadosCarregamento.veiculo || '---'}</div></div>
+                <div class="card"><div class="label">Placa</div><div class="value">${dadosCarregamento.placa || '---'}</div></div>
+                <div class="card"><div class="label">Data e hora do carregamento</div><div class="value">${dadosCarregamento.dataHora || '---'}</div></div>
+                <div class="card"><div class="label">Peso</div><div class="value">${cotacao?.peso || '---'}</div></div>
+                <div class="card" style="grid-column: 1 / -1;"><div class="label">Cidades para carregamento/entrega</div><ul>${listaCidades}</ul></div>
+              </div>
+              <div class="footer">Documento operacional para conferência de coleta e rota antes da saída.</div>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+
+    janela.document.write(html);
+    janela.document.close();
+    janela.focus();
+    setTimeout(() => janela.print(), 350);
+  };
+
+  const abrirModalOrdemCarregamento = (cotacao) => {
+    const dataHoraPadrao = new Date().toISOString().slice(0, 16);
+    setOrdemCarregamentoCotacao(cotacao);
+    setOrdemCarregamentoData({
+      motorista: '',
+      veiculoId: '',
+      placa: '',
+      dataHora: dataHoraPadrao
+    });
+    setOrdemCarregamentoModalOpen(true);
+  };
+
+  const confirmarOrdemCarregamento = () => {
+    if (!ordemCarregamentoCotacao) return;
+
+    if (!ordemCarregamentoData.motorista.trim()) {
+      alert('Selecione o motorista cadastrado.');
+      return;
+    }
+
+    if (!ordemCarregamentoData.veiculoId.trim()) {
+      alert('Selecione o veículo cadastrado.');
+      return;
+    }
+
+    if (!ordemCarregamentoData.dataHora.trim()) {
+      alert('Informe a data e hora do carregamento.');
+      return;
+    }
+
+    const veiculoSelecionado = veiculos.find(v => v.id === ordemCarregamentoData.veiculoId);
+    const veiculoLabel = [veiculoSelecionado?.modelo, veiculoSelecionado?.placa].filter(Boolean).join(' - ') || '---';
+    const dataHoraFormatada = new Date(ordemCarregamentoData.dataHora).toLocaleString('pt-BR');
+
+    gerarOrdemCarregamentoPDF(ordemCarregamentoCotacao, {
+      motorista: ordemCarregamentoData.motorista,
+      veiculo: veiculoLabel,
+      placa: ordemCarregamentoData.placa,
+      dataHora: dataHoraFormatada
+    });
+
+    setOrdemCarregamentoModalOpen(false);
+    setOrdemCarregamentoCotacao(null);
+    alert(`Cotação ${ordemCarregamentoCotacao.numeroCotacao || ''} carregada com sucesso e ordem de carregamento gerada.`);
+  };
+
+  const carregarCotacao = (cotacao) => {
+    if (!cotacao) return;
+
+    const cidades = Array.isArray(cotacao.cidadesEntrega)
+      ? cotacao.cidadesEntrega.filter((cidade) => (cidade || '').trim())
+      : [];
+
+    setCotacaoAtualId(cotacao.id || '');
+    setCotacaoDistanciaKm(parseFloat(cotacao.distanciaKm) || 0);
+    setCotacaoData({
+      cliente: cotacao.cliente || '',
+      origem: cotacao.origem || '',
+      tipoCarga: cotacao.tipoCarga || 'fracionado',
+      peso: cotacao.peso || '',
+      volume: cotacao.volume || '',
+      prazo: cotacao.prazo || '',
+      valorFrete: cotacao.valorFrete || '',
+      validade: cotacao.validade || '3',
+      observacoes: cotacao.observacoes || '',
+      numeroNotasFiscais: String(cotacao.numeroNotasFiscais || '1'),
+      cidadesEntrega: cidades.length ? cidades : ['']
+    });
+
+    abrirModalOrdemCarregamento(cotacao);
+  };
+
+  const getProximoNumeroCarga = () => {
+    const numeros = viagens
+      .map((viagem) => {
+        const numero = String(viagem?.numeroCarga || '').trim();
+        if (!numero) return NaN;
+        const partesNumericas = numero.match(/\d+/g);
+        if (!partesNumericas?.length) return NaN;
+        return parseInt(partesNumericas.join(''), 10);
+      })
+      .filter((num) => Number.isFinite(num));
+
+    const maiorNumero = numeros.length ? Math.max(...numeros) : 0;
+    return String(maiorNumero + 1);
+  };
+
+  const excluirCotacao = async (cotacao) => {
+    if (!cotacao?.id) return;
+    if (!window.confirm(`Deseja excluir a cotação ${cotacao.numeroCotacao || ''}?`)) return;
+
+    try {
+      await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'cotacoes', cotacao.id));
+      if (cotacaoAtualId === cotacao.id) {
+        limparCotacao();
+      }
+      alert('Cotação excluída com sucesso.');
+    } catch (error) {
+      console.error(error);
+      alert('Não foi possível excluir a cotação.');
+    }
+  };
+
+  const aprovarCotacao = async (cotacao) => {
+    if (!cotacao?.id) return;
+    if ((cotacao.statusCotacao || '').toLowerCase() === 'aprovada') {
+      alert('Esta cotação já foi aprovada.');
+      return;
+    }
+
+    try {
+      const totalNotas = Math.max(parseInt(cotacao.numeroNotasFiscais || '1', 10) || 1, 1);
+      const numeroCarga = getProximoNumeroCarga();
+      const viagensCriadas = [];
+      const cidadesEntrega = Array.isArray(cotacao.cidadesEntrega)
+        ? cotacao.cidadesEntrega.filter((cidade) => (cidade || '').trim())
+        : [];
+      const valorTotalFrete = parseFloat(cotacao.valorFrete) || 0;
+      const valorBasePorNota = totalNotas > 0 ? Number((valorTotalFrete / totalNotas).toFixed(2)) : 0;
+
+      for (let i = 0; i < totalNotas; i += 1) {
+        const destinoNota = cidadesEntrega.length ? cidadesEntrega[i % cidadesEntrega.length] : '';
+        const valorFreteNota = i === totalNotas - 1
+          ? Number((valorTotalFrete - (valorBasePorNota * (totalNotas - 1))).toFixed(2))
+          : valorBasePorNota;
+
+        const cargaPayload = {
+          numeroNF: totalNotas > 1 ? `${cotacao.numeroCotacao || ''}-NF${i + 1}` : (cotacao.numeroCotacao || ''),
+          numeroCarga,
+          tipoCarga: cotacao.tipoCarga === 'dedicado' ? 'Dedicada' : 'Fracionada',
+          contratante: cotacao.cliente || '',
+          destinatario: destinoNota,
+          cidade: destinoNota,
+          status: 'Pendente',
+          valorFrete: valorFreteNota.toFixed(2),
+          valorDistribuicao: '',
+          observacao: `Origem: ${cotacao.origem || '---'} | Destino da nota: ${destinoNota || '---'} | Entregas: ${cidadesEntrega.join(', ')} | Cotação ${cotacao.numeroCotacao || ''} | Nota ${i + 1}/${totalNotas} | Rota: ${cotacao.rota || '---'}`,
+          motorista: '',
+          veiculo: '',
+          userId: user?.uid || '',
+          createdAt: serverTimestamp()
+        };
+
+        const viagemDoc = await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'viagens'), cargaPayload);
+        viagensCriadas.push(viagemDoc.id);
+      }
+
+      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'cotacoes', cotacao.id), {
+        statusCotacao: 'Aprovada',
+        numeroCarga,
+        origemViagemId: viagensCriadas[0] || '',
+        origemViagemIds: viagensCriadas,
+        approvedAt: serverTimestamp()
+      });
+
+      alert(`Cotação ${cotacao.numeroCotacao} aprovada e convertida na carga ${numeroCarga} com ${totalNotas} nota(s)!`);
+      setActiveTab('viagens');
+    } catch (error) {
+      console.error(error);
+      alert('Falha ao aprovar cotação e gerar carga.');
+    }
+  };
+
+  const buildCotacaoHtml = () => {
+    const logoUrl = `${window.location.origin}/logo-cargofy.svg`;
+    const tipoCargaLabel = cotacaoData.tipoCarga === 'dedicado' ? 'Dedicado' : 'Fracionado';
+    const dataGeracao = new Date().toLocaleDateString('pt-BR');
+    const entregasHtml = formatarCidadesEntrega.length
+      ? formatarCidadesEntrega.map((cidade, idx) => `<li>${idx + 1}. ${cidade}</li>`).join('')
+      : '<li>---</li>';
+
+    return `
+      <!doctype html>
+      <html lang="pt-BR">
+        <head>
+          <meta charset="UTF-8" />
+          <title>Cotação CargoFy</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 0; background: #f1f5f9; color: #0f172a; }
+            .sheet { max-width: 860px; margin: 24px auto; background: #fff; border-radius: 18px; border: 1px solid #e2e8f0; overflow: hidden; }
+            .header { padding: 24px; background: linear-gradient(90deg, #0f172a, #1e293b); color: #fff; display: flex; justify-content: space-between; align-items: center; }
+            .header img { width: 56px; height: 56px; background: #fff; border-radius: 12px; padding: 4px; }
+            .title h1 { margin: 0; font-size: 24px; }
+            .title p { margin: 4px 0 0; font-size: 12px; color: #cbd5e1; }
+            .content { padding: 24px; }
+            .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-bottom: 18px; }
+            .card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; }
+            .label { font-size: 10px; font-weight: 700; text-transform: uppercase; color: #64748b; margin-bottom: 4px; }
+            .value { font-size: 14px; font-weight: 700; color: #0f172a; }
+            .deliveries { margin-top: 12px; }
+            .deliveries ul { margin: 8px 0 0; padding-left: 18px; }
+            .footer { margin-top: 20px; padding-top: 12px; border-top: 1px dashed #cbd5e1; font-size: 12px; color: #475569; }
+            .price { margin-top: 16px; background: #ecfeff; border: 1px solid #99f6e4; border-radius: 12px; padding: 14px; font-size: 22px; font-weight: 800; color: #0f766e; text-align: right; }
+            @media print { body { background: #fff; } .sheet { margin: 0; border: 0; border-radius: 0; } }
+          </style>
+        </head>
+        <body>
+          <div class="sheet">
+            <div class="header">
+              <div class="title">
+                <h1>Cotação de Frete</h1>
+                <p>CargoFy Transportes · Emissão: ${dataGeracao}</p>
+              </div>
+              <img src="${logoUrl}" alt="Logo CargoFy" />
+            </div>
+            <div class="content">
+              <div class="grid">
+                <div class="card"><div class="label">Cliente</div><div class="value">${cotacaoData.cliente || '---'}</div></div>
+                <div class="card"><div class="label">Tipo de Carga</div><div class="value">${tipoCargaLabel}</div></div>
+                <div class="card"><div class="label">Origem</div><div class="value">${cotacaoData.origem || '---'}</div></div>
+                <div class="card"><div class="label">Rota (ida e volta)</div><div class="value">${rotaCotacao || '---'}</div></div>
+                <div class="card"><div class="label">Prazo</div><div class="value">${cotacaoData.prazo || '---'}</div></div>
+                <div class="card"><div class="label">Peso</div><div class="value">${cotacaoData.peso || '---'}</div></div>
+                <div class="card"><div class="label">Volume</div><div class="value">${cotacaoData.volume || '---'}</div></div>
+                <div class="card"><div class="label">KM Estimado</div><div class="value">${cotacaoDistanciaKm ? `${cotacaoDistanciaKm.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} km` : 'Não calculado'}</div></div>
+                <div class="card"><div class="label">Validade</div><div class="value">${cotacaoData.validade || '0'} dia(s)</div></div>
+                <div class="card"><div class="label">Notas Fiscais</div><div class="value">${Math.max(parseInt(cotacaoData.numeroNotasFiscais || '1', 10) || 1, 1)}</div></div>
+              </div>
+              <div class="card deliveries">
+                <div class="label">Cidades de entrega (ordenadas da mais próxima para a mais distante)</div>
+                <ul>${entregasHtml}</ul>
+              </div>
+              <div class="card" style="margin-top: 12px;"><div class="label">Observações</div><div class="value">${cotacaoData.observacoes || '---'}</div></div>
+              <div class="price">Valor do Frete: R$ ${valorFreteCotacao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+              <div class="footer">Esta cotação pode sofrer alterações conforme janela de coleta, restrições de acesso, pedágio e alterações de rota.</div>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+  };
+
+  const gerarCotacaoPDF = () => {
+    const janela = window.open('', '_blank');
+    if (!janela) {
+      alert('Não foi possível abrir a pré-visualização para PDF.');
+      return;
+    }
+    janela.document.write(buildCotacaoHtml());
+    janela.document.close();
+    janela.focus();
+    setTimeout(() => janela.print(), 350);
+  };
+
+  const gerarCotacaoImagem = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1400;
+    canvas.height = 900;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.fillStyle = '#f1f5f9';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(60, 60, 1280, 140);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 48px Arial';
+    ctx.fillText('Cotação de Frete - CargoFy', 100, 145);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '26px Arial';
+    ctx.fillText(new Date().toLocaleDateString('pt-BR'), 1100, 145);
+
+    const linhas = [
+      `Cliente: ${cotacaoData.cliente || '---'}`,
+      `Tipo de carga: ${cotacaoData.tipoCarga === 'dedicado' ? 'Dedicado' : 'Fracionado'}`,
+      `Origem: ${cotacaoData.origem || '---'}`,
+      `Rota (ida e volta): ${rotaCotacao || '---'}`,
+      `KM estimado: ${cotacaoDistanciaKm ? `${cotacaoDistanciaKm.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} km` : 'Não calculado'}`,
+      `Prazo: ${cotacaoData.prazo || '---'}`,
+      `Peso/Volume: ${cotacaoData.peso || '---'} / ${cotacaoData.volume || '---'}`,
+      `Validade: ${cotacaoData.validade || '0'} dia(s)`,
+      `Notas fiscais: ${Math.max(parseInt(cotacaoData.numeroNotasFiscais || '1', 10) || 1, 1)}`
+    ];
+
+    ctx.fillStyle = '#0f172a';
+    ctx.font = 'bold 34px Arial';
+    let y = 280;
+    linhas.forEach((linha) => {
+      ctx.fillText(linha, 90, y);
+      y += 68;
+    });
+
+    ctx.fillStyle = '#0f766e';
+    ctx.font = 'bold 56px Arial';
+    ctx.fillText(`Valor: R$ ${valorFreteCotacao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 90, 820);
+
+    const link = document.createElement('a');
+    link.href = canvas.toDataURL('image/png');
+    link.download = `cotacao-cargofy-${Date.now()}.png`;
+    link.click();
+  };
+
+  const limparCotacao = () => {
+    setCotacaoData({
+      cliente: '',
+      origem: '',
+      tipoCarga: 'fracionado',
+      peso: '',
+      volume: '',
+      prazo: '',
+      valorFrete: '',
+      validade: '3',
+      observacoes: '',
+      numeroNotasFiscais: '1',
+      cidadesEntrega: ['']
+    });
+    setCotacaoDistanciaKm(0);
+    setCotacaoAtualId('');
+  };
+
+
   const downloadRelatorioCSV = () => {
     const header = relatorioPorCarga
       ? ['Carga', 'NF', 'CT-e', 'Data CT-e', 'Empresa', 'Boleto', 'Vencimento Boleto', 'Frete']
@@ -359,33 +947,73 @@ function App() {
   };
 
   const processarFotoComprovante = (file) => new Promise((resolve, reject) => {
+    const nomeArquivo = (file?.name || '').toLowerCase();
+    const tipoArquivo = (file?.type || '').toLowerCase();
+    const extensaoValida = /\.(jpg|jpeg|png|webp)$/i.test(nomeArquivo);
+    const mimeValido = tipoArquivo.startsWith('image/');
+    const TAMANHO_MAX_BASE64 = 320_000;
+
+    if (!mimeValido && !extensaoValida) {
+      reject(new Error('Formato inválido. Use JPG, JPEG, PNG ou WEBP.'));
+      return;
+    }
+
     const reader = new FileReader();
     reader.onerror = () => reject(new Error('Falha ao ler imagem.'));
     reader.onload = () => {
+      const rawDataUrl = String(reader.result || '');
+      if (!rawDataUrl.startsWith('data:image/')) {
+        reject(new Error('Arquivo de imagem inválido.'));
+        return;
+      }
+
       const img = new Image();
-      img.onerror = () => reject(new Error('Arquivo de imagem inválido.'));
+      img.onerror = () => reject(new Error('Não foi possível interpretar a imagem enviada.'));
       img.onload = () => {
-        const maxW = 1280;
-        const maxH = 1280;
-        let { width, height } = img;
-        const ratio = Math.min(maxW / width, maxH / height, 1);
-        width = Math.round(width * ratio);
-        height = Math.round(height * ratio);
+        const escalaTentativas = [1, 0.85, 0.7, 0.55];
+        const qualidadeTentativas = [0.7, 0.58, 0.48, 0.38, 0.3, 0.24];
+        let melhorResultado = '';
 
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return reject(new Error('Falha ao processar imagem.'));
-        ctx.drawImage(img, 0, 0, width, height);
+        for (const escala of escalaTentativas) {
+          const largura = Math.max(Math.round(Math.min(img.width, 1280) * escala), 1);
+          const altura = Math.max(Math.round(Math.min(img.height, 1280) * escala), 1);
 
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.75);
-        resolve(dataUrl);
+          const canvas = document.createElement('canvas');
+          canvas.width = largura;
+          canvas.height = altura;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) continue;
+
+          try {
+            ctx.drawImage(img, 0, 0, largura, altura);
+          } catch (error) {
+            continue;
+          }
+
+          for (const qualidade of qualidadeTentativas) {
+            const candidato = canvas.toDataURL('image/jpeg', qualidade);
+            if (!melhorResultado || candidato.length < melhorResultado.length) {
+              melhorResultado = candidato;
+            }
+            if (candidato.length <= TAMANHO_MAX_BASE64) {
+              resolve(candidato);
+              return;
+            }
+          }
+        }
+
+        if (melhorResultado && melhorResultado.length <= TAMANHO_MAX_BASE64) {
+          resolve(melhorResultado);
+          return;
+        }
+
+        reject(new Error('A imagem ficou acima do limite para salvar. Tire print/recorte e tente novamente.'));
       };
-      img.src = String(reader.result);
+      img.src = rawDataUrl;
     };
     reader.readAsDataURL(file);
   });
+
 
   const gerarRelatorioPDF = () => {
     const janela = window.open('', '_blank');
@@ -473,6 +1101,7 @@ function App() {
         break;
       case 'financeiro': list = financeiro; break;
       case 'relatorios': list = viagens; break;
+      case 'cotacao': list = []; break;
       case 'clientes': list = clientes; break;
       case 'motoristas': list = motoristas; break;
       case 'veiculos': list = veiculos; break;
@@ -681,6 +1310,7 @@ function App() {
 
   const handleOpenEdit = (item) => {
     setFormData({
+      ...INITIAL_FORM_DATA,
       ...item,
       boleto: item.boleto || item.urlBoleto || item.urlComprovante || '',
       statusFinanceiro: item.statusFinanceiro || 'Pendente',
@@ -776,6 +1406,11 @@ function App() {
     sincronizarPendentes();
   }, [user, viagens, financeiro]);
 
+  const sanitizeFirestorePayload = (payload) => {
+    const entries = Object.entries(payload || {}).filter(([, value]) => value !== undefined);
+    return Object.fromEntries(entries);
+  };
+
   const handleSave = async (e) => {
     e.preventDefault();
     const colName = (activeTab === 'dashboard' || activeTab === 'viagens') ? 'viagens' : activeTab;
@@ -795,7 +1430,12 @@ function App() {
       return;
     }
 
-    const payload = colName === 'financeiro'
+    if (colName === 'viagens' && (formData.urlComprovante || '').length > 320000) {
+      alert('O comprovante está muito pesado para salvar. Envie uma imagem menor (JPG/PNG comprimido).');
+      return;
+    }
+
+    const payloadBruto = colName === 'financeiro'
       ? {
           ...formData,
           dataVencimentoBoleto: formData.vencimento || formData.dataVencimentoBoleto || '',
@@ -814,6 +1454,9 @@ function App() {
             lucro: ((parseFloat(formData.valorFrete) || 0) - (parseFloat(formData.valorDistribuicao) || 0)).toFixed(2)
           }
         : formData;
+
+    const payload = sanitizeFirestorePayload(payloadBruto);
+
     try {
       let savedViagemId = editingId || '';
       if (editingId) {
@@ -832,7 +1475,10 @@ function App() {
       setModalOpen(false);
       setEditingId(null);
       resetForm();
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      console.error(err);
+      alert('Não foi possível salvar as alterações da viagem. Verifique os campos obrigatórios e tente novamente.');
+    }
   };
 
   const resetForm = () => {
@@ -902,6 +1548,7 @@ function App() {
           <NavItem icon={LayoutDashboard} label="Painel" active={activeTab === 'dashboard'} onClick={() => {setActiveTab('dashboard'); setStatusFilter('Todos'); setDashboardCargaFilter(''); setDashboardBoletoFilter('');}} />
           <NavItem icon={Package} label="Viagens" active={activeTab === 'viagens'} onClick={() => {setActiveTab('viagens'); setStatusFilter('Todos');}} />
           <NavItem icon={DollarSign} label="Financeiro" active={activeTab === 'financeiro'} onClick={() => setActiveTab('financeiro')} />
+          <NavItem icon={FileText} label="Cotação" active={activeTab === 'cotacao'} onClick={() => setActiveTab('cotacao')} />
           <NavItem icon={FileText} label="Relatórios" active={activeTab === 'relatorios'} onClick={() => setActiveTab('relatorios')} />
           <div className="py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Gestão</div>
           <NavItem icon={Users} label="Clientes" active={activeTab === 'clientes'} onClick={() => setActiveTab('clientes')} />
@@ -1164,7 +1811,162 @@ function App() {
             </div>
           )}
 
-          {activeTab !== 'relatorios' && activeTab !== 'dashboard' && activeTab !== 'viagens' && activeTab !== 'financeiro' && (
+          {activeTab === 'cotacao' && (
+            <div className="space-y-6 mb-8">
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-5">
+                  <div className="flex items-center gap-4">
+                    <img src="/logo-cargofy.svg" alt="Logo CargoFy" className="h-14 w-14 rounded-xl object-contain border border-slate-200 p-1" />
+                    <div>
+                      <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Cotação Profissional</h3>
+                      <p className="text-xs font-semibold text-slate-500">Gere PDF ou imagem para envio ao cliente com identidade CargoFy.</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 flex-wrap">
+                    <button onClick={gerarCotacaoPDF} className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase transition-all">
+                      <FileText size={14} /> Gerar PDF
+                    </button>
+                    <button onClick={gerarCotacaoImagem} className="flex items-center gap-2 px-4 py-2.5 bg-slate-700 hover:bg-slate-800 text-white rounded-xl text-xs font-black uppercase transition-all">
+                      <Download size={14} /> Gerar Imagem
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                  <Input label="Cliente" value={cotacaoData.cliente} onChange={(value) => handleCotacaoChange('cliente', value)} placeholder="Nome da empresa / contato" />
+                  <Input label="Origem" value={cotacaoData.origem} onChange={(value) => handleCotacaoChange('origem', value)} placeholder="Cidade/UF de coleta" />
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Tipo de Carga</label>
+                    <select
+                      value={cotacaoData.tipoCarga}
+                      onChange={(e) => handleCotacaoChange('tipoCarga', e.target.value)}
+                      className="w-full px-4 py-2.5 bg-slate-100 rounded-xl outline-none border border-transparent focus:border-blue-400 focus:bg-white text-sm font-semibold transition-all"
+                    >
+                      <option value="fracionado">Fracionado</option>
+                      <option value="dedicado">Dedicado</option>
+                    </select>
+                  </div>
+                  <Input label="Prazo" value={cotacaoData.prazo} onChange={(value) => handleCotacaoChange('prazo', value)} placeholder="Ex.: 24h úteis" />
+                  <Input label="Peso" value={cotacaoData.peso} onChange={(value) => handleCotacaoChange('peso', value)} placeholder="Ex.: 850 kg" />
+                  <Input label="Volume" value={cotacaoData.volume} onChange={(value) => handleCotacaoChange('volume', value)} placeholder="Ex.: 4 m³" />
+                  <Input label="Valor do frete (R$)" type="number" value={cotacaoData.valorFrete} onChange={(value) => handleCotacaoChange('valorFrete', value)} placeholder="0,00" />
+                  <Input label="Validade (dias)" type="number" value={cotacaoData.validade} onChange={(value) => handleCotacaoChange('validade', value)} placeholder="3" />
+                  <Input label="Quantidade de Notas Fiscais" type="number" value={cotacaoData.numeroNotasFiscais || '1'} onChange={(value) => handleCotacaoChange('numeroNotasFiscais', value)} placeholder="1" />
+                </div>
+
+                <div className="mt-6 rounded-2xl border border-slate-200 overflow-hidden">
+                  <div className="px-4 py-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                    <h4 className="text-[11px] font-black text-slate-600 uppercase tracking-widest">Cidades de entrega (ordenadas da mais próxima para a mais distante)</h4>
+                    <button onClick={adicionarCidadeEntrega} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-[10px] font-black uppercase hover:bg-blue-700">
+                      <Plus size={12} /> Adicionar cidade
+                    </button>
+                  </div>
+                  <div className="p-4 space-y-3">
+                    {cotacaoData.cidadesEntrega.map((cidade, index) => (
+                      <div key={`cidade-${index}`} className="flex gap-2">
+                        <div className="flex-1">
+                          <Input label={`Entrega ${index + 1}`} value={cidade} onChange={(value) => handleCidadeEntregaChange(index, value)} placeholder="Cidade/UF de entrega" />
+                        </div>
+                        <button
+                          onClick={() => removerCidadeEntrega(index)}
+                          className="mt-6 p-2 h-fit rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100"
+                          title="Remover cidade"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 lg:grid-cols-[1fr_auto_auto] gap-3 items-center">
+                  <Input label="Observações" value={cotacaoData.observacoes} onChange={(value) => handleCotacaoChange('observacoes', value)} placeholder="Informações comerciais adicionais" />
+                  <button onClick={calcularDistanciaKm} className="h-11 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-black uppercase transition-all">
+                    {cotacaoCalculandoKm ? 'Calculando...' : 'Calcular KM + Ordenar Rota'}
+                  </button>
+                  <div className="px-4 py-2.5 rounded-xl bg-emerald-50 text-emerald-700 text-xs font-black uppercase text-center">
+                    KM: {cotacaoDistanciaKm ? cotacaoDistanciaKm.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) : '0'}
+                  </div>
+                </div>
+
+                <div className="mt-6 flex flex-wrap gap-3 items-center">
+                  <button onClick={salvarCotacao} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase transition-all">
+                    <CheckCircle2 size={14} /> {cotacaoAtualId ? 'Atualizar Cotação' : 'Salvar Cotação'}
+                  </button>
+                  <button onClick={handleCopyCotacao} className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase transition-all">
+                    <Paperclip size={14} /> Copiar Texto
+                  </button>
+                  <button onClick={limparCotacao} className="flex items-center gap-2 px-4 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-black uppercase transition-all">
+                    <X size={14} /> Limpar dados
+                  </button>
+                  <div className="ml-auto flex items-center gap-2">
+                    <div className="px-4 py-2.5 rounded-xl bg-slate-100 text-slate-700 text-xs font-black uppercase">
+                      Nº: {cotacoes.find(c => c.id === cotacaoAtualId)?.numeroCotacao || 'Não salvo'}
+                    </div>
+                    <div className="px-4 py-2.5 rounded-xl bg-indigo-50 text-indigo-700 text-xs font-black uppercase">
+                      Valor: R$ {valorFreteCotacao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
+                <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3">Prévia da mensagem para WhatsApp/E-mail</h4>
+                <textarea
+                  value={mensagemCotacao}
+                  readOnly
+                  className="w-full min-h-[240px] p-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 outline-none"
+                />
+              </div>
+
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest">Cotações salvas</h4>
+                  <span className="text-[10px] font-bold text-slate-400">{cotacoes.length} registro(s)</span>
+                </div>
+                <div className="space-y-3">
+                  {cotacoes
+                    .slice()
+                    .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
+                    .map((cotacao) => (
+                      <div key={cotacao.id} className="border border-slate-200 rounded-xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black text-indigo-600 uppercase">{cotacao.numeroCotacao || 'Sem número'}</p>
+                          <p className="text-sm font-bold text-slate-800">{cotacao.cliente || 'Cliente não informado'}</p>
+                          <p className="text-[11px] text-slate-500 font-semibold">Rota: {cotacao.rota || '---'}</p>
+                          <p className="text-[10px] font-bold text-slate-500">Notas: {cotacao.numeroNotasFiscais || 1} rota(s)</p>
+                          <p className={`text-[10px] font-black uppercase mt-1 ${(cotacao.statusCotacao || 'Em análise') === 'Aprovada' ? 'text-emerald-600' : 'text-amber-600'}`}>
+                            {cotacao.statusCotacao || 'Em análise'}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => carregarCotacao(cotacao)} className="px-3 py-2 rounded-lg bg-blue-50 text-blue-700 text-[10px] font-black uppercase hover:bg-blue-100">
+                            Carregar
+                          </button>
+                          <button
+                            onClick={() => aprovarCotacao(cotacao)}
+                            disabled={(cotacao.statusCotacao || '').toLowerCase() === 'aprovada'}
+                            className="px-3 py-2 rounded-lg bg-emerald-600 text-white text-[10px] font-black uppercase hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Aprovar e virar carga
+                          </button>
+                          <button
+                            onClick={() => excluirCotacao(cotacao)}
+                            className="px-3 py-2 rounded-lg bg-rose-50 text-rose-700 text-[10px] font-black uppercase hover:bg-rose-100"
+                          >
+                            Excluir
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  {!cotacoes.length && <p className="text-sm font-semibold text-slate-500">Nenhuma cotação salva ainda.</p>}
+                </div>
+              </div>
+            </div>
+          )}
+
+
+          {activeTab !== 'relatorios' && activeTab !== 'dashboard' && activeTab !== 'viagens' && activeTab !== 'financeiro' && activeTab !== 'cotacao' && (
           <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white">
               <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">{activeTab}</h3>
@@ -1522,19 +2324,21 @@ function App() {
                 </div>
               </div>
 
-              {/* Seção 4: Conclusão da Entrega */}
-              {formData.status === 'Entregue' && (
+              {/* Seção 4: Comprovante e conclusão */}
+              {formData.status === 'Entregue' ? (
                 <div className="p-6 bg-emerald-50 border border-emerald-100 rounded-3xl space-y-4 animate-in fade-in slide-in-from-top-2 shadow-sm">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-emerald-700">
                       <CheckCircle2 size={18} />
-                      <h4 className="text-xs font-black uppercase tracking-wider">Dados de Conclusão da Entrega</h4>
+                      <h4 className="text-xs font-black uppercase tracking-wider">Comprovante de Entrega</h4>
                     </div>
                   </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Input label="Data da Entrega Realizada" type="date" value={formData.dataEntrega} onChange={v => setFormData({...formData, dataEntrega: v})} />
                     <div className="space-y-1">
                       <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Foto do Comprovante</label>
+                      <p className="text-[10px] text-emerald-700 font-semibold">Anexe o comprovante após marcar a carga como entregue e clique em salvar.</p>
                       <div className="flex gap-2 items-start">
                         <input 
                           type="file"
@@ -1544,9 +2348,11 @@ function App() {
                             if (!file) return;
                             try {
                               const fotoProcessada = await processarFotoComprovante(file);
-                              setFormData({...formData, urlComprovante: fotoProcessada});
+                              setFormData((prev) => ({ ...prev, urlComprovante: fotoProcessada }));
                             } catch (error) {
-                              alert('Não foi possível processar a foto do comprovante. Tente outra imagem.');
+                              alert(error?.message || 'Não foi possível processar a foto do comprovante. Tente JPG ou PNG.');
+                            } finally {
+                              e.target.value = '';
                             }
                           }}
                           className="flex-1 px-4 py-2.5 bg-white border border-emerald-200 rounded-xl text-xs font-semibold outline-none file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-emerald-100 file:text-emerald-700"
@@ -1564,6 +2370,10 @@ function App() {
                       )}
                     </div>
                   </div>
+                </div>
+              ) : (
+                <div className="p-4 rounded-2xl border border-amber-200 bg-amber-50">
+                  <p className="text-[11px] font-black text-amber-700 uppercase">Comprovante disponível quando status for Entregue.</p>
                 </div>
               )}
             </div>
@@ -1644,6 +2454,57 @@ function App() {
             </button>
           </div>
         </form>
+      </Modal>
+
+      <Modal isOpen={ordemCarregamentoModalOpen} onClose={() => setOrdemCarregamentoModalOpen(false)} title="Gerar Ordem de Carregamento">
+        <div className="space-y-5">
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+            <p className="text-[10px] font-black uppercase text-slate-500">Cotação selecionada</p>
+            <p className="text-sm font-black text-slate-800">{ordemCarregamentoCotacao?.numeroCotacao || '---'} · {ordemCarregamentoCotacao?.cliente || '---'}</p>
+            <p className="text-xs font-semibold text-slate-500 mt-1">Peso: {ordemCarregamentoCotacao?.peso || '---'} · Cidades: {(ordemCarregamentoCotacao?.cidadesEntrega || []).filter(cidade => (cidade || '').trim()).join(' | ') || '---'}</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Motorista Cadastrado</label>
+              <select
+                className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold outline-none border border-transparent focus:border-indigo-200"
+                value={ordemCarregamentoData.motorista}
+                onChange={(e) => setOrdemCarregamentoData(prev => ({ ...prev, motorista: e.target.value }))}
+              >
+                <option value="">Selecionar Motorista...</option>
+                {motoristas.map(m => <option key={`ordem-motorista-${m.id}`} value={m.nome}>{m.nome}</option>)}
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Veículo Cadastrado</label>
+              <select
+                className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold outline-none border border-transparent focus:border-indigo-200"
+                value={ordemCarregamentoData.veiculoId}
+                onChange={(e) => {
+                  const selecionado = veiculos.find(v => v.id === e.target.value);
+                  setOrdemCarregamentoData(prev => ({
+                    ...prev,
+                    veiculoId: e.target.value,
+                    placa: selecionado?.placa || ''
+                  }));
+                }}
+              >
+                <option value="">Selecionar Veículo...</option>
+                {veiculos.map(v => <option key={`ordem-veiculo-${v.id}`} value={v.id}>{v.modelo || 'Veículo'} {v.placa ? `- ${v.placa}` : ''}</option>)}
+              </select>
+            </div>
+
+            <Input label="Placa" value={ordemCarregamentoData.placa} onChange={(value) => setOrdemCarregamentoData(prev => ({ ...prev, placa: value.toUpperCase() }))} placeholder="ABC-1234" />
+            <Input label="Data e hora do carregamento" type="datetime-local" value={ordemCarregamentoData.dataHora} onChange={(value) => setOrdemCarregamentoData(prev => ({ ...prev, dataHora: value }))} />
+          </div>
+
+          <div className="flex gap-3 pt-4 border-t border-slate-100">
+            <button type="button" onClick={() => setOrdemCarregamentoModalOpen(false)} className="flex-1 py-3 text-xs font-black uppercase text-slate-400 hover:text-slate-600 transition-colors">Cancelar</button>
+            <button type="button" onClick={confirmarOrdemCarregamento} className="flex-[2] py-3 bg-blue-600 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all">Gerar PDF da Ordem</button>
+          </div>
+        </div>
       </Modal>
 
       <Modal isOpen={!!detailItem} onClose={() => setDetailItem(null)} title="Detalhes da Carga">
