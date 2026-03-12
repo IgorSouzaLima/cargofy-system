@@ -221,6 +221,26 @@ function App() {
 
   const normalizarStatusFinanceiro = (status) => (status || 'pendente').trim().toLowerCase();
 
+  const parseDataBoleto = (valor) => {
+    const dataStr = String(valor || '').trim();
+    if (!dataStr) return null;
+
+    const isoMatch = dataStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (isoMatch) {
+      const [, ano, mes, dia] = isoMatch;
+      return new Date(Number(ano), Number(mes) - 1, Number(dia), 12, 0, 0, 0);
+    }
+
+    const brMatch = dataStr.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (brMatch) {
+      const [, dia, mes, ano] = brMatch;
+      return new Date(Number(ano), Number(mes) - 1, Number(dia), 12, 0, 0, 0);
+    }
+
+    const fallback = new Date(dataStr);
+    if (Number.isNaN(fallback.getTime())) return null;
+    return fallback;
+  };
 
   const getStatusFinanceiro = (item) => {
     const statusAtual = normalizarStatusFinanceiro(item.statusFinanceiro);
@@ -230,8 +250,8 @@ function App() {
     if (dataVencimento) {
       const hoje = new Date();
       hoje.setHours(0, 0, 0, 0);
-      const venc = new Date(`${dataVencimento}T12:00:00`);
-      if (!Number.isNaN(venc.getTime()) && venc < hoje) return 'Vencido';
+      const venc = parseDataBoleto(dataVencimento);
+      if (venc && venc < hoje) return 'Vencido';
     }
 
     return 'Pendente';
