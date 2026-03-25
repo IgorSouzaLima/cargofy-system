@@ -1696,10 +1696,6 @@ function App() {
 
   const salvarLancamentoCaixa = (e) => {
     e.preventDefault();
-    if (caixaForm.tipo !== 'frete' && !caixaForm.descricao.trim()) {
-      alert('Informe a descrição do lançamento.');
-      return;
-    }
     if (!caixaForm.mesReferencia) {
       alert('Informe o mês de referência.');
       return;
@@ -2128,7 +2124,7 @@ function App() {
                     <div key={item.id} className="px-6 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
                       <div>
                         <p className="text-sm font-black text-slate-800">
-                          {item.descricao || 'Sem descrição'} · {item.tipo === 'frete'
+                          {item.categoria || 'Sem categoria'} · {item.tipo === 'frete'
                             ? `Faturado: R$ ${(parseFloat(item.valorFaturado) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} · Pago: R$ ${(parseFloat(item.valorPago) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
                             : `R$ ${(parseFloat(item.valor) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
                         </p>
@@ -2942,7 +2938,6 @@ function App() {
               </select>
             </div>
             <Input label="Mês de referência" type="month" value={caixaForm.mesReferencia} onChange={value => setCaixaForm(prev => ({ ...prev, mesReferencia: value }))} />
-            {caixaForm.tipo !== 'frete' && <Input label="Descrição" value={caixaForm.descricao} onChange={value => setCaixaForm(prev => ({ ...prev, descricao: value }))} />}
             {caixaForm.tipo === 'frete' && <Input label="Número da Carga" value={caixaForm.numeroCarga} onChange={value => setCaixaForm(prev => ({ ...prev, numeroCarga: value }))} />}
             {caixaForm.tipo !== 'frete' && <Input label="Valor (R$)" type="number" value={caixaForm.valor} onChange={value => setCaixaForm(prev => ({ ...prev, valor: value }))} />}
             {caixaForm.tipo === 'frete' && <Input label="Valor Faturado (R$)" type="number" value={caixaForm.valorFaturado} onChange={value => setCaixaForm(prev => ({ ...prev, valorFaturado: value }))} />}
