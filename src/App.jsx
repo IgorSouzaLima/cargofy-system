@@ -119,6 +119,7 @@ function App() {
   const [caixaMesFiltro, setCaixaMesFiltro] = useState('');
   const [caixaPrivadoVisivel, setCaixaPrivadoVisivel] = useState(false);
   const [caixaModalOpen, setCaixaModalOpen] = useState(false);
+  const [caixaDetailItem, setCaixaDetailItem] = useState(null);
 
   const [formData, setFormData] = useState(INITIAL_FORM_DATA);
 
@@ -2160,7 +2161,7 @@ function App() {
                     <div key={item.id} className="px-6 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
                       <div>
                         <p className="text-sm font-black text-slate-800">
-                          Carga: {item.numeroCarga || '---'} · Ref: {item.mesReferencia || '---'} · Cliente: {item.cliente || '---'} · Contratado: {item.contratado || '---'} · {item.categoria || 'Sem categoria'} · {item.formaPagamento || 'Sem forma'} · Banco: {item.banco || '---'} · Venc: {item.vencimento ? new Date(`${item.vencimento}T12:00:00`).toLocaleDateString('pt-BR') : '---'}
+                          Carga: {item.numeroCarga || '---'} · Categoria: {item.categoria || 'Sem categoria'} · Venc: {item.vencimento ? new Date(`${item.vencimento}T12:00:00`).toLocaleDateString('pt-BR') : '---'}
                         </p>
                         <p className="text-[10px] font-bold text-slate-500 uppercase">
                           {item.categoria || 'Sem categoria'} · {item.tipo === 'frete'
@@ -2178,6 +2179,9 @@ function App() {
                         )}
                         <button onClick={() => atualizarStatusLancamentoCaixa(item)} className="px-3 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-[10px] font-black uppercase text-slate-700">
                           {item.status === 'pago' ? 'Voltar p/ pendente' : 'Marcar como pago'}
+                        </button>
+                        <button onClick={() => setCaixaDetailItem(item)} className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg" title="Ver dados">
+                          <Eye size={16}/>
                         </button>
                         <button onClick={() => { editarLancamentoCaixa(item); setCaixaModalOpen(true); }} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg" title="Editar"><Edit3 size={16}/></button>
                         <button onClick={() => excluirLancamentoCaixa(item.id)} className="p-2 text-red-400 hover:bg-red-50 rounded-lg" title="Excluir"><Trash2 size={16}/></button>
@@ -3076,6 +3080,37 @@ function App() {
             <button type="submit" className="flex-[2] py-3 bg-blue-600 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all">{caixaEditingId ? 'Salvar alterações' : 'Adicionar lançamento'}</button>
           </div>
         </form>
+      </Modal>
+
+      <Modal isOpen={!!caixaDetailItem} onClose={() => setCaixaDetailItem(null)} title="Dados do lançamento do caixa">
+        {caixaDetailItem && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            <Info label="Tipo" value={caixaDetailItem.tipo || ''} />
+            <Info label="Status" value={caixaDetailItem.status || ''} />
+            <Info label="Número da Carga" value={caixaDetailItem.numeroCarga || ''} />
+            <Info label="Mês de Referência" value={caixaDetailItem.mesReferencia || ''} />
+            <Info label="Categoria" value={caixaDetailItem.categoria || ''} />
+            <Info label="Cliente" value={caixaDetailItem.cliente || ''} />
+            <Info label="Contratado" value={caixaDetailItem.contratado || ''} />
+            <Info label="Vencimento" value={caixaDetailItem.vencimento ? new Date(`${caixaDetailItem.vencimento}T12:00:00`).toLocaleDateString('pt-BR') : ''} />
+            <Info label="Valor" value={caixaDetailItem.valor ? `R$ ${(parseFloat(caixaDetailItem.valor) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : ''} />
+            <Info label="Valor Faturado" value={caixaDetailItem.valorFaturado ? `R$ ${(parseFloat(caixaDetailItem.valorFaturado) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : ''} />
+            <Info label="Valor Pago" value={caixaDetailItem.valorPago ? `R$ ${(parseFloat(caixaDetailItem.valorPago) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : ''} />
+            <Info label="Forma de pagamento" value={caixaDetailItem.formaPagamento || ''} />
+            <Info label="Banco" value={caixaDetailItem.banco || ''} />
+            <Info label="Observação" value={caixaDetailItem.observacao || ''} />
+            <div className="md:col-span-2">
+              <Info label="Comprovante" value={caixaDetailItem.comprovantePagamento ? 'Anexado' : 'Sem comprovante'} />
+              {caixaDetailItem.comprovantePagamento && (
+                <div className="mt-2">
+                  <a href={caixaDetailItem.comprovantePagamento} target="_blank" rel="noreferrer" onClick={(e) => { e.preventDefault(); openInNewWindow(caixaDetailItem.comprovantePagamento); }} className="inline-flex items-center gap-1 px-3 py-2 rounded-lg bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase">
+                    Abrir comprovante <ExternalLink size={12} />
+                  </a>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </Modal>
 
       <Modal isOpen={!!detailItem} onClose={() => setDetailItem(null)} title="Detalhes da Carga">
