@@ -49,6 +49,7 @@ function App() {
   const [user, setUser] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [statusFilter, setStatusFilter] = useState('Todos');
+  const [financeiroSubTab, setFinanceiroSubTab] = useState('operacional');
   const [dashboardCargaFilter, setDashboardCargaFilter] = useState('');
   const [dashboardBoletoFilter, setDashboardBoletoFilter] = useState('');
   const [viagens, setViagens] = useState([]);
@@ -91,8 +92,43 @@ function App() {
     placa: '',
     dataHora: ''
   });
+  const [caixaEditingId, setCaixaEditingId] = useState(null);
+  const [caixaLancamentos, setCaixaLancamentos] = useState([]);
+  const [caixaForm, setCaixaForm] = useState({
+    tipo: 'receber',
+    descricao: '',
+    categoria: '',
+    valor: '',
+    vencimento: '',
+    status: 'pendente',
+    formaPagamento: '',
+    observacao: ''
+  });
 
   const [formData, setFormData] = useState(INITIAL_FORM_DATA);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    const storageKey = `cargofy_caixa_privado_${user.uid}`;
+    try {
+      const cache = localStorage.getItem(storageKey);
+      if (!cache) {
+        setCaixaLancamentos([]);
+        return;
+      }
+      const parsed = JSON.parse(cache);
+      setCaixaLancamentos(Array.isArray(parsed) ? parsed : []);
+    } catch (error) {
+      console.error('Erro ao carregar controle de caixa local:', error);
+      setCaixaLancamentos([]);
+    }
+  }, [user?.uid]);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    const storageKey = `cargofy_caixa_privado_${user.uid}`;
+    localStorage.setItem(storageKey, JSON.stringify(caixaLancamentos));
+  }, [caixaLancamentos, user?.uid]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, setUser);
@@ -280,6 +316,19 @@ function App() {
     const lucroTotal = faturou - gastouDistribuicao;
     return { faturou, gastouDistribuicao, lucroTotal };
   }, [dashboardFinanceiroBase]);
+
+  const caixaResumo = useMemo(() => {
+    return caixaLancamentos.reduce((acc, item) => {
+      const valor = parseFloat(item.valor) || 0;
+      if (item.tipo === 'receber') acc.totalReceber += valor;
+      if (item.tipo === 'pagar') acc.totalPagar += valor;
+      if (item.status === 'pendente') acc.pendentes += 1;
+      if (item.status === 'pago') acc.pagos += 1;
+      return acc;
+    }, { totalReceber: 0, totalPagar: 0, pendentes: 0, pagos: 0 });
+  }, [caixaLancamentos]);
+
+  const caixaSaldoProjetado = caixaResumo.totalReceber - caixaResumo.totalPagar;
 
   const empresasRelatorio = useMemo(() => {
     const empresas = [...new Set(viagens.map(v => v.contratante).filter(Boolean))];
@@ -1547,6 +1596,74 @@ function App() {
     window.open(link, '_blank', 'noopener,noreferrer');
   };
 
+  const limparFormularioCaixa = () => {
+    setCaixaEditingId(null);
+    setCaixaForm({
+      tipo: 'receber',
+      descricao: '',
+      categoria: '',
+      valor: '',
+      vencimento: '',
+      status: 'pendente',
+      formaPagamento: '',
+      observacao: ''
+    });
+  };
+
+  const salvarLancamentoCaixa = (e) => {
+    e.preventDefault();
+    if (!caixaForm.descricao.trim()) {
+      alert('Informe a descrição do lançamento.');
+      return;
+    }
+    if (!(parseFloat(caixaForm.valor) > 0)) {
+      alert('Informe um valor válido maior que zero.');
+      return;
+    }
+
+    const payload = {
+      ...caixaForm,
+      descricao: caixaForm.descricao.trim(),
+      categoria: caixaForm.categoria.trim(),
+      observacao: caixaForm.observacao.trim(),
+      valor: String(caixaForm.valor),
+      updatedAt: new Date().toISOString()
+    };
+
+    if (caixaEditingId) {
+      setCaixaLancamentos(prev => prev.map(item => item.id === caixaEditingId ? { ...item, ...payload } : item));
+      limparFormularioCaixa();
+      return;
+    }
+
+    setCaixaLancamentos(prev => [{
+      id: `cx_${Date.now()}`,
+      ...payload,
+      createdAt: new Date().toISOString()
+    }, ...prev]);
+    limparFormularioCaixa();
+  };
+
+  const editarLancamentoCaixa = (item) => {
+    setCaixaEditingId(item.id);
+    setCaixaForm({
+      tipo: item.tipo || 'receber',
+      descricao: item.descricao || '',
+      categoria: item.categoria || '',
+      valor: item.valor || '',
+      vencimento: item.vencimento || '',
+      status: item.status || 'pendente',
+      formaPagamento: item.formaPagamento || '',
+      observacao: item.observacao || ''
+    });
+  };
+
+  const excluirLancamentoCaixa = (id) => {
+    if (!confirm('Deseja realmente excluir este lançamento do caixa?')) return;
+    setCaixaLancamentos(prev => prev.filter(item => item.id !== id));
+    if (caixaEditingId === id) limparFormularioCaixa();
+  };
+
   const novoRegistroLabel = activeTab === 'clientes'
     ? 'Adicionar Cliente'
     : activeTab === 'motoristas'
@@ -1596,7 +1713,7 @@ function App() {
                 Filtro: {statusFilter} <X size={12}/>
               </button>
             )}
-            {(activeTab === 'dashboard' || activeTab === 'viagens' || activeTab === 'financeiro') && (
+            {(activeTab === 'dashboard' || activeTab === 'viagens' || (activeTab === 'financeiro' && financeiroSubTab === 'operacional')) && (
               <label className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-100 text-slate-600 text-[10px] font-black uppercase">
                 <Calendar size={14} />
                 <span>Mês</span>
@@ -1747,12 +1864,104 @@ function App() {
 
           {activeTab === 'financeiro' && (
             <div className="space-y-4 mb-8">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card title="Quanto Faturou" value={`R$ ${financeiroResumo.faturou.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={DollarSign} color="bg-indigo-600" />
-                <Card title="Gasto Distribuição" value={`R$ ${financeiroResumo.gastouDistribuicao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={Truck} color="bg-amber-500" />
-                <Card title="Lucro" value={`R$ ${financeiroResumo.lucroTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={CheckCircle2} color="bg-emerald-600" />
+              <div className="bg-white rounded-2xl border border-slate-200 p-2 inline-flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFinanceiroSubTab('operacional')}
+                  className={`px-4 py-2 rounded-xl text-[11px] font-black uppercase transition-all ${financeiroSubTab === 'operacional' ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' : 'text-slate-500 hover:bg-slate-100'}`}
+                >
+                  Financeiro operacional
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFinanceiroSubTab('caixa')}
+                  className={`px-4 py-2 rounded-xl text-[11px] font-black uppercase transition-all ${financeiroSubTab === 'caixa' ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' : 'text-slate-500 hover:bg-slate-100'}`}
+                >
+                  Controle de caixa
+                </button>
               </div>
 
+              {financeiroSubTab === 'operacional' ? (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Card title="Quanto Faturou" value={`R$ ${financeiroResumo.faturou.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={DollarSign} color="bg-indigo-600" />
+                  <Card title="Gasto Distribuição" value={`R$ ${financeiroResumo.gastouDistribuicao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={Truck} color="bg-amber-500" />
+                  <Card title="Lucro" value={`R$ ${financeiroResumo.lucroTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={CheckCircle2} color="bg-emerald-600" />
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <Card title="Total a Receber" value={`R$ ${caixaResumo.totalReceber.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={DollarSign} color="bg-indigo-600" />
+                  <Card title="Total a Pagar" value={`R$ ${caixaResumo.totalPagar.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={Truck} color="bg-amber-500" />
+                  <Card title="Saldo Projetado" value={`R$ ${caixaSaldoProjetado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={CheckCircle2} color="bg-emerald-600" />
+                  <Card title="Pendências" value={caixaResumo.pendentes} icon={AlertCircle} color="bg-rose-500" />
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'financeiro' && financeiroSubTab === 'caixa' && (
+            <div className="space-y-4 mt-8">
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+                <div className="mb-4">
+                  <h3 className="text-xs font-black text-slate-600 uppercase tracking-widest">Controle de caixa privado</h3>
+                  <p className="text-xs font-semibold text-slate-500">Este submenu é independente das viagens e do financeiro operacional.</p>
+                </div>
+                <form onSubmit={salvarLancamentoCaixa} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Tipo</label>
+                      <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold uppercase outline-none border border-transparent focus:border-blue-400" value={caixaForm.tipo} onChange={e => setCaixaForm(prev => ({ ...prev, tipo: e.target.value }))}>
+                        <option value="receber">Conta a receber</option>
+                        <option value="pagar">Conta a pagar</option>
+                      </select>
+                    </div>
+                    <Input label="Descrição" value={caixaForm.descricao} onChange={value => setCaixaForm(prev => ({ ...prev, descricao: value }))} />
+                    <Input label="Categoria" value={caixaForm.categoria} onChange={value => setCaixaForm(prev => ({ ...prev, categoria: value }))} />
+                    <Input label="Valor (R$)" type="number" value={caixaForm.valor} onChange={value => setCaixaForm(prev => ({ ...prev, valor: value }))} />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <Input label="Vencimento" type="date" value={caixaForm.vencimento} onChange={value => setCaixaForm(prev => ({ ...prev, vencimento: value }))} />
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Status</label>
+                      <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold uppercase outline-none border border-transparent focus:border-blue-400" value={caixaForm.status} onChange={e => setCaixaForm(prev => ({ ...prev, status: e.target.value }))}>
+                        <option value="pendente">Pendente</option>
+                        <option value="pago">Pago</option>
+                      </select>
+                    </div>
+                    <Input label="Forma de pagamento" value={caixaForm.formaPagamento} onChange={value => setCaixaForm(prev => ({ ...prev, formaPagamento: value }))} placeholder="Pix, TED, boleto..." />
+                    <Input label="Observação" value={caixaForm.observacao} onChange={value => setCaixaForm(prev => ({ ...prev, observacao: value }))} />
+                  </div>
+                  <div className="flex gap-3 justify-end">
+                    <button type="button" onClick={limparFormularioCaixa} className="px-4 py-2 rounded-xl text-xs font-black uppercase text-slate-500 hover:bg-slate-100">Limpar</button>
+                    <button type="submit" className="px-4 py-2 rounded-xl text-xs font-black uppercase bg-blue-600 text-white hover:bg-blue-700">
+                      {caixaEditingId ? 'Atualizar lançamento' : 'Adicionar lançamento'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                  <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Contas a pagar e receber</h3>
+                  <span className="text-[10px] font-bold text-slate-400">{caixaLancamentos.length} lançamento(s)</span>
+                </div>
+                <div className="divide-y divide-slate-100">
+                  {caixaLancamentos.map(item => (
+                    <div key={item.id} className="px-6 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-black text-slate-800">{item.descricao || 'Sem descrição'} · R$ {(parseFloat(item.valor) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                        <p className="text-[10px] font-bold text-slate-500 uppercase">{item.categoria || 'Sem categoria'} · {item.formaPagamento || 'Sem forma'} · Venc: {item.vencimento ? new Date(`${item.vencimento}T12:00:00`).toLocaleDateString('pt-BR') : '---'}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${item.tipo === 'receber' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{item.tipo === 'receber' ? 'Receber' : 'Pagar'}</span>
+                        <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${item.status === 'pago' ? 'bg-blue-100 text-blue-700' : 'bg-rose-100 text-rose-700'}`}>{item.status === 'pago' ? 'Pago' : 'Pendente'}</span>
+                        <button onClick={() => editarLancamentoCaixa(item)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg" title="Editar"><Edit3 size={16}/></button>
+                        <button onClick={() => excluirLancamentoCaixa(item.id)} className="p-2 text-red-400 hover:bg-red-50 rounded-lg" title="Excluir"><Trash2 size={16}/></button>
+                      </div>
+                    </div>
+                  ))}
+                  {!caixaLancamentos.length && <p className="px-6 py-6 text-sm font-semibold text-slate-500">Nenhum lançamento no caixa ainda.</p>}
+                </div>
+              </div>
             </div>
           )}
 
@@ -2071,7 +2280,7 @@ function App() {
 
 
 
-          {activeTab === 'financeiro' && (
+          {activeTab === 'financeiro' && financeiroSubTab === 'operacional' && (
             <div className="space-y-4 mt-8">
               {financeiroAgrupadoPorCarga.map(grupo => {
                 const resumoFrete = grupo.itens.reduce((acc, curr) => acc + (parseFloat(curr.valorFrete) || 0), 0);
