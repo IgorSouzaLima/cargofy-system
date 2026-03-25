@@ -5,7 +5,7 @@ import { getFirestore, collection, doc, addDoc, onSnapshot, updateDoc, deleteDoc
 import { 
   LayoutDashboard, Truck, Users, DollarSign, Plus, Package, MapPin, X, Trash2, 
   Briefcase, LogOut, Lock, Mail, Clock, FileText, Search, Calendar, Layers, 
-  CheckCircle2, AlertCircle, Edit3, Download, ArrowRight, Camera, Paperclip, ExternalLink, Building2, Eye
+  CheckCircle2, AlertCircle, Edit3, Download, ArrowRight, Camera, Paperclip, ExternalLink, Building2, Eye, Wallet
 } from 'lucide-react';
 
 // --- CONFIGURAÇÃO ---
@@ -74,6 +74,22 @@ function App() {
   const [reportFim, setReportFim] = useState('');
   const [reportNumeroCarga, setReportNumeroCarga] = useState('');
   const [detailItem, setDetailItem] = useState(null);
+  const [financeiroSubTab, setFinanceiroSubTab] = useState('operacional');
+  const [caixaMovimentos, setCaixaMovimentos] = useState([]);
+  const [caixaForm, setCaixaForm] = useState({
+    numeroCarga: '',
+    dataReferencia: '',
+    dataLancamento: '',
+    tipo: 'Entrada',
+    categoria: '',
+    valor: '',
+    descricao: '',
+    banco: '',
+    formaPagamento: '',
+    valorFechado: '',
+    valorPago: ''
+  });
+  const [caixaEditingId, setCaixaEditingId] = useState(null);
 
   const [formData, setFormData] = useState({
     numeroNF: '', 
@@ -133,6 +149,27 @@ function App() {
     return () => unsubscribes.forEach(unsub => unsub());
   }, [user]);
 
+  useEffect(() => {
+    if (!user) return;
+    const raw = localStorage.getItem(`cargofy-caixa-${user.uid}`);
+    if (!raw) {
+      setCaixaMovimentos([]);
+      return;
+    }
+    try {
+      const parsed = JSON.parse(raw);
+      setCaixaMovimentos(Array.isArray(parsed) ? parsed : []);
+    } catch (error) {
+      console.error('Falha ao carregar controle de caixa local:', error);
+      setCaixaMovimentos([]);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    localStorage.setItem(`cargofy-caixa-${user.uid}`, JSON.stringify(caixaMovimentos));
+  }, [caixaMovimentos, user]);
+
   const cargaStatusMap = useMemo(() => {
     const agrupado = {};
     viagens.forEach(v => {
@@ -174,6 +211,21 @@ function App() {
     const lucroTotal = faturou - gastouDistribuicao;
     return { faturou, gastouDistribuicao, lucroTotal };
   }, [viagens]);
+
+  const caixaResumo = useMemo(() => {
+    return caixaMovimentos.reduce((acc, item) => {
+      const valor = parseFloat(item.valor) || 0;
+      const valorFechado = parseFloat(item.valorFechado) || 0;
+      const valorPago = parseFloat(item.valorPago) || 0;
+      if ((item.tipo || '').toLowerCase() === 'entrada') acc.entradas += valor;
+      else acc.saidas += valor;
+      acc.valorFechado += valorFechado;
+      acc.valorPago += valorPago;
+      return acc;
+    }, { entradas: 0, saidas: 0, valorFechado: 0, valorPago: 0 });
+  }, [caixaMovimentos]);
+
+  const lucroCaixa = caixaResumo.valorFechado - caixaResumo.valorPago;
 
   const normalizarStatusFinanceiro = (status) => (status || 'pendente').trim().toLowerCase();
 
@@ -396,6 +448,69 @@ function App() {
     setModalOpen(true);
   };
 
+  const resetCaixaForm = () => {
+    setCaixaForm({
+      numeroCarga: '',
+      dataReferencia: '',
+      dataLancamento: '',
+      tipo: 'Entrada',
+      categoria: '',
+      valor: '',
+      descricao: '',
+      banco: '',
+      formaPagamento: '',
+      valorFechado: '',
+      valorPago: ''
+    });
+    setCaixaEditingId(null);
+  };
+
+  const handleSalvarCaixa = (e) => {
+    e.preventDefault();
+    const camposObrigatorios = ['numeroCarga', 'dataReferencia', 'dataLancamento', 'tipo', 'categoria', 'valor', 'descricao', 'banco', 'formaPagamento', 'valorFechado', 'valorPago'];
+    const faltando = camposObrigatorios.find(campo => !String(caixaForm[campo] || '').trim());
+    if (faltando) {
+      alert('Preencha todos os campos do controle de caixa antes de salvar.');
+      return;
+    }
+
+    const payload = {
+      ...caixaForm,
+      updatedAt: new Date().toISOString()
+    };
+
+    if (caixaEditingId) {
+      setCaixaMovimentos(prev => prev.map(item => item.id === caixaEditingId ? { ...payload, id: caixaEditingId, createdAt: item.createdAt } : item));
+      resetCaixaForm();
+      return;
+    }
+
+    const novoItem = {
+      ...payload,
+      id: `caixa-${Date.now()}`,
+      createdAt: new Date().toISOString()
+    };
+    setCaixaMovimentos(prev => [novoItem, ...prev]);
+    resetCaixaForm();
+  };
+
+  const editarCaixa = (item) => {
+    setCaixaForm({
+      numeroCarga: item.numeroCarga || '',
+      dataReferencia: item.dataReferencia || '',
+      dataLancamento: item.dataLancamento || '',
+      tipo: item.tipo || 'Entrada',
+      categoria: item.categoria || '',
+      valor: item.valor || '',
+      descricao: item.descricao || '',
+      banco: item.banco || '',
+      formaPagamento: item.formaPagamento || '',
+      valorFechado: item.valorFechado || '',
+      valorPago: item.valorPago || ''
+    });
+    setCaixaEditingId(item.id);
+  };
+
   const syncFinanceiroPorViagem = async (viagemData) => {
     const numeroNF = (viagemData.numeroNF || '').trim();
     const numeroCarga = (viagemData.numeroCarga || '').trim();
@@ -514,7 +629,7 @@ function App() {
         <nav className="flex-1 space-y-1 overflow-y-auto">
           <NavItem icon={LayoutDashboard} label="Painel" active={activeTab === 'dashboard'} onClick={() => {setActiveTab('dashboard'); setStatusFilter('Todos');}} />
           <NavItem icon={Package} label="Viagens" active={activeTab === 'viagens'} onClick={() => {setActiveTab('viagens'); setStatusFilter('Todos');}} />
-          <NavItem icon={DollarSign} label="Financeiro" active={activeTab === 'financeiro'} onClick={() => setActiveTab('financeiro')} />
+          <NavItem icon={DollarSign} label="Financeiro" active={activeTab === 'financeiro'} onClick={() => { setActiveTab('financeiro'); setFinanceiroSubTab('operacional'); }} />
           <NavItem icon={FileText} label="Relatórios" active={activeTab === 'relatorios'} onClick={() => setActiveTab('relatorios')} />
           <div className="py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Gestão</div>
           <NavItem icon={Users} label="Clientes" active={activeTab === 'clientes'} onClick={() => setActiveTab('clientes')} />
@@ -543,7 +658,7 @@ function App() {
               </button>
             )}
           </div>
-          {activeTab !== 'relatorios' && (
+          {activeTab !== 'relatorios' && !(activeTab === 'financeiro' && financeiroSubTab === 'caixa') && (
             <button onClick={() => { resetForm(); setEditingId(null); setModalOpen(true); }} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-blue-500/20 transition-all">
               <Plus size={16} /> Novo Registro
             </button>
@@ -560,10 +675,65 @@ function App() {
           )}
 
           {activeTab === 'financeiro' && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-              <Card title="Quanto Faturou" value={`R$ ${financeiroResumo.faturou.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={DollarSign} color="bg-indigo-600" />
-              <Card title="Gasto Distribuição" value={`R$ ${financeiroResumo.gastouDistribuicao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={Truck} color="bg-amber-500" />
-              <Card title="Lucro" value={`R$ ${financeiroResumo.lucroTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={CheckCircle2} color="bg-emerald-600" />
+            <div className="space-y-6 mb-8">
+              <div className="flex items-center gap-2 p-1 bg-slate-200/60 rounded-2xl w-fit">
+                <button onClick={() => setFinanceiroSubTab('operacional')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${financeiroSubTab === 'operacional' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                  Financeiro Operacional
+                </button>
+                <button onClick={() => setFinanceiroSubTab('caixa')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-2 ${financeiroSubTab === 'caixa' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                  <Wallet size={14} /> Controle de Caixa
+                </button>
+              </div>
+
+              {financeiroSubTab === 'operacional' && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Card title="Quanto Faturou" value={`R$ ${financeiroResumo.faturou.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={DollarSign} color="bg-indigo-600" />
+                  <Card title="Gasto Distribuição" value={`R$ ${financeiroResumo.gastouDistribuicao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={Truck} color="bg-amber-500" />
+                  <Card title="Lucro" value={`R$ ${financeiroResumo.lucroTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={CheckCircle2} color="bg-emerald-600" />
+                </div>
+              )}
+
+              {financeiroSubTab === 'caixa' && (
+                <div className="space-y-5">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <Card title="Entradas" value={`R$ ${caixaResumo.entradas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={ArrowRight} color="bg-blue-600" />
+                    <Card title="Saídas" value={`R$ ${caixaResumo.saidas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={ArrowRight} color="bg-rose-500" />
+                    <Card title="Valor Fechado" value={`R$ ${caixaResumo.valorFechado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={DollarSign} color="bg-indigo-600" />
+                    <Card title="Lucro do Caixa" value={`R$ ${lucroCaixa.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={CheckCircle2} color="bg-emerald-600" />
+                  </div>
+
+                  <form onSubmit={handleSalvarCaixa} className="bg-white rounded-3xl border border-slate-200 shadow-sm p-5 space-y-4">
+                    <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Lançamento Manual do Caixa (Desvinculado)</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      <Input label="Número da Carga" value={caixaForm.numeroCarga} onChange={v => setCaixaForm({ ...caixaForm, numeroCarga: v })} />
+                      <Input label="Data Referência" type="date" value={caixaForm.dataReferencia} onChange={v => setCaixaForm({ ...caixaForm, dataReferencia: v })} />
+                      <Input label="Data Lançamento" type="date" value={caixaForm.dataLancamento} onChange={v => setCaixaForm({ ...caixaForm, dataLancamento: v })} />
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Tipo</label>
+                        <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold outline-none border border-transparent focus:border-blue-400" value={caixaForm.tipo} onChange={e => setCaixaForm({ ...caixaForm, tipo: e.target.value })}>
+                          <option value="Entrada">Entrada</option>
+                          <option value="Saída">Saída</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      <Input label="Categoria" value={caixaForm.categoria} onChange={v => setCaixaForm({ ...caixaForm, categoria: v })} />
+                      <Input label="Valor" type="number" value={caixaForm.valor} onChange={v => setCaixaForm({ ...caixaForm, valor: v })} />
+                      <Input label="Banco" value={caixaForm.banco} onChange={v => setCaixaForm({ ...caixaForm, banco: v })} />
+                      <Input label="Forma Pagto/Receb." value={caixaForm.formaPagamento} onChange={v => setCaixaForm({ ...caixaForm, formaPagamento: v })} />
+                    </div>
+                    <Input label="Descrição" value={caixaForm.descricao} onChange={v => setCaixaForm({ ...caixaForm, descricao: v })} />
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                      <Input label="Valor Fechado" type="number" value={caixaForm.valorFechado} onChange={v => setCaixaForm({ ...caixaForm, valorFechado: v })} />
+                      <Input label="Valor Pago" type="number" value={caixaForm.valorPago} onChange={v => setCaixaForm({ ...caixaForm, valorPago: v })} />
+                      <div className="flex gap-2">
+                        <button type="submit" className="flex-1 py-3 px-4 bg-blue-600 text-white rounded-xl text-xs font-black uppercase hover:bg-blue-700 transition-colors">{caixaEditingId ? 'Atualizar' : 'Salvar'}</button>
+                        <button type="button" onClick={resetCaixaForm} className="py-3 px-4 bg-slate-100 text-slate-600 rounded-xl text-xs font-black uppercase hover:bg-slate-200 transition-colors">Limpar</button>
+                      </div>
+                    </div>
+                  </form>
+                </div>
+              )}
             </div>
           )}
 
@@ -642,7 +812,7 @@ function App() {
             </div>
           )}
 
-          {activeTab !== 'relatorios' && (
+          {activeTab !== 'relatorios' && !(activeTab === 'financeiro' && financeiroSubTab === 'caixa') && (
           <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white">
               <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">{activeTab}</h3>
@@ -723,6 +893,49 @@ function App() {
               </tbody>
             </table>
           </div>
+          )}
+
+          {activeTab === 'financeiro' && financeiroSubTab === 'caixa' && (
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white">
+                <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Movimentos do Caixa</h3>
+                <span className="text-[10px] font-bold text-slate-400">{caixaMovimentos.length} registros</span>
+              </div>
+              <table className="w-full text-left border-collapse">
+                <thead className="bg-slate-50 border-b border-slate-100">
+                  <tr>
+                    <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase">Carga/Data</th>
+                    <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase">Tipo/Categoria</th>
+                    <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase">Descrição</th>
+                    <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase">Banco/Forma</th>
+                    <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase">Valores</th>
+                    <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {caixaMovimentos.map(item => (
+                    <tr key={item.id} className="hover:bg-slate-50/50">
+                      <td className="px-4 py-3 text-xs font-bold text-slate-700">#{item.numeroCarga}<p className="text-[10px] text-slate-500">{new Date(item.dataReferencia + 'T12:00:00').toLocaleDateString('pt-BR')} / {new Date(item.dataLancamento + 'T12:00:00').toLocaleDateString('pt-BR')}</p></td>
+                      <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${item.tipo === 'Entrada' ? 'bg-blue-100 text-blue-600' : 'bg-rose-100 text-rose-600'}`}>{item.tipo}</span><p className="text-[10px] font-bold text-slate-600 mt-1">{item.categoria}</p></td>
+                      <td className="px-4 py-3 text-xs font-semibold text-slate-700">{item.descricao}</td>
+                      <td className="px-4 py-3 text-xs"><p className="font-bold text-slate-700">{item.banco}</p><p className="text-[10px] text-slate-500">{item.formaPagamento}</p></td>
+                      <td className="px-4 py-3 text-xs">
+                        <p className="font-bold text-slate-700">Mov.: R$ {(parseFloat(item.valor) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                        <p className="text-[10px] text-indigo-600 font-black">Fechado: R$ {(parseFloat(item.valorFechado) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                        <p className="text-[10px] text-amber-700 font-black">Pago: R$ {(parseFloat(item.valorPago) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                        <p className="text-[10px] text-emerald-700 font-black">Lucro: R$ {((parseFloat(item.valorFechado) || 0) - (parseFloat(item.valorPago) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex justify-end gap-1">
+                          <button onClick={() => editarCaixa(item)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg"><Edit3 size={14} /></button>
+                          <button onClick={() => setCaixaMovimentos(prev => prev.filter(c => c.id !== item.id))} className="p-2 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 size={14} /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
 
           {activeTab === 'dashboard' && (
