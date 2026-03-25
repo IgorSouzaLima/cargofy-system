@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
-import { collection, doc, addDoc, onSnapshot, updateDoc, deleteDoc, serverTimestamp, query, setDoc } from 'firebase/firestore';
+import { collection, doc, addDoc, onSnapshot, updateDoc, deleteDoc, serverTimestamp, query, setDoc, where, getDoc } from 'firebase/firestore';
 import { 
   LayoutDashboard, Truck, Users, DollarSign, Plus, Package, MapPin, X, Trash2, 
   Briefcase, LogOut, Lock, Mail, Clock, FileText, Search, Calendar, Layers, 
@@ -49,6 +49,7 @@ function App() {
   const [user, setUser] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [statusFilter, setStatusFilter] = useState('Todos');
+  const [financeiroSubTab, setFinanceiroSubTab] = useState('operacional');
   const [dashboardCargaFilter, setDashboardCargaFilter] = useState('');
   const [dashboardBoletoFilter, setDashboardBoletoFilter] = useState('');
   const [viagens, setViagens] = useState([]);
@@ -91,8 +92,91 @@ function App() {
     placa: '',
     dataHora: ''
   });
+  const [caixaEditingId, setCaixaEditingId] = useState(null);
+  const [caixaLancamentos, setCaixaLancamentos] = useState([]);
+  const [caixaForm, setCaixaForm] = useState({
+    tipo: 'receber',
+    numeroCarga: '',
+    mesReferencia: '',
+    descricao: '',
+    cliente: '',
+    contratado: '',
+    categoria: '',
+    valor: '',
+    valorFaturado: '',
+    valorPago: '',
+    vencimento: '',
+    status: 'pendente',
+    formaPagamento: '',
+    banco: '',
+    observacao: ''
+  });
+  const [caixaCategorias, setCaixaCategorias] = useState(['Frete', 'Combustível', 'Impostos']);
+  const [caixaFormasPagamento, setCaixaFormasPagamento] = useState(['Pix', 'Boleto', 'TED']);
+  const [caixaBancos, setCaixaBancos] = useState(['Banco do Brasil', 'Itaú', 'Bradesco']);
+  const [caixaClientes, setCaixaClientes] = useState([]);
+  const [caixaContratados, setCaixaContratados] = useState([]);
+  const [caixaMesFiltro, setCaixaMesFiltro] = useState('');
+  const [caixaPrivadoVisivel, setCaixaPrivadoVisivel] = useState(false);
+  const [caixaModalOpen, setCaixaModalOpen] = useState(false);
+  const [caixaDetailItem, setCaixaDetailItem] = useState(null);
+  const [caixaConfigReady, setCaixaConfigReady] = useState(false);
 
   const [formData, setFormData] = useState(INITIAL_FORM_DATA);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    const caixaQuery = query(
+      collection(db, 'artifacts', appId, 'public', 'data', 'caixa_privado'),
+      where('userId', '==', user.uid)
+    );
+    const unsubscribe = onSnapshot(caixaQuery, (snapshot) => {
+      const data = snapshot.docs.map(item => ({ id: item.id, ...item.data() }));
+      setCaixaLancamentos(data);
+    }, (error) => console.error('Erro ao carregar lançamentos do caixa:', error));
+
+    return () => unsubscribe();
+  }, [user?.uid]);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    setCaixaConfigReady(false);
+    const carregarConfig = async () => {
+      try {
+        const snapshot = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'caixa_config', user.uid));
+        const data = snapshot.data() || {};
+        setCaixaCategorias(Array.isArray(data.categorias) && data.categorias.length ? data.categorias : ['Frete', 'Combustível', 'Impostos']);
+        setCaixaFormasPagamento(Array.isArray(data.formasPagamento) && data.formasPagamento.length ? data.formasPagamento : ['Pix', 'Boleto', 'TED']);
+        setCaixaBancos(Array.isArray(data.bancos) && data.bancos.length ? data.bancos : ['Banco do Brasil', 'Itaú', 'Bradesco']);
+        setCaixaClientes(Array.isArray(data.clientes) ? data.clientes : []);
+        setCaixaContratados(Array.isArray(data.contratados) ? data.contratados : []);
+      } catch (error) {
+        console.error('Erro ao carregar configurações do caixa:', error);
+      } finally {
+        setCaixaConfigReady(true);
+      }
+    };
+    carregarConfig();
+  }, [user?.uid]);
+
+  useEffect(() => {
+    if (!user?.uid || !caixaConfigReady) return;
+    const persistirConfig = async () => {
+      try {
+        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'caixa_config', user.uid), {
+          categorias: caixaCategorias,
+          formasPagamento: caixaFormasPagamento,
+          bancos: caixaBancos,
+          clientes: caixaClientes,
+          contratados: caixaContratados,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      } catch (error) {
+        console.error('Erro ao salvar configurações do caixa:', error);
+      }
+    };
+    persistirConfig();
+  }, [caixaCategorias, caixaFormasPagamento, caixaBancos, caixaClientes, caixaContratados, user?.uid, caixaConfigReady]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, setUser);
@@ -280,6 +364,56 @@ function App() {
     const lucroTotal = faturou - gastouDistribuicao;
     return { faturou, gastouDistribuicao, lucroTotal };
   }, [dashboardFinanceiroBase]);
+
+  const caixaResumo = useMemo(() => {
+    return caixaLancamentos.reduce((acc, item) => {
+      const valor = parseFloat(item.valor) || 0;
+      const faturado = parseFloat(item.valorFaturado) || 0;
+      const pago = parseFloat(item.valorPago) || 0;
+
+      if (item.tipo === 'receber') acc.totalReceber += valor;
+      if (item.tipo === 'pagar') acc.totalPagar += valor;
+      if (item.tipo === 'frete') {
+        acc.totalReceber += faturado;
+        acc.totalPagar += pago;
+      }
+      if (item.status === 'pendente') acc.pendentes += 1;
+      if (item.status === 'pago') acc.pagos += 1;
+      return acc;
+    }, { totalReceber: 0, totalPagar: 0, pendentes: 0, pagos: 0 });
+  }, [caixaLancamentos]);
+
+  const caixaSaldoProjetado = caixaResumo.totalReceber - caixaResumo.totalPagar;
+  const caixaMesesReferencia = useMemo(() => {
+    return [...new Set(caixaLancamentos.map(item => item.mesReferencia).filter(Boolean))].sort();
+  }, [caixaLancamentos]);
+
+  const caixaLancamentosFiltrados = useMemo(() => {
+    if (!caixaMesFiltro) return caixaLancamentos;
+    return caixaLancamentos.filter(item => item.mesReferencia === caixaMesFiltro);
+  }, [caixaLancamentos, caixaMesFiltro]);
+  const getCategoriaLancamentoCaixa = (item) => {
+    const categoria = (item?.categoria || '').trim();
+    const categoriaNormalizada = categoria.toLowerCase();
+    if (item?.tipo === 'frete' && (!categoria || categoriaNormalizada === 'sem categoria')) return 'Frete';
+    return categoria || 'Sem categoria';
+  };
+
+  const persistirConfigCaixaNoBanco = async (nextConfig = {}) => {
+    if (!user?.uid) return;
+    try {
+      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'caixa_config', user.uid), {
+        categorias: nextConfig.categorias || caixaCategorias,
+        formasPagamento: nextConfig.formasPagamento || caixaFormasPagamento,
+        bancos: nextConfig.bancos || caixaBancos,
+        clientes: nextConfig.clientes || caixaClientes,
+        contratados: nextConfig.contratados || caixaContratados,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+    } catch (error) {
+      console.error('Erro ao persistir configurações do caixa:', error);
+    }
+  };
 
   const empresasRelatorio = useMemo(() => {
     const empresas = [...new Set(viagens.map(v => v.contratante).filter(Boolean))];
@@ -1547,6 +1681,299 @@ function App() {
     window.open(link, '_blank', 'noopener,noreferrer');
   };
 
+  const limparFormularioCaixa = () => {
+    setCaixaEditingId(null);
+    setCaixaForm({
+      tipo: 'receber',
+      numeroCarga: '',
+      mesReferencia: '',
+      descricao: '',
+      cliente: '',
+      contratado: '',
+      categoria: '',
+      valor: '',
+      valorFaturado: '',
+      valorPago: '',
+      vencimento: '',
+      status: 'pendente',
+      formaPagamento: '',
+      banco: '',
+      observacao: ''
+    });
+  };
+
+  const adicionarOpcaoCaixa = (tipo) => {
+    const nome = window.prompt('Digite o novo item:');
+    const valor = (nome || '').trim();
+    if (!valor) return;
+
+    if (tipo === 'categoria') {
+      const next = caixaCategorias.includes(valor) ? caixaCategorias : [...caixaCategorias, valor];
+      setCaixaCategorias(next);
+      setCaixaForm(prev => ({ ...prev, categoria: valor }));
+      persistirConfigCaixaNoBanco({ categorias: next });
+      return;
+    }
+    if (tipo === 'formaPagamento') {
+      const next = caixaFormasPagamento.includes(valor) ? caixaFormasPagamento : [...caixaFormasPagamento, valor];
+      setCaixaFormasPagamento(next);
+      setCaixaForm(prev => ({ ...prev, formaPagamento: valor }));
+      persistirConfigCaixaNoBanco({ formasPagamento: next });
+      return;
+    }
+    if (tipo === 'banco') {
+      const next = caixaBancos.includes(valor) ? caixaBancos : [...caixaBancos, valor];
+      setCaixaBancos(next);
+      setCaixaForm(prev => ({ ...prev, banco: valor }));
+      persistirConfigCaixaNoBanco({ bancos: next });
+      return;
+    }
+    if (tipo === 'cliente') {
+      const next = caixaClientes.includes(valor) ? caixaClientes : [...caixaClientes, valor];
+      setCaixaClientes(next);
+      setCaixaForm(prev => ({ ...prev, cliente: valor }));
+      persistirConfigCaixaNoBanco({ clientes: next });
+      return;
+    }
+    if (tipo === 'contratado') {
+      const next = caixaContratados.includes(valor) ? caixaContratados : [...caixaContratados, valor];
+      setCaixaContratados(next);
+      setCaixaForm(prev => ({ ...prev, contratado: valor }));
+      persistirConfigCaixaNoBanco({ contratados: next });
+    }
+  };
+
+  const salvarLancamentoCaixa = async (e) => {
+    e.preventDefault();
+    if (!user?.uid) {
+      alert('Usuário não autenticado para salvar no banco de dados.');
+      return;
+    }
+    if (!caixaForm.mesReferencia) {
+      alert('Informe o mês de referência.');
+      return;
+    }
+    if (!(parseFloat(caixaForm.valor) > 0)) {
+      if (caixaForm.tipo !== 'frete') {
+        alert('Informe um valor válido maior que zero.');
+        return;
+      }
+    }
+
+    if (caixaForm.tipo === 'frete') {
+      if (!caixaForm.numeroCarga.trim()) {
+        alert('Informe o número da carga para lançamento de frete.');
+        return;
+      }
+      if (!caixaForm.cliente.trim() || !caixaForm.contratado.trim()) {
+        alert('Informe cliente e contratado para lançamento de frete.');
+        return;
+      }
+      if (!(parseFloat(caixaForm.valorFaturado) > 0)) {
+        alert('Informe o valor faturado do frete.');
+        return;
+      }
+      if (!(parseFloat(caixaForm.valorPago) >= 0)) {
+        alert('Informe o valor pago do frete.');
+        return;
+      }
+      const clienteNovo = caixaForm.cliente.trim();
+      const contratadoNovo = caixaForm.contratado.trim();
+      const nextClientes = caixaClientes.includes(clienteNovo) ? caixaClientes : [...caixaClientes, clienteNovo];
+      const nextContratados = caixaContratados.includes(contratadoNovo) ? caixaContratados : [...caixaContratados, contratadoNovo];
+      setCaixaClientes(nextClientes);
+      setCaixaContratados(nextContratados);
+      await persistirConfigCaixaNoBanco({ clientes: nextClientes, contratados: nextContratados });
+    } else if (!(parseFloat(caixaForm.valor) > 0)) {
+      return;
+    }
+
+    const payload = {
+      ...caixaForm,
+      descricao: caixaForm.descricao.trim(),
+      cliente: caixaForm.cliente.trim(),
+      contratado: caixaForm.contratado.trim(),
+      categoria: caixaForm.tipo === 'frete' ? (caixaForm.categoria.trim() || 'Frete') : caixaForm.categoria.trim(),
+      observacao: caixaForm.observacao.trim(),
+      valor: String(caixaForm.valor),
+      valorFaturado: String(caixaForm.valorFaturado || ''),
+      valorPago: String(caixaForm.valorPago || ''),
+      updatedAt: new Date().toISOString()
+    };
+
+    try {
+      if (caixaEditingId) {
+        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'caixa_privado', caixaEditingId), {
+          ...payload,
+          updatedAt: serverTimestamp()
+        });
+        limparFormularioCaixa();
+        return;
+      }
+
+      await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'caixa_privado'), {
+        ...payload,
+        userId: user.uid,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      limparFormularioCaixa();
+    } catch (error) {
+      console.error('Erro ao salvar lançamento do caixa:', error);
+      alert('Não foi possível salvar o lançamento do caixa.');
+    }
+  };
+
+  const editarLancamentoCaixa = (item) => {
+    if (item.categoria) setCaixaCategorias(prev => prev.includes(item.categoria) ? prev : [...prev, item.categoria]);
+    if (item.formaPagamento) setCaixaFormasPagamento(prev => prev.includes(item.formaPagamento) ? prev : [...prev, item.formaPagamento]);
+    if (item.banco) setCaixaBancos(prev => prev.includes(item.banco) ? prev : [...prev, item.banco]);
+    if (item.cliente) setCaixaClientes(prev => prev.includes(item.cliente) ? prev : [...prev, item.cliente]);
+    if (item.contratado) setCaixaContratados(prev => prev.includes(item.contratado) ? prev : [...prev, item.contratado]);
+    setCaixaEditingId(item.id);
+    setCaixaForm({
+      tipo: item.tipo || 'receber',
+      numeroCarga: item.numeroCarga || '',
+      mesReferencia: item.mesReferencia || '',
+      descricao: item.descricao || '',
+      cliente: item.cliente || '',
+      contratado: item.contratado || '',
+      categoria: item.categoria || '',
+      valor: item.valor || '',
+      valorFaturado: item.valorFaturado || '',
+      valorPago: item.valorPago || '',
+      vencimento: item.vencimento || '',
+      status: item.status || 'pendente',
+      formaPagamento: item.formaPagamento || '',
+      banco: item.banco || '',
+      observacao: item.observacao || ''
+    });
+  };
+
+  const excluirLancamentoCaixa = async (id) => {
+    if (!confirm('Deseja realmente excluir este lançamento do caixa?')) return;
+    try {
+      await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'caixa_privado', id));
+      if (caixaEditingId === id) limparFormularioCaixa();
+    } catch (error) {
+      console.error('Erro ao excluir lançamento do caixa:', error);
+      alert('Não foi possível excluir o lançamento do caixa.');
+    }
+  };
+
+  const selecionarComprovanteCaixa = () => new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = async (event) => {
+      const file = event.target.files?.[0];
+      if (!file) {
+        resolve('');
+        return;
+      }
+      try {
+        const fotoProcessada = await processarFotoComprovante(file);
+        resolve(fotoProcessada);
+      } catch (error) {
+        alert(error?.message || 'Não foi possível processar o comprovante.');
+        resolve('');
+      }
+    };
+    input.click();
+  });
+
+  const atualizarStatusLancamentoCaixa = async (item) => {
+    if (!user?.uid) return;
+    try {
+      if (item.status === 'pago') {
+        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'caixa_privado', item.id), {
+          status: 'pendente',
+          updatedAt: serverTimestamp()
+        });
+        return;
+      }
+
+      const comprovante = await selecionarComprovanteCaixa();
+      if (!comprovante) {
+        alert('Para marcar como pago é obrigatório anexar o comprovante.');
+        return;
+      }
+
+      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'caixa_privado', item.id), {
+        status: 'pago',
+        comprovantePagamento: comprovante,
+        updatedAt: serverTimestamp()
+      });
+    } catch (error) {
+      console.error('Erro ao atualizar status do lançamento:', error);
+      alert('Não foi possível atualizar o status do lançamento.');
+    }
+  };
+
+  const baixarPdfCaixa = () => {
+    const registros = caixaLancamentosFiltrados;
+    if (!registros.length) {
+      alert('Não há lançamentos para o filtro selecionado.');
+      return;
+    }
+
+    const janela = window.open('', '_blank');
+    if (!janela) {
+      alert('Não foi possível abrir a janela de impressão. Verifique o bloqueador de pop-up.');
+      return;
+    }
+
+    const totalReceber = registros.filter(item => item.tipo === 'receber').reduce((acc, curr) => acc + (parseFloat(curr.valor) || 0), 0);
+    const totalPagar = registros.filter(item => item.tipo === 'pagar').reduce((acc, curr) => acc + (parseFloat(curr.valor) || 0), 0);
+    const totalReceberFrete = registros.filter(item => item.tipo === 'frete').reduce((acc, curr) => acc + (parseFloat(curr.valorFaturado) || 0), 0);
+    const totalPagarFrete = registros.filter(item => item.tipo === 'frete').reduce((acc, curr) => acc + (parseFloat(curr.valorPago) || 0), 0);
+    const receberGeral = totalReceber + totalReceberFrete;
+    const pagarGeral = totalPagar + totalPagarFrete;
+    const saldo = receberGeral - pagarGeral;
+    const linhas = registros.map((item) => {
+      const categoriaLabel = getCategoriaLancamentoCaixa(item);
+      return `
+      <tr>
+        <td>${item.mesReferencia || '---'}</td>
+        <td>${item.numeroCarga || '---'}</td>
+        <td>${item.tipo === 'receber' ? 'Receber' : item.tipo === 'pagar' ? 'Pagar' : 'Frete'}</td>
+        <td>${item.descricao || '---'}</td>
+        <td>${item.cliente || '---'}</td>
+        <td>${item.contratado || '---'}</td>
+        <td>${categoriaLabel}</td>
+        <td>${item.formaPagamento || '---'}</td>
+        <td>${item.banco || '---'}</td>
+        <td>${item.vencimento ? new Date(`${item.vencimento}T12:00:00`).toLocaleDateString('pt-BR') : '---'}</td>
+        <td>${item.status === 'pago' ? 'Pago' : 'Pendente'}</td>
+        <td>R$ ${(item.tipo === 'frete' ? (parseFloat(item.valorFaturado) || 0) : (parseFloat(item.valor) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+        <td>R$ ${(item.tipo === 'frete' ? (parseFloat(item.valorPago) || 0) : 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+      </tr>
+    `;
+    }).join('');
+
+    janela.document.write(`
+      <html><head><title>Controle de Caixa</title>
+      <style>
+      body { font-family: Arial, sans-serif; padding: 24px; color: #0f172a; }
+      h1 { margin: 0 0 10px; }
+      .resumo { margin-bottom: 12px; font-size: 12px; }
+      table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+      th, td { border: 1px solid #cbd5e1; padding: 6px; font-size: 11px; text-align: left; }
+      th { background: #f1f5f9; text-transform: uppercase; }
+      </style></head><body>
+      <h1>Controle de Caixa</h1>
+      <div class="resumo">Mês referência: ${caixaMesFiltro || 'Todos'} · Registros: ${registros.length}<br/>
+      Total a receber: R$ ${receberGeral.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} · Total a pagar: R$ ${pagarGeral.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} · Saldo: R$ ${saldo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+      <table>
+      <thead><tr><th>Mês Ref.</th><th>Carga</th><th>Tipo</th><th>Descrição</th><th>Cliente</th><th>Contratado</th><th>Categoria</th><th>Forma Pgto</th><th>Banco</th><th>Venc.</th><th>Status</th><th>Valor Faturado</th><th>Valor Pago</th></tr></thead>
+      <tbody>${linhas}</tbody>
+      </table></body></html>
+    `);
+    janela.document.close();
+    janela.focus();
+    janela.print();
+  };
+
   const novoRegistroLabel = activeTab === 'clientes'
     ? 'Adicionar Cliente'
     : activeTab === 'motoristas'
@@ -1596,7 +2023,7 @@ function App() {
                 Filtro: {statusFilter} <X size={12}/>
               </button>
             )}
-            {(activeTab === 'dashboard' || activeTab === 'viagens' || activeTab === 'financeiro') && (
+            {(activeTab === 'dashboard' || activeTab === 'viagens' || (activeTab === 'financeiro' && financeiroSubTab === 'operacional')) && (
               <label className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-100 text-slate-600 text-[10px] font-black uppercase">
                 <Calendar size={14} />
                 <span>Mês</span>
@@ -1747,12 +2174,119 @@ function App() {
 
           {activeTab === 'financeiro' && (
             <div className="space-y-4 mb-8">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card title="Quanto Faturou" value={`R$ ${financeiroResumo.faturou.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={DollarSign} color="bg-indigo-600" />
-                <Card title="Gasto Distribuição" value={`R$ ${financeiroResumo.gastouDistribuicao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={Truck} color="bg-amber-500" />
-                <Card title="Lucro" value={`R$ ${financeiroResumo.lucroTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={CheckCircle2} color="bg-emerald-600" />
+              <div className="bg-white rounded-2xl border border-slate-200 p-2 inline-flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFinanceiroSubTab('operacional')}
+                  className={`px-4 py-2 rounded-xl text-[11px] font-black uppercase transition-all ${financeiroSubTab === 'operacional' ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' : 'text-slate-500 hover:bg-slate-100'}`}
+                >
+                  Financeiro operacional
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFinanceiroSubTab('caixa')}
+                  className={`px-4 py-2 rounded-xl text-[11px] font-black uppercase transition-all ${financeiroSubTab === 'caixa' ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' : 'text-slate-500 hover:bg-slate-100'}`}
+                >
+                  Controle de caixa
+                </button>
               </div>
 
+              {financeiroSubTab === 'operacional' ? (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Card title="Quanto Faturou" value={`R$ ${financeiroResumo.faturou.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={DollarSign} color="bg-indigo-600" />
+                  <Card title="Gasto Distribuição" value={`R$ ${financeiroResumo.gastouDistribuicao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={Truck} color="bg-amber-500" />
+                  <Card title="Lucro" value={`R$ ${financeiroResumo.lucroTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={CheckCircle2} color="bg-emerald-600" />
+                </div>
+              ) : (
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setCaixaPrivadoVisivel(prev => !prev)}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-black uppercase transition-all"
+                  >
+                    <DollarSign size={14} /> {caixaPrivadoVisivel ? 'Ocultar controle de caixa privado' : 'Mostrar controle de caixa privado'}
+                  </button>
+                  {caixaPrivadoVisivel && (
+                    <button
+                      type="button"
+                      onClick={() => { limparFormularioCaixa(); setCaixaModalOpen(true); }}
+                      className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase transition-all"
+                    >
+                      <Plus size={14} /> Novo lançamento
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'financeiro' && financeiroSubTab === 'caixa' && caixaPrivadoVisivel && (
+            <div className="space-y-4 mt-8">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <Card title="Total a Receber" value={`R$ ${caixaResumo.totalReceber.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={DollarSign} color="bg-indigo-600" />
+                <Card title="Total a Pagar" value={`R$ ${caixaResumo.totalPagar.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={Truck} color="bg-amber-500" />
+                <Card title="Saldo Projetado" value={`R$ ${caixaSaldoProjetado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={CheckCircle2} color="bg-emerald-600" />
+                <Card title="Pendências" value={caixaResumo.pendentes} icon={AlertCircle} color="bg-rose-500" />
+              </div>
+
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                  <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Contas a pagar e receber</h3>
+                  <div className="flex items-center gap-2">
+                    <select className="px-3 py-2 bg-slate-100 rounded-lg text-[10px] font-black uppercase outline-none" value={caixaMesFiltro} onChange={(e) => setCaixaMesFiltro(e.target.value)}>
+                      <option value="">Todos os meses</option>
+                      {caixaMesesReferencia.map(mes => <option key={`mes-${mes}`} value={mes}>{mes}</option>)}
+                    </select>
+                    <button type="button" onClick={baixarPdfCaixa} className="inline-flex items-center gap-1 px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-[10px] font-black uppercase">
+                      <Download size={12} /> PDF
+                    </button>
+                    <span className="text-[10px] font-bold text-slate-400">{caixaLancamentosFiltrados.length} lançamento(s)</span>
+                  </div>
+                </div>
+                <div className="divide-y divide-slate-100">
+                  {caixaLancamentosFiltrados.map(item => (
+                    <div key={item.id} className="px-6 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-black text-slate-800">
+                          Carga: {item.numeroCarga || '---'} · Categoria: {getCategoriaLancamentoCaixa(item)} · Venc: {item.vencimento ? new Date(`${item.vencimento}T12:00:00`).toLocaleDateString('pt-BR') : '---'}
+                        </p>
+                        <p className="text-[10px] font-bold text-slate-500 uppercase">
+                          {getCategoriaLancamentoCaixa(item)} · {item.tipo === 'frete'
+                            ? `Faturado: R$ ${(parseFloat(item.valorFaturado) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} · Pago: R$ ${(parseFloat(item.valorPago) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+                            : `Valor: R$ ${(parseFloat(item.valor) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${item.tipo === 'receber' ? 'bg-emerald-100 text-emerald-700' : item.tipo === 'frete' ? 'bg-indigo-100 text-indigo-700' : 'bg-amber-100 text-amber-700'}`}>{item.tipo === 'receber' ? 'Receber' : item.tipo === 'frete' ? 'Frete' : 'Pagar'}</span>
+                        <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${item.status === 'pago' ? 'bg-blue-100 text-blue-700' : 'bg-rose-100 text-rose-700'}`}>{item.status === 'pago' ? 'Pago' : 'Pendente'}</span>
+                        {(item.comprovantePagamento || '').trim() && (
+                          <button onClick={() => openInNewWindow(item.comprovantePagamento)} className="p-2 text-emerald-500 hover:bg-emerald-50 rounded-lg" title="Ver comprovante">
+                            <Paperclip size={16}/>
+                          </button>
+                        )}
+                        <button onClick={() => atualizarStatusLancamentoCaixa(item)} className="px-3 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-[10px] font-black uppercase text-slate-700">
+                          {item.status === 'pago' ? 'Voltar p/ pendente' : 'Marcar como pago'}
+                        </button>
+                        <button onClick={() => setCaixaDetailItem(item)} className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg" title="Ver dados">
+                          <Eye size={16}/>
+                        </button>
+                        <button onClick={() => { editarLancamentoCaixa(item); setCaixaModalOpen(true); }} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg" title="Editar"><Edit3 size={16}/></button>
+                        <button onClick={() => excluirLancamentoCaixa(item.id)} className="p-2 text-red-400 hover:bg-red-50 rounded-lg" title="Excluir"><Trash2 size={16}/></button>
+                      </div>
+                    </div>
+                  ))}
+                  {!caixaLancamentosFiltrados.length && <p className="px-6 py-6 text-sm font-semibold text-slate-500">Nenhum lançamento no caixa para o filtro selecionado.</p>}
+                </div>
+                <div className="px-6 py-4 border-t border-slate-100 bg-slate-50">
+                  <p className="text-[10px] font-black uppercase text-slate-500">Resumo</p>
+                  <p className="text-sm font-black text-slate-700 mt-1">
+                    Receber: R$ {caixaResumo.totalReceber.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} ·
+                    Pagar: R$ {caixaResumo.totalPagar.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} ·
+                    Saldo projetado: R$ {caixaSaldoProjetado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} ·
+                    Pendências: {caixaResumo.pendentes}
+                  </p>
+                </div>
+              </div>
             </div>
           )}
 
@@ -2071,7 +2605,7 @@ function App() {
 
 
 
-          {activeTab === 'financeiro' && (
+          {activeTab === 'financeiro' && financeiroSubTab === 'operacional' && (
             <div className="space-y-4 mt-8">
               {financeiroAgrupadoPorCarga.map(grupo => {
                 const resumoFrete = grupo.itens.reduce((acc, curr) => acc + (parseFloat(curr.valorFrete) || 0), 0);
@@ -2525,6 +3059,145 @@ function App() {
             <button type="button" onClick={confirmarOrdemCarregamento} className="flex-[2] py-3 bg-blue-600 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all">Gerar PDF da Ordem</button>
           </div>
         </div>
+      </Modal>
+
+      <Modal isOpen={caixaModalOpen} onClose={() => setCaixaModalOpen(false)} title={caixaEditingId ? 'Editar lançamento do caixa' : 'Novo lançamento do caixa'}>
+        <form onSubmit={(e) => { salvarLancamentoCaixa(e); setCaixaModalOpen(false); }} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="space-y-1">
+              <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Tipo</label>
+              <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold uppercase outline-none border border-transparent focus:border-blue-400" value={caixaForm.tipo} onChange={e => setCaixaForm(prev => ({ ...prev, tipo: e.target.value }))}>
+                <option value="receber">Conta a receber</option>
+                <option value="pagar">Conta a pagar</option>
+                <option value="frete">Frete</option>
+              </select>
+            </div>
+            <Input label="Mês de referência" type="month" value={caixaForm.mesReferencia} onChange={value => setCaixaForm(prev => ({ ...prev, mesReferencia: value }))} />
+            {caixaForm.tipo === 'frete' && <Input label="Número da Carga" value={caixaForm.numeroCarga} onChange={value => setCaixaForm(prev => ({ ...prev, numeroCarga: value }))} />}
+            {caixaForm.tipo !== 'frete' && <Input label="Valor (R$)" type="number" value={caixaForm.valor} onChange={value => setCaixaForm(prev => ({ ...prev, valor: value }))} />}
+            {caixaForm.tipo === 'frete' && <Input label="Valor Faturado (R$)" type="number" value={caixaForm.valorFaturado} onChange={value => setCaixaForm(prev => ({ ...prev, valorFaturado: value }))} />}
+            {caixaForm.tipo === 'frete' && <Input label="Valor Pago (R$)" type="number" value={caixaForm.valorPago} onChange={value => setCaixaForm(prev => ({ ...prev, valorPago: value }))} />}
+          </div>
+
+          {caixaForm.tipo === 'frete' && (
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="space-y-1">
+                <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Cliente</label>
+                <div className="flex gap-2">
+                  <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold outline-none border border-transparent focus:border-blue-400" value={caixaForm.cliente} onChange={e => setCaixaForm(prev => ({ ...prev, cliente: e.target.value }))}>
+                    <option value="">Selecionar...</option>
+                    {caixaClientes.map(item => <option key={`modal-cl-${item}`} value={item}>{item}</option>)}
+                  </select>
+                  <button type="button" onClick={() => adicionarOpcaoCaixa('cliente')} className="px-3 rounded-xl bg-slate-200 text-slate-700 text-xs font-black">+</button>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Contratado</label>
+                <div className="flex gap-2">
+                  <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold outline-none border border-transparent focus:border-blue-400" value={caixaForm.contratado} onChange={e => setCaixaForm(prev => ({ ...prev, contratado: e.target.value }))}>
+                    <option value="">Selecionar...</option>
+                    {caixaContratados.map(item => <option key={`modal-ctr-${item}`} value={item}>{item}</option>)}
+                  </select>
+                  <button type="button" onClick={() => adicionarOpcaoCaixa('contratado')} className="px-3 rounded-xl bg-slate-200 text-slate-700 text-xs font-black">+</button>
+                </div>
+              </div>
+              <Input label="Vencimento" type="date" value={caixaForm.vencimento} onChange={value => setCaixaForm(prev => ({ ...prev, vencimento: value }))} />
+              <div className="space-y-1">
+                <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Status</label>
+                <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold uppercase outline-none border border-transparent focus:border-blue-400" value={caixaForm.status} onChange={e => setCaixaForm(prev => ({ ...prev, status: e.target.value }))}>
+                  <option value="pendente">Pendente</option>
+                  <option value="pago">Pago</option>
+                </select>
+              </div>
+            </div>
+          )}
+
+          {caixaForm.tipo !== 'frete' && (
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="space-y-1">
+                <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Categoria</label>
+                <div className="flex gap-2">
+                  <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold outline-none border border-transparent focus:border-blue-400" value={caixaForm.categoria} onChange={e => setCaixaForm(prev => ({ ...prev, categoria: e.target.value }))}>
+                    <option value="">Selecionar...</option>
+                    {caixaCategorias.map(item => <option key={`modal-cat-${item}`} value={item}>{item}</option>)}
+                  </select>
+                  <button type="button" onClick={() => adicionarOpcaoCaixa('categoria')} className="px-3 rounded-xl bg-slate-200 text-slate-700 text-xs font-black">+</button>
+                </div>
+              </div>
+              <Input label="Vencimento" type="date" value={caixaForm.vencimento} onChange={value => setCaixaForm(prev => ({ ...prev, vencimento: value }))} />
+              <div className="space-y-1">
+                <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Status</label>
+                <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold uppercase outline-none border border-transparent focus:border-blue-400" value={caixaForm.status} onChange={e => setCaixaForm(prev => ({ ...prev, status: e.target.value }))}>
+                  <option value="pendente">Pendente</option>
+                  <option value="pago">Pago</option>
+                </select>
+              </div>
+              <div />
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="space-y-1">
+              <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Forma de pagamento</label>
+              <div className="flex gap-2">
+                <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold outline-none border border-transparent focus:border-blue-400" value={caixaForm.formaPagamento} onChange={e => setCaixaForm(prev => ({ ...prev, formaPagamento: e.target.value }))}>
+                  <option value="">Selecionar...</option>
+                  {caixaFormasPagamento.map(item => <option key={`modal-pg-${item}`} value={item}>{item}</option>)}
+                </select>
+                <button type="button" onClick={() => adicionarOpcaoCaixa('formaPagamento')} className="px-3 rounded-xl bg-slate-200 text-slate-700 text-xs font-black">+</button>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Banco</label>
+              <div className="flex gap-2">
+                <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold outline-none border border-transparent focus:border-blue-400" value={caixaForm.banco} onChange={e => setCaixaForm(prev => ({ ...prev, banco: e.target.value }))}>
+                  <option value="">Selecionar...</option>
+                  {caixaBancos.map(item => <option key={`modal-bk-${item}`} value={item}>{item}</option>)}
+                </select>
+                <button type="button" onClick={() => adicionarOpcaoCaixa('banco')} className="px-3 rounded-xl bg-slate-200 text-slate-700 text-xs font-black">+</button>
+              </div>
+            </div>
+            <div className="md:col-span-2">
+              <Input label="Observação" value={caixaForm.observacao} onChange={value => setCaixaForm(prev => ({ ...prev, observacao: value }))} />
+            </div>
+          </div>
+
+          <div className="flex gap-3 pt-6 border-t border-slate-100">
+            <button type="button" onClick={() => { setCaixaModalOpen(false); limparFormularioCaixa(); }} className="flex-1 py-3 text-xs font-black uppercase text-slate-400 hover:text-slate-600 transition-colors">Cancelar</button>
+            <button type="submit" className="flex-[2] py-3 bg-blue-600 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all">{caixaEditingId ? 'Salvar alterações' : 'Adicionar lançamento'}</button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal isOpen={!!caixaDetailItem} onClose={() => setCaixaDetailItem(null)} title="Dados do lançamento do caixa">
+        {caixaDetailItem && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            <Info label="Tipo" value={caixaDetailItem.tipo || ''} />
+            <Info label="Status" value={caixaDetailItem.status || ''} />
+            <Info label="Número da Carga" value={caixaDetailItem.numeroCarga || ''} />
+            <Info label="Mês de Referência" value={caixaDetailItem.mesReferencia || ''} />
+            <Info label="Categoria" value={getCategoriaLancamentoCaixa(caixaDetailItem)} />
+            <Info label="Cliente" value={caixaDetailItem.cliente || ''} />
+            <Info label="Contratado" value={caixaDetailItem.contratado || ''} />
+            <Info label="Vencimento" value={caixaDetailItem.vencimento ? new Date(`${caixaDetailItem.vencimento}T12:00:00`).toLocaleDateString('pt-BR') : ''} />
+            <Info label="Valor" value={caixaDetailItem.valor ? `R$ ${(parseFloat(caixaDetailItem.valor) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : ''} />
+            <Info label="Valor Faturado" value={caixaDetailItem.valorFaturado ? `R$ ${(parseFloat(caixaDetailItem.valorFaturado) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : ''} />
+            <Info label="Valor Pago" value={caixaDetailItem.valorPago ? `R$ ${(parseFloat(caixaDetailItem.valorPago) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : ''} />
+            <Info label="Forma de pagamento" value={caixaDetailItem.formaPagamento || ''} />
+            <Info label="Banco" value={caixaDetailItem.banco || ''} />
+            <Info label="Observação" value={caixaDetailItem.observacao || ''} />
+            <div className="md:col-span-2">
+              <Info label="Comprovante" value={caixaDetailItem.comprovantePagamento ? 'Anexado' : 'Sem comprovante'} />
+              {caixaDetailItem.comprovantePagamento && (
+                <div className="mt-2">
+                  <a href={caixaDetailItem.comprovantePagamento} target="_blank" rel="noreferrer" onClick={(e) => { e.preventDefault(); openInNewWindow(caixaDetailItem.comprovantePagamento); }} className="inline-flex items-center gap-1 px-3 py-2 rounded-lg bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase">
+                    Abrir comprovante <ExternalLink size={12} />
+                  </a>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </Modal>
 
       <Modal isOpen={!!detailItem} onClose={() => setDetailItem(null)} title="Detalhes da Carga">
