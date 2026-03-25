@@ -1789,6 +1789,42 @@ function App() {
     if (caixaEditingId === id) limparFormularioCaixa();
   };
 
+  const selecionarComprovanteCaixa = () => new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = async (event) => {
+      const file = event.target.files?.[0];
+      if (!file) {
+        resolve('');
+        return;
+      }
+      try {
+        const fotoProcessada = await processarFotoComprovante(file);
+        resolve(fotoProcessada);
+      } catch (error) {
+        alert(error?.message || 'Não foi possível processar o comprovante.');
+        resolve('');
+      }
+    };
+    input.click();
+  });
+
+  const atualizarStatusLancamentoCaixa = async (item) => {
+    if (item.status === 'pago') {
+      setCaixaLancamentos(prev => prev.map(reg => reg.id === item.id ? { ...reg, status: 'pendente' } : reg));
+      return;
+    }
+
+    const comprovante = await selecionarComprovanteCaixa();
+    if (!comprovante) {
+      alert('Para marcar como pago é obrigatório anexar o comprovante.');
+      return;
+    }
+
+    setCaixaLancamentos(prev => prev.map(reg => reg.id === item.id ? { ...reg, status: 'pago', comprovantePagamento: comprovante } : reg));
+  };
+
   const baixarPdfCaixa = () => {
     const registros = caixaLancamentosFiltrados;
     if (!registros.length) {
@@ -2124,17 +2160,25 @@ function App() {
                     <div key={item.id} className="px-6 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
                       <div>
                         <p className="text-sm font-black text-slate-800">
-                          {item.categoria || 'Sem categoria'} · {item.tipo === 'frete'
-                            ? `Faturado: R$ ${(parseFloat(item.valorFaturado) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} · Pago: R$ ${(parseFloat(item.valorPago) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
-                            : `R$ ${(parseFloat(item.valor) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                          Carga: {item.numeroCarga || '---'} · Ref: {item.mesReferencia || '---'} · Cliente: {item.cliente || '---'} · Contratado: {item.contratado || '---'} · {item.categoria || 'Sem categoria'} · {item.formaPagamento || 'Sem forma'} · Banco: {item.banco || '---'} · Venc: {item.vencimento ? new Date(`${item.vencimento}T12:00:00`).toLocaleDateString('pt-BR') : '---'}
                         </p>
                         <p className="text-[10px] font-bold text-slate-500 uppercase">
-                          Carga: {item.numeroCarga || '---'} · Ref: {item.mesReferencia || '---'} · Cliente: {item.cliente || '---'} · Contratado: {item.contratado || '---'} · {item.categoria || 'Sem categoria'} · {item.formaPagamento || 'Sem forma'} · Banco: {item.banco || '---'} · Venc: {item.vencimento ? new Date(`${item.vencimento}T12:00:00`).toLocaleDateString('pt-BR') : '---'}
+                          {item.categoria || 'Sem categoria'} · {item.tipo === 'frete'
+                            ? `Faturado: R$ ${(parseFloat(item.valorFaturado) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} · Pago: R$ ${(parseFloat(item.valorPago) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+                            : `Valor: R$ ${(parseFloat(item.valor) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${item.tipo === 'receber' ? 'bg-emerald-100 text-emerald-700' : item.tipo === 'frete' ? 'bg-indigo-100 text-indigo-700' : 'bg-amber-100 text-amber-700'}`}>{item.tipo === 'receber' ? 'Receber' : item.tipo === 'frete' ? 'Frete' : 'Pagar'}</span>
                         <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${item.status === 'pago' ? 'bg-blue-100 text-blue-700' : 'bg-rose-100 text-rose-700'}`}>{item.status === 'pago' ? 'Pago' : 'Pendente'}</span>
+                        {(item.comprovantePagamento || '').trim() && (
+                          <button onClick={() => openInNewWindow(item.comprovantePagamento)} className="p-2 text-emerald-500 hover:bg-emerald-50 rounded-lg" title="Ver comprovante">
+                            <Paperclip size={16}/>
+                          </button>
+                        )}
+                        <button onClick={() => atualizarStatusLancamentoCaixa(item)} className="px-3 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-[10px] font-black uppercase text-slate-700">
+                          {item.status === 'pago' ? 'Voltar p/ pendente' : 'Marcar como pago'}
+                        </button>
                         <button onClick={() => { editarLancamentoCaixa(item); setCaixaModalOpen(true); }} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg" title="Editar"><Edit3 size={16}/></button>
                         <button onClick={() => excluirLancamentoCaixa(item.id)} className="p-2 text-red-400 hover:bg-red-50 rounded-lg" title="Excluir"><Trash2 size={16}/></button>
                       </div>
