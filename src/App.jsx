@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
-import { collection, doc, addDoc, onSnapshot, updateDoc, deleteDoc, serverTimestamp, query, setDoc } from 'firebase/firestore';
+import { collection, doc, addDoc, onSnapshot, updateDoc, deleteDoc, serverTimestamp, query, setDoc, where, getDoc } from 'firebase/firestore';
 import { 
   LayoutDashboard, Truck, Users, DollarSign, Plus, Package, MapPin, X, Trash2, 
   Briefcase, LogOut, Lock, Mail, Clock, FileText, Search, Calendar, Layers, 
@@ -125,42 +125,54 @@ function App() {
 
   useEffect(() => {
     if (!user?.uid) return;
-    const storageKey = `cargofy_caixa_privado_${user.uid}`;
-    try {
-      const cache = localStorage.getItem(storageKey);
-      if (!cache) {
-        setCaixaLancamentos([]);
-        return;
-      }
-      const parsed = JSON.parse(cache);
-      if (Array.isArray(parsed)) {
-        setCaixaLancamentos(parsed);
-        return;
-      }
-      setCaixaLancamentos(Array.isArray(parsed?.lancamentos) ? parsed.lancamentos : []);
-      setCaixaCategorias(Array.isArray(parsed?.categorias) && parsed.categorias.length ? parsed.categorias : ['Frete', 'Combustível', 'Impostos']);
-      setCaixaFormasPagamento(Array.isArray(parsed?.formasPagamento) && parsed.formasPagamento.length ? parsed.formasPagamento : ['Pix', 'Boleto', 'TED']);
-      setCaixaBancos(Array.isArray(parsed?.bancos) && parsed.bancos.length ? parsed.bancos : ['Banco do Brasil', 'Itaú', 'Bradesco']);
-      setCaixaClientes(Array.isArray(parsed?.clientes) ? parsed.clientes : []);
-      setCaixaContratados(Array.isArray(parsed?.contratados) ? parsed.contratados : []);
-    } catch (error) {
-      console.error('Erro ao carregar controle de caixa local:', error);
-      setCaixaLancamentos([]);
-    }
+    const caixaQuery = query(
+      collection(db, 'artifacts', appId, 'public', 'data', 'caixa_privado'),
+      where('userId', '==', user.uid)
+    );
+    const unsubscribe = onSnapshot(caixaQuery, (snapshot) => {
+      const data = snapshot.docs.map(item => ({ id: item.id, ...item.data() }));
+      setCaixaLancamentos(data);
+    }, (error) => console.error('Erro ao carregar lançamentos do caixa:', error));
+
+    return () => unsubscribe();
   }, [user?.uid]);
 
   useEffect(() => {
     if (!user?.uid) return;
-    const storageKey = `cargofy_caixa_privado_${user.uid}`;
-    localStorage.setItem(storageKey, JSON.stringify({
-      lancamentos: caixaLancamentos,
-      categorias: caixaCategorias,
-      formasPagamento: caixaFormasPagamento,
-      bancos: caixaBancos,
-      clientes: caixaClientes,
-      contratados: caixaContratados
-    }));
-  }, [caixaLancamentos, caixaCategorias, caixaFormasPagamento, caixaBancos, caixaClientes, caixaContratados, user?.uid]);
+    const carregarConfig = async () => {
+      try {
+        const snapshot = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'caixa_config', user.uid));
+        const data = snapshot.data() || {};
+        setCaixaCategorias(Array.isArray(data.categorias) && data.categorias.length ? data.categorias : ['Frete', 'Combustível', 'Impostos']);
+        setCaixaFormasPagamento(Array.isArray(data.formasPagamento) && data.formasPagamento.length ? data.formasPagamento : ['Pix', 'Boleto', 'TED']);
+        setCaixaBancos(Array.isArray(data.bancos) && data.bancos.length ? data.bancos : ['Banco do Brasil', 'Itaú', 'Bradesco']);
+        setCaixaClientes(Array.isArray(data.clientes) ? data.clientes : []);
+        setCaixaContratados(Array.isArray(data.contratados) ? data.contratados : []);
+      } catch (error) {
+        console.error('Erro ao carregar configurações do caixa:', error);
+      }
+    };
+    carregarConfig();
+  }, [user?.uid]);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    const persistirConfig = async () => {
+      try {
+        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'caixa_config', user.uid), {
+          categorias: caixaCategorias,
+          formasPagamento: caixaFormasPagamento,
+          bancos: caixaBancos,
+          clientes: caixaClientes,
+          contratados: caixaContratados,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      } catch (error) {
+        console.error('Erro ao salvar configurações do caixa:', error);
+      }
+    };
+    persistirConfig();
+  }, [caixaCategorias, caixaFormasPagamento, caixaBancos, caixaClientes, caixaContratados, user?.uid]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, setUser);
@@ -1701,8 +1713,12 @@ function App() {
     }
   };
 
-  const salvarLancamentoCaixa = (e) => {
+  const salvarLancamentoCaixa = async (e) => {
     e.preventDefault();
+    if (!user?.uid) {
+      alert('Usuário não autenticado para salvar no banco de dados.');
+      return;
+    }
     if (!caixaForm.mesReferencia) {
       alert('Informe o mês de referência.');
       return;
@@ -1750,18 +1766,27 @@ function App() {
       updatedAt: new Date().toISOString()
     };
 
-    if (caixaEditingId) {
-      setCaixaLancamentos(prev => prev.map(item => item.id === caixaEditingId ? { ...item, ...payload } : item));
-      limparFormularioCaixa();
-      return;
-    }
+    try {
+      if (caixaEditingId) {
+        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'caixa_privado', caixaEditingId), {
+          ...payload,
+          updatedAt: serverTimestamp()
+        });
+        limparFormularioCaixa();
+        return;
+      }
 
-    setCaixaLancamentos(prev => [{
-      id: `cx_${Date.now()}`,
-      ...payload,
-      createdAt: new Date().toISOString()
-    }, ...prev]);
-    limparFormularioCaixa();
+      await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'caixa_privado'), {
+        ...payload,
+        userId: user.uid,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      limparFormularioCaixa();
+    } catch (error) {
+      console.error('Erro ao salvar lançamento do caixa:', error);
+      alert('Não foi possível salvar o lançamento do caixa.');
+    }
   };
 
   const editarLancamentoCaixa = (item) => {
@@ -1790,10 +1815,15 @@ function App() {
     });
   };
 
-  const excluirLancamentoCaixa = (id) => {
+  const excluirLancamentoCaixa = async (id) => {
     if (!confirm('Deseja realmente excluir este lançamento do caixa?')) return;
-    setCaixaLancamentos(prev => prev.filter(item => item.id !== id));
-    if (caixaEditingId === id) limparFormularioCaixa();
+    try {
+      await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'caixa_privado', id));
+      if (caixaEditingId === id) limparFormularioCaixa();
+    } catch (error) {
+      console.error('Erro ao excluir lançamento do caixa:', error);
+      alert('Não foi possível excluir o lançamento do caixa.');
+    }
   };
 
   const selecionarComprovanteCaixa = () => new Promise((resolve) => {
@@ -1818,18 +1848,31 @@ function App() {
   });
 
   const atualizarStatusLancamentoCaixa = async (item) => {
-    if (item.status === 'pago') {
-      setCaixaLancamentos(prev => prev.map(reg => reg.id === item.id ? { ...reg, status: 'pendente' } : reg));
-      return;
-    }
+    if (!user?.uid) return;
+    try {
+      if (item.status === 'pago') {
+        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'caixa_privado', item.id), {
+          status: 'pendente',
+          updatedAt: serverTimestamp()
+        });
+        return;
+      }
 
-    const comprovante = await selecionarComprovanteCaixa();
-    if (!comprovante) {
-      alert('Para marcar como pago é obrigatório anexar o comprovante.');
-      return;
-    }
+      const comprovante = await selecionarComprovanteCaixa();
+      if (!comprovante) {
+        alert('Para marcar como pago é obrigatório anexar o comprovante.');
+        return;
+      }
 
-    setCaixaLancamentos(prev => prev.map(reg => reg.id === item.id ? { ...reg, status: 'pago', comprovantePagamento: comprovante } : reg));
+      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'caixa_privado', item.id), {
+        status: 'pago',
+        comprovantePagamento: comprovante,
+        updatedAt: serverTimestamp()
+      });
+    } catch (error) {
+      console.error('Erro ao atualizar status do lançamento:', error);
+      alert('Não foi possível atualizar o status do lançamento.');
+    }
   };
 
   const baixarPdfCaixa = () => {
