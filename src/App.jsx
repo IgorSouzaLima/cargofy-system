@@ -376,6 +376,12 @@ function App() {
     if (!caixaMesFiltro) return caixaLancamentos;
     return caixaLancamentos.filter(item => item.mesReferencia === caixaMesFiltro);
   }, [caixaLancamentos, caixaMesFiltro]);
+  const getCategoriaLancamentoCaixa = (item) => {
+    const categoria = (item?.categoria || '').trim();
+    const categoriaNormalizada = categoria.toLowerCase();
+    if (item?.tipo === 'frete' && (!categoria || categoriaNormalizada === 'sem categoria')) return 'Frete';
+    return categoria || 'Sem categoria';
+  };
 
   const empresasRelatorio = useMemo(() => {
     const empresas = [...new Set(viagens.map(v => v.contratante).filter(Boolean))];
@@ -1846,7 +1852,9 @@ function App() {
     const receberGeral = totalReceber + totalReceberFrete;
     const pagarGeral = totalPagar + totalPagarFrete;
     const saldo = receberGeral - pagarGeral;
-    const linhas = registros.map((item) => `
+    const linhas = registros.map((item) => {
+      const categoriaLabel = getCategoriaLancamentoCaixa(item);
+      return `
       <tr>
         <td>${item.mesReferencia || '---'}</td>
         <td>${item.numeroCarga || '---'}</td>
@@ -1854,7 +1862,7 @@ function App() {
         <td>${item.descricao || '---'}</td>
         <td>${item.cliente || '---'}</td>
         <td>${item.contratado || '---'}</td>
-        <td>${item.categoria || '---'}</td>
+        <td>${categoriaLabel}</td>
         <td>${item.formaPagamento || '---'}</td>
         <td>${item.banco || '---'}</td>
         <td>${item.vencimento ? new Date(`${item.vencimento}T12:00:00`).toLocaleDateString('pt-BR') : '---'}</td>
@@ -1862,7 +1870,8 @@ function App() {
         <td>R$ ${(item.tipo === 'frete' ? (parseFloat(item.valorFaturado) || 0) : (parseFloat(item.valor) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
         <td>R$ ${(item.tipo === 'frete' ? (parseFloat(item.valorPago) || 0) : 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
       </tr>
-    `).join('');
+    `;
+    }).join('');
 
     janela.document.write(`
       <html><head><title>Controle de Caixa</title>
@@ -2161,10 +2170,10 @@ function App() {
                     <div key={item.id} className="px-6 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
                       <div>
                         <p className="text-sm font-black text-slate-800">
-                          Carga: {item.numeroCarga || '---'} · Categoria: {item.categoria || (item.tipo === 'frete' ? 'Frete' : 'Sem categoria')} · Venc: {item.vencimento ? new Date(`${item.vencimento}T12:00:00`).toLocaleDateString('pt-BR') : '---'}
+                          Carga: {item.numeroCarga || '---'} · Categoria: {getCategoriaLancamentoCaixa(item)} · Venc: {item.vencimento ? new Date(`${item.vencimento}T12:00:00`).toLocaleDateString('pt-BR') : '---'}
                         </p>
                         <p className="text-[10px] font-bold text-slate-500 uppercase">
-                          {(item.categoria || (item.tipo === 'frete' ? 'Frete' : 'Sem categoria'))} · {item.tipo === 'frete'
+                          {getCategoriaLancamentoCaixa(item)} · {item.tipo === 'frete'
                             ? `Faturado: R$ ${(parseFloat(item.valorFaturado) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} · Pago: R$ ${(parseFloat(item.valorPago) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
                             : `Valor: R$ ${(parseFloat(item.valor) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
                         </p>
@@ -3089,7 +3098,7 @@ function App() {
             <Info label="Status" value={caixaDetailItem.status || ''} />
             <Info label="Número da Carga" value={caixaDetailItem.numeroCarga || ''} />
             <Info label="Mês de Referência" value={caixaDetailItem.mesReferencia || ''} />
-            <Info label="Categoria" value={caixaDetailItem.categoria || (caixaDetailItem.tipo === 'frete' ? 'Frete' : '')} />
+            <Info label="Categoria" value={getCategoriaLancamentoCaixa(caixaDetailItem)} />
             <Info label="Cliente" value={caixaDetailItem.cliente || ''} />
             <Info label="Contratado" value={caixaDetailItem.contratado || ''} />
             <Info label="Vencimento" value={caixaDetailItem.vencimento ? new Date(`${caixaDetailItem.vencimento}T12:00:00`).toLocaleDateString('pt-BR') : ''} />
