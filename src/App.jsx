@@ -111,6 +111,8 @@ function App() {
   const [caixaFormasPagamento, setCaixaFormasPagamento] = useState(['Pix', 'Boleto', 'TED']);
   const [caixaBancos, setCaixaBancos] = useState(['Banco do Brasil', 'Itaú', 'Bradesco']);
   const [caixaMesFiltro, setCaixaMesFiltro] = useState('');
+  const [caixaPrivadoVisivel, setCaixaPrivadoVisivel] = useState(false);
+  const [caixaModalOpen, setCaixaModalOpen] = useState(false);
 
   const [formData, setFormData] = useState(INITIAL_FORM_DATA);
 
@@ -2003,89 +2005,35 @@ function App() {
                   <Card title="Lucro" value={`R$ ${financeiroResumo.lucroTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={CheckCircle2} color="bg-emerald-600" />
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <Card title="Total a Receber" value={`R$ ${caixaResumo.totalReceber.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={DollarSign} color="bg-indigo-600" />
-                  <Card title="Total a Pagar" value={`R$ ${caixaResumo.totalPagar.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={Truck} color="bg-amber-500" />
-                  <Card title="Saldo Projetado" value={`R$ ${caixaSaldoProjetado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={CheckCircle2} color="bg-emerald-600" />
-                  <Card title="Pendências" value={caixaResumo.pendentes} icon={AlertCircle} color="bg-rose-500" />
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setCaixaPrivadoVisivel(prev => !prev)}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-black uppercase transition-all"
+                  >
+                    <DollarSign size={14} /> {caixaPrivadoVisivel ? 'Ocultar controle de caixa privado' : 'Mostrar controle de caixa privado'}
+                  </button>
+                  {caixaPrivadoVisivel && (
+                    <button
+                      type="button"
+                      onClick={() => { limparFormularioCaixa(); setCaixaModalOpen(true); }}
+                      className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase transition-all"
+                    >
+                      <Plus size={14} /> Novo lançamento
+                    </button>
+                  )}
                 </div>
               )}
             </div>
           )}
 
-          {activeTab === 'financeiro' && financeiroSubTab === 'caixa' && (
+          {activeTab === 'financeiro' && financeiroSubTab === 'caixa' && caixaPrivadoVisivel && (
             <div className="space-y-4 mt-8">
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-                <div className="mb-4">
-                  <h3 className="text-xs font-black text-slate-600 uppercase tracking-widest">Controle de caixa privado</h3>
-                  <p className="text-xs font-semibold text-slate-500">Este submenu é independente das viagens e do financeiro operacional.</p>
-                </div>
-                <form onSubmit={salvarLancamentoCaixa} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Tipo</label>
-                      <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold uppercase outline-none border border-transparent focus:border-blue-400" value={caixaForm.tipo} onChange={e => setCaixaForm(prev => ({ ...prev, tipo: e.target.value }))}>
-                        <option value="receber">Conta a receber</option>
-                        <option value="pagar">Conta a pagar</option>
-                      </select>
-                    </div>
-                    <Input label="Número da Carga" value={caixaForm.numeroCarga} onChange={value => setCaixaForm(prev => ({ ...prev, numeroCarga: value }))} />
-                    <Input label="Mês de referência" type="month" value={caixaForm.mesReferencia} onChange={value => setCaixaForm(prev => ({ ...prev, mesReferencia: value }))} />
-                    <Input label="Descrição" value={caixaForm.descricao} onChange={value => setCaixaForm(prev => ({ ...prev, descricao: value }))} />
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Categoria</label>
-                      <div className="flex gap-2">
-                        <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold outline-none border border-transparent focus:border-blue-400" value={caixaForm.categoria} onChange={e => setCaixaForm(prev => ({ ...prev, categoria: e.target.value }))}>
-                          <option value="">Selecionar...</option>
-                          {caixaCategorias.map(item => <option key={`cat-${item}`} value={item}>{item}</option>)}
-                        </select>
-                        <button type="button" onClick={() => adicionarOpcaoCaixa('categoria')} className="px-3 rounded-xl bg-slate-200 text-slate-700 text-xs font-black">+</button>
-                      </div>
-                    </div>
-                    <Input label="Valor (R$)" type="number" value={caixaForm.valor} onChange={value => setCaixaForm(prev => ({ ...prev, valor: value }))} />
-                    <Input label="Vencimento" type="date" value={caixaForm.vencimento} onChange={value => setCaixaForm(prev => ({ ...prev, vencimento: value }))} />
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Status</label>
-                      <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold uppercase outline-none border border-transparent focus:border-blue-400" value={caixaForm.status} onChange={e => setCaixaForm(prev => ({ ...prev, status: e.target.value }))}>
-                        <option value="pendente">Pendente</option>
-                        <option value="pago">Pago</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Forma de pagamento</label>
-                      <div className="flex gap-2">
-                        <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold outline-none border border-transparent focus:border-blue-400" value={caixaForm.formaPagamento} onChange={e => setCaixaForm(prev => ({ ...prev, formaPagamento: e.target.value }))}>
-                          <option value="">Selecionar...</option>
-                          {caixaFormasPagamento.map(item => <option key={`pg-${item}`} value={item}>{item}</option>)}
-                        </select>
-                        <button type="button" onClick={() => adicionarOpcaoCaixa('formaPagamento')} className="px-3 rounded-xl bg-slate-200 text-slate-700 text-xs font-black">+</button>
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Banco</label>
-                      <div className="flex gap-2">
-                        <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold outline-none border border-transparent focus:border-blue-400" value={caixaForm.banco} onChange={e => setCaixaForm(prev => ({ ...prev, banco: e.target.value }))}>
-                          <option value="">Selecionar...</option>
-                          {caixaBancos.map(item => <option key={`bk-${item}`} value={item}>{item}</option>)}
-                        </select>
-                        <button type="button" onClick={() => adicionarOpcaoCaixa('banco')} className="px-3 rounded-xl bg-slate-200 text-slate-700 text-xs font-black">+</button>
-                      </div>
-                    </div>
-                    <div className="md:col-span-2">
-                      <Input label="Observação" value={caixaForm.observacao} onChange={value => setCaixaForm(prev => ({ ...prev, observacao: value }))} />
-                    </div>
-                  </div>
-                  <div className="flex gap-3 justify-end">
-                    <button type="button" onClick={limparFormularioCaixa} className="px-4 py-2 rounded-xl text-xs font-black uppercase text-slate-500 hover:bg-slate-100">Limpar</button>
-                    <button type="submit" className="px-4 py-2 rounded-xl text-xs font-black uppercase bg-blue-600 text-white hover:bg-blue-700">
-                      {caixaEditingId ? 'Atualizar lançamento' : 'Adicionar lançamento'}
-                    </button>
-                  </div>
-                </form>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <Card title="Total a Receber" value={`R$ ${caixaResumo.totalReceber.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={DollarSign} color="bg-indigo-600" />
+                <Card title="Total a Pagar" value={`R$ ${caixaResumo.totalPagar.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={Truck} color="bg-amber-500" />
+                <Card title="Saldo Projetado" value={`R$ ${caixaSaldoProjetado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} icon={CheckCircle2} color="bg-emerald-600" />
+                <Card title="Pendências" value={caixaResumo.pendentes} icon={AlertCircle} color="bg-rose-500" />
               </div>
 
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -2112,12 +2060,21 @@ function App() {
                       <div className="flex items-center gap-2">
                         <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${item.tipo === 'receber' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{item.tipo === 'receber' ? 'Receber' : 'Pagar'}</span>
                         <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${item.status === 'pago' ? 'bg-blue-100 text-blue-700' : 'bg-rose-100 text-rose-700'}`}>{item.status === 'pago' ? 'Pago' : 'Pendente'}</span>
-                        <button onClick={() => editarLancamentoCaixa(item)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg" title="Editar"><Edit3 size={16}/></button>
+                        <button onClick={() => { editarLancamentoCaixa(item); setCaixaModalOpen(true); }} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg" title="Editar"><Edit3 size={16}/></button>
                         <button onClick={() => excluirLancamentoCaixa(item.id)} className="p-2 text-red-400 hover:bg-red-50 rounded-lg" title="Excluir"><Trash2 size={16}/></button>
                       </div>
                     </div>
                   ))}
                   {!caixaLancamentosFiltrados.length && <p className="px-6 py-6 text-sm font-semibold text-slate-500">Nenhum lançamento no caixa para o filtro selecionado.</p>}
+                </div>
+                <div className="px-6 py-4 border-t border-slate-100 bg-slate-50">
+                  <p className="text-[10px] font-black uppercase text-slate-500">Resumo</p>
+                  <p className="text-sm font-black text-slate-700 mt-1">
+                    Receber: R$ {caixaResumo.totalReceber.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} ·
+                    Pagar: R$ {caixaResumo.totalPagar.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} ·
+                    Saldo projetado: R$ {caixaSaldoProjetado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} ·
+                    Pendências: {caixaResumo.pendentes}
+                  </p>
                 </div>
               </div>
             </div>
@@ -2892,6 +2849,76 @@ function App() {
             <button type="button" onClick={confirmarOrdemCarregamento} className="flex-[2] py-3 bg-blue-600 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all">Gerar PDF da Ordem</button>
           </div>
         </div>
+      </Modal>
+
+      <Modal isOpen={caixaModalOpen} onClose={() => setCaixaModalOpen(false)} title={caixaEditingId ? 'Editar lançamento do caixa' : 'Novo lançamento do caixa'}>
+        <form onSubmit={(e) => { salvarLancamentoCaixa(e); setCaixaModalOpen(false); }} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="space-y-1">
+              <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Tipo</label>
+              <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold uppercase outline-none border border-transparent focus:border-blue-400" value={caixaForm.tipo} onChange={e => setCaixaForm(prev => ({ ...prev, tipo: e.target.value }))}>
+                <option value="receber">Conta a receber</option>
+                <option value="pagar">Conta a pagar</option>
+              </select>
+            </div>
+            <Input label="Número da Carga" value={caixaForm.numeroCarga} onChange={value => setCaixaForm(prev => ({ ...prev, numeroCarga: value }))} />
+            <Input label="Mês de referência" type="month" value={caixaForm.mesReferencia} onChange={value => setCaixaForm(prev => ({ ...prev, mesReferencia: value }))} />
+            <Input label="Descrição" value={caixaForm.descricao} onChange={value => setCaixaForm(prev => ({ ...prev, descricao: value }))} />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="space-y-1">
+              <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Categoria</label>
+              <div className="flex gap-2">
+                <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold outline-none border border-transparent focus:border-blue-400" value={caixaForm.categoria} onChange={e => setCaixaForm(prev => ({ ...prev, categoria: e.target.value }))}>
+                  <option value="">Selecionar...</option>
+                  {caixaCategorias.map(item => <option key={`modal-cat-${item}`} value={item}>{item}</option>)}
+                </select>
+                <button type="button" onClick={() => adicionarOpcaoCaixa('categoria')} className="px-3 rounded-xl bg-slate-200 text-slate-700 text-xs font-black">+</button>
+              </div>
+            </div>
+            <Input label="Valor (R$)" type="number" value={caixaForm.valor} onChange={value => setCaixaForm(prev => ({ ...prev, valor: value }))} />
+            <Input label="Vencimento" type="date" value={caixaForm.vencimento} onChange={value => setCaixaForm(prev => ({ ...prev, vencimento: value }))} />
+            <div className="space-y-1">
+              <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Status</label>
+              <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold uppercase outline-none border border-transparent focus:border-blue-400" value={caixaForm.status} onChange={e => setCaixaForm(prev => ({ ...prev, status: e.target.value }))}>
+                <option value="pendente">Pendente</option>
+                <option value="pago">Pago</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="space-y-1">
+              <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Forma de pagamento</label>
+              <div className="flex gap-2">
+                <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold outline-none border border-transparent focus:border-blue-400" value={caixaForm.formaPagamento} onChange={e => setCaixaForm(prev => ({ ...prev, formaPagamento: e.target.value }))}>
+                  <option value="">Selecionar...</option>
+                  {caixaFormasPagamento.map(item => <option key={`modal-pg-${item}`} value={item}>{item}</option>)}
+                </select>
+                <button type="button" onClick={() => adicionarOpcaoCaixa('formaPagamento')} className="px-3 rounded-xl bg-slate-200 text-slate-700 text-xs font-black">+</button>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Banco</label>
+              <div className="flex gap-2">
+                <select className="w-full p-3 bg-slate-100 rounded-xl text-sm font-bold outline-none border border-transparent focus:border-blue-400" value={caixaForm.banco} onChange={e => setCaixaForm(prev => ({ ...prev, banco: e.target.value }))}>
+                  <option value="">Selecionar...</option>
+                  {caixaBancos.map(item => <option key={`modal-bk-${item}`} value={item}>{item}</option>)}
+                </select>
+                <button type="button" onClick={() => adicionarOpcaoCaixa('banco')} className="px-3 rounded-xl bg-slate-200 text-slate-700 text-xs font-black">+</button>
+              </div>
+            </div>
+            <div className="md:col-span-2">
+              <Input label="Observação" value={caixaForm.observacao} onChange={value => setCaixaForm(prev => ({ ...prev, observacao: value }))} />
+            </div>
+          </div>
+
+          <div className="flex gap-3 pt-6 border-t border-slate-100">
+            <button type="button" onClick={() => { setCaixaModalOpen(false); limparFormularioCaixa(); }} className="flex-1 py-3 text-xs font-black uppercase text-slate-400 hover:text-slate-600 transition-colors">Cancelar</button>
+            <button type="submit" className="flex-[2] py-3 bg-blue-600 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all">{caixaEditingId ? 'Salvar alterações' : 'Adicionar lançamento'}</button>
+          </div>
+        </form>
       </Modal>
 
       <Modal isOpen={!!detailItem} onClose={() => setDetailItem(null)} title="Detalhes da Carga">
