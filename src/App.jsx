@@ -120,6 +120,7 @@ function App() {
   const [caixaPrivadoVisivel, setCaixaPrivadoVisivel] = useState(false);
   const [caixaModalOpen, setCaixaModalOpen] = useState(false);
   const [caixaDetailItem, setCaixaDetailItem] = useState(null);
+  const [caixaConfigReady, setCaixaConfigReady] = useState(false);
 
   const [formData, setFormData] = useState(INITIAL_FORM_DATA);
 
@@ -139,6 +140,7 @@ function App() {
 
   useEffect(() => {
     if (!user?.uid) return;
+    setCaixaConfigReady(false);
     const carregarConfig = async () => {
       try {
         const snapshot = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'caixa_config', user.uid));
@@ -150,13 +152,15 @@ function App() {
         setCaixaContratados(Array.isArray(data.contratados) ? data.contratados : []);
       } catch (error) {
         console.error('Erro ao carregar configurações do caixa:', error);
+      } finally {
+        setCaixaConfigReady(true);
       }
     };
     carregarConfig();
   }, [user?.uid]);
 
   useEffect(() => {
-    if (!user?.uid) return;
+    if (!user?.uid || !caixaConfigReady) return;
     const persistirConfig = async () => {
       try {
         await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'caixa_config', user.uid), {
@@ -172,7 +176,7 @@ function App() {
       }
     };
     persistirConfig();
-  }, [caixaCategorias, caixaFormasPagamento, caixaBancos, caixaClientes, caixaContratados, user?.uid]);
+  }, [caixaCategorias, caixaFormasPagamento, caixaBancos, caixaClientes, caixaContratados, user?.uid, caixaConfigReady]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, setUser);
