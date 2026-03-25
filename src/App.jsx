@@ -1736,7 +1736,7 @@ function App() {
       descricao: caixaForm.descricao.trim(),
       cliente: caixaForm.cliente.trim(),
       contratado: caixaForm.contratado.trim(),
-      categoria: caixaForm.categoria.trim(),
+      categoria: caixaForm.tipo === 'frete' ? (caixaForm.categoria.trim() || 'Frete') : caixaForm.categoria.trim(),
       observacao: caixaForm.observacao.trim(),
       valor: String(caixaForm.valor),
       valorFaturado: String(caixaForm.valorFaturado || ''),
@@ -2161,10 +2161,10 @@ function App() {
                     <div key={item.id} className="px-6 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
                       <div>
                         <p className="text-sm font-black text-slate-800">
-                          Carga: {item.numeroCarga || '---'} · Categoria: {item.categoria || 'Sem categoria'} · Venc: {item.vencimento ? new Date(`${item.vencimento}T12:00:00`).toLocaleDateString('pt-BR') : '---'}
+                          Carga: {item.numeroCarga || '---'} · Categoria: {item.categoria || (item.tipo === 'frete' ? 'Frete' : 'Sem categoria')} · Venc: {item.vencimento ? new Date(`${item.vencimento}T12:00:00`).toLocaleDateString('pt-BR') : '---'}
                         </p>
                         <p className="text-[10px] font-bold text-slate-500 uppercase">
-                          {item.categoria || 'Sem categoria'} · {item.tipo === 'frete'
+                          {(item.categoria || (item.tipo === 'frete' ? 'Frete' : 'Sem categoria'))} · {item.tipo === 'frete'
                             ? `Faturado: R$ ${(parseFloat(item.valorFaturado) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} · Pago: R$ ${(parseFloat(item.valorPago) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
                             : `Valor: R$ ${(parseFloat(item.valor) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
                         </p>
@@ -3089,7 +3089,7 @@ function App() {
             <Info label="Status" value={caixaDetailItem.status || ''} />
             <Info label="Número da Carga" value={caixaDetailItem.numeroCarga || ''} />
             <Info label="Mês de Referência" value={caixaDetailItem.mesReferencia || ''} />
-            <Info label="Categoria" value={caixaDetailItem.categoria || ''} />
+            <Info label="Categoria" value={caixaDetailItem.categoria || (caixaDetailItem.tipo === 'frete' ? 'Frete' : '')} />
             <Info label="Cliente" value={caixaDetailItem.cliente || ''} />
             <Info label="Contratado" value={caixaDetailItem.contratado || ''} />
             <Info label="Vencimento" value={caixaDetailItem.vencimento ? new Date(`${caixaDetailItem.vencimento}T12:00:00`).toLocaleDateString('pt-BR') : ''} />
