@@ -1696,7 +1696,7 @@ function App() {
 
   const salvarLancamentoCaixa = (e) => {
     e.preventDefault();
-    if (!caixaForm.descricao.trim()) {
+    if (caixaForm.tipo !== 'frete' && !caixaForm.descricao.trim()) {
       alert('Informe a descrição do lançamento.');
       return;
     }
@@ -2942,7 +2942,7 @@ function App() {
               </select>
             </div>
             <Input label="Mês de referência" type="month" value={caixaForm.mesReferencia} onChange={value => setCaixaForm(prev => ({ ...prev, mesReferencia: value }))} />
-            <Input label="Descrição" value={caixaForm.descricao} onChange={value => setCaixaForm(prev => ({ ...prev, descricao: value }))} />
+            {caixaForm.tipo !== 'frete' && <Input label="Descrição" value={caixaForm.descricao} onChange={value => setCaixaForm(prev => ({ ...prev, descricao: value }))} />}
             {caixaForm.tipo === 'frete' && <Input label="Número da Carga" value={caixaForm.numeroCarga} onChange={value => setCaixaForm(prev => ({ ...prev, numeroCarga: value }))} />}
             {caixaForm.tipo !== 'frete' && <Input label="Valor (R$)" type="number" value={caixaForm.valor} onChange={value => setCaixaForm(prev => ({ ...prev, valor: value }))} />}
             {caixaForm.tipo === 'frete' && <Input label="Valor Faturado (R$)" type="number" value={caixaForm.valorFaturado} onChange={value => setCaixaForm(prev => ({ ...prev, valorFaturado: value }))} />}
