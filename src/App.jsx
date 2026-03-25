@@ -399,6 +399,22 @@ function App() {
     return categoria || 'Sem categoria';
   };
 
+  const persistirConfigCaixaNoBanco = async (nextConfig = {}) => {
+    if (!user?.uid) return;
+    try {
+      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'caixa_config', user.uid), {
+        categorias: nextConfig.categorias || caixaCategorias,
+        formasPagamento: nextConfig.formasPagamento || caixaFormasPagamento,
+        bancos: nextConfig.bancos || caixaBancos,
+        clientes: nextConfig.clientes || caixaClientes,
+        contratados: nextConfig.contratados || caixaContratados,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+    } catch (error) {
+      console.error('Erro ao persistir configurações do caixa:', error);
+    }
+  };
+
   const empresasRelatorio = useMemo(() => {
     const empresas = [...new Set(viagens.map(v => v.contratante).filter(Boolean))];
     return ['Todas', ...empresas];
@@ -1692,28 +1708,38 @@ function App() {
     if (!valor) return;
 
     if (tipo === 'categoria') {
-      setCaixaCategorias(prev => prev.includes(valor) ? prev : [...prev, valor]);
+      const next = caixaCategorias.includes(valor) ? caixaCategorias : [...caixaCategorias, valor];
+      setCaixaCategorias(next);
       setCaixaForm(prev => ({ ...prev, categoria: valor }));
+      persistirConfigCaixaNoBanco({ categorias: next });
       return;
     }
     if (tipo === 'formaPagamento') {
-      setCaixaFormasPagamento(prev => prev.includes(valor) ? prev : [...prev, valor]);
+      const next = caixaFormasPagamento.includes(valor) ? caixaFormasPagamento : [...caixaFormasPagamento, valor];
+      setCaixaFormasPagamento(next);
       setCaixaForm(prev => ({ ...prev, formaPagamento: valor }));
+      persistirConfigCaixaNoBanco({ formasPagamento: next });
       return;
     }
     if (tipo === 'banco') {
-      setCaixaBancos(prev => prev.includes(valor) ? prev : [...prev, valor]);
+      const next = caixaBancos.includes(valor) ? caixaBancos : [...caixaBancos, valor];
+      setCaixaBancos(next);
       setCaixaForm(prev => ({ ...prev, banco: valor }));
+      persistirConfigCaixaNoBanco({ bancos: next });
       return;
     }
     if (tipo === 'cliente') {
-      setCaixaClientes(prev => prev.includes(valor) ? prev : [...prev, valor]);
+      const next = caixaClientes.includes(valor) ? caixaClientes : [...caixaClientes, valor];
+      setCaixaClientes(next);
       setCaixaForm(prev => ({ ...prev, cliente: valor }));
+      persistirConfigCaixaNoBanco({ clientes: next });
       return;
     }
     if (tipo === 'contratado') {
-      setCaixaContratados(prev => prev.includes(valor) ? prev : [...prev, valor]);
+      const next = caixaContratados.includes(valor) ? caixaContratados : [...caixaContratados, valor];
+      setCaixaContratados(next);
       setCaixaForm(prev => ({ ...prev, contratado: valor }));
+      persistirConfigCaixaNoBanco({ contratados: next });
     }
   };
 
@@ -1751,8 +1777,13 @@ function App() {
         alert('Informe o valor pago do frete.');
         return;
       }
-      setCaixaClientes(prev => prev.includes(caixaForm.cliente.trim()) ? prev : [...prev, caixaForm.cliente.trim()]);
-      setCaixaContratados(prev => prev.includes(caixaForm.contratado.trim()) ? prev : [...prev, caixaForm.contratado.trim()]);
+      const clienteNovo = caixaForm.cliente.trim();
+      const contratadoNovo = caixaForm.contratado.trim();
+      const nextClientes = caixaClientes.includes(clienteNovo) ? caixaClientes : [...caixaClientes, clienteNovo];
+      const nextContratados = caixaContratados.includes(contratadoNovo) ? caixaContratados : [...caixaContratados, contratadoNovo];
+      setCaixaClientes(nextClientes);
+      setCaixaContratados(nextContratados);
+      await persistirConfigCaixaNoBanco({ clientes: nextClientes, contratados: nextContratados });
     } else if (!(parseFloat(caixaForm.valor) > 0)) {
       return;
     }
