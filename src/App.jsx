@@ -117,6 +117,7 @@ function App() {
   const [caixaClientes, setCaixaClientes] = useState([]);
   const [caixaContratados, setCaixaContratados] = useState([]);
   const [caixaMesFiltro, setCaixaMesFiltro] = useState('');
+  const [caixaStatusFiltro, setCaixaStatusFiltro] = useState('');
   const [caixaPrivadoVisivel, setCaixaPrivadoVisivel] = useState(false);
   const [caixaModalOpen, setCaixaModalOpen] = useState(false);
   const [caixaDetailItem, setCaixaDetailItem] = useState(null);
@@ -389,9 +390,27 @@ function App() {
   }, [caixaLancamentos]);
 
   const caixaLancamentosFiltrados = useMemo(() => {
-    if (!caixaMesFiltro) return caixaLancamentos;
-    return caixaLancamentos.filter(item => item.mesReferencia === caixaMesFiltro);
-  }, [caixaLancamentos, caixaMesFiltro]);
+    const lista = caixaLancamentos
+      .filter(item => {
+        if (caixaMesFiltro && item.mesReferencia !== caixaMesFiltro) return false;
+        if (caixaStatusFiltro && item.status !== caixaStatusFiltro) return false;
+        return true;
+      })
+      .sort((a, b) => {
+        if (a.tipo === 'frete' && b.tipo === 'frete') {
+          const cargaA = (a.numeroCarga || '').trim();
+          const cargaB = (b.numeroCarga || '').trim();
+          const porCarga = cargaA.localeCompare(cargaB, 'pt-BR', { numeric: true, sensitivity: 'base' });
+          if (porCarga !== 0) return porCarga;
+        }
+
+        const aTs = a.createdAt?.seconds || 0;
+        const bTs = b.createdAt?.seconds || 0;
+        return bTs - aTs;
+      });
+
+    return lista;
+  }, [caixaLancamentos, caixaMesFiltro, caixaStatusFiltro]);
   const getCategoriaLancamentoCaixa = (item) => {
     const categoria = (item?.categoria || '').trim();
     const categoriaNormalizada = categoria.toLowerCase();
@@ -2236,6 +2255,11 @@ function App() {
                     <select className="px-3 py-2 bg-slate-100 rounded-lg text-[10px] font-black uppercase outline-none" value={caixaMesFiltro} onChange={(e) => setCaixaMesFiltro(e.target.value)}>
                       <option value="">Todos os meses</option>
                       {caixaMesesReferencia.map(mes => <option key={`mes-${mes}`} value={mes}>{mes}</option>)}
+                    </select>
+                    <select className="px-3 py-2 bg-slate-100 rounded-lg text-[10px] font-black uppercase outline-none" value={caixaStatusFiltro} onChange={(e) => setCaixaStatusFiltro(e.target.value)}>
+                      <option value="">Todos os status</option>
+                      <option value="pendente">Pendentes</option>
+                      <option value="pago">Pagos</option>
                     </select>
                     <button type="button" onClick={baixarPdfCaixa} className="inline-flex items-center gap-1 px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-[10px] font-black uppercase">
                       <Download size={12} /> PDF
