@@ -366,25 +366,6 @@ function App() {
     return { faturou, gastouDistribuicao, lucroTotal };
   }, [dashboardFinanceiroBase]);
 
-  const caixaResumo = useMemo(() => {
-    return caixaLancamentos.reduce((acc, item) => {
-      const valor = parseFloat(item.valor) || 0;
-      const faturado = parseFloat(item.valorFaturado) || 0;
-      const pago = parseFloat(item.valorPago) || 0;
-
-      if (item.tipo === 'receber') acc.totalReceber += valor;
-      if (item.tipo === 'pagar') acc.totalPagar += valor;
-      if (item.tipo === 'frete') {
-        acc.totalReceber += faturado;
-        acc.totalPagar += pago;
-      }
-      if (item.status === 'pendente') acc.pendentes += 1;
-      if (item.status === 'pago') acc.pagos += 1;
-      return acc;
-    }, { totalReceber: 0, totalPagar: 0, pendentes: 0, pagos: 0 });
-  }, [caixaLancamentos]);
-
-  const caixaSaldoProjetado = caixaResumo.totalReceber - caixaResumo.totalPagar;
   const caixaMesesReferencia = useMemo(() => {
     return [...new Set(caixaLancamentos.map(item => item.mesReferencia).filter(Boolean))].sort();
   }, [caixaLancamentos]);
@@ -411,6 +392,27 @@ function App() {
 
     return lista;
   }, [caixaLancamentos, caixaMesFiltro, caixaStatusFiltro]);
+
+
+  const caixaResumo = useMemo(() => {
+    return caixaLancamentosFiltrados.reduce((acc, item) => {
+      const valor = parseFloat(item.valor) || 0;
+      const faturado = parseFloat(item.valorFaturado) || 0;
+      const pago = parseFloat(item.valorPago) || 0;
+
+      if (item.tipo === 'receber') acc.totalReceber += valor;
+      if (item.tipo === 'pagar') acc.totalPagar += valor;
+      if (item.tipo === 'frete') {
+        acc.totalReceber += faturado;
+        acc.totalPagar += pago;
+      }
+      if (item.status === 'pendente') acc.pendentes += 1;
+      if (item.status === 'pago') acc.pagos += 1;
+      return acc;
+    }, { totalReceber: 0, totalPagar: 0, pendentes: 0, pagos: 0 });
+  }, [caixaLancamentosFiltrados]);
+
+  const caixaSaldoProjetado = caixaResumo.totalReceber - caixaResumo.totalPagar;
   const getCategoriaLancamentoCaixa = (item) => {
     const categoria = (item?.categoria || '').trim();
     const categoriaNormalizada = categoria.toLowerCase();
